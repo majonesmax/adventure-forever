@@ -2,6 +2,19 @@
 
 ![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
 
+## ⬇️ Download
+
+| | |
+|---|---|
+| **macOS** (Apple Silicon: M1 and later) | [Adventure-Forever-macos-arm64.zip](https://github.com/majonesmax/adventure-forever/releases/latest/download/Adventure-Forever-macos-arm64.zip) |
+| **Windows** (64-bit) | [Adventure-Forever-windows-x64.zip](https://github.com/majonesmax/adventure-forever/releases/latest/download/Adventure-Forever-windows-x64.zip) |
+
+Unzip, start **Adventure Forever**, and drag your own Adventure ROM onto the window the first time (it's
+remembered; the ROM isn't included). The apps aren't signed, so the first launch needs one extra click:
+macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway**. All versions and release notes:
+[Releases](https://github.com/majonesmax/adventure-forever/releases). Linux or an Intel Mac:
+[run it from source](#running-it-from-source-macos-windows-linux).
+
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in two new **looks**:
 
@@ -43,12 +56,6 @@ slide, so the game's timing is untouched too.
 | `tests/` | checks against the real emulator, including pixel-exact "golden" tests of every look |
 
 **[How it all fits together →](docs/ARCHITECTURE.md)** (or the one-page version: [SHUT-UP-NERD.md](SHUT-UP-NERD.md))
-
-## Download and play
-
-Ready-to-run downloads for macOS, Windows and Linux are on the Releases page. Unzip, start
-"Adventure Forever", and drag your Adventure ROM onto the window the first time (it's remembered). The
-README.txt inside each download explains the first-launch warnings of unsigned apps.
 
 ## Running it from source (macOS, Windows, Linux)
 
