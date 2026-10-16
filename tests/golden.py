@@ -2,8 +2,9 @@
 
 Builds a fixed set of game moments from the real emulator (boot, reset, then objects placed by writing RAM),
 renders each in every look with every cast and world (keys like "nes", "snes+classic", "nes@pbj" - see
-looks/base.py), and compares a SHA-256 of each screen with tests/golden_hashes.json. Only
-hashes are stored - no pictures of the game (whose walls come from the ROM) end up in the repository.
+looks/base.py), and compares a SHA-256 of each screen with tests/golden_hashes.json. Only hashes are
+stored: the tests keep no pictures of the game (whose walls and graphics come from the ROM) - the one gameplay
+clip in the repository is the README's demo GIF.
 
 Needs roms/adventure.a26 and the Stella core (cores/), so it runs locally, not in CI.
 The references were made with the Stella core 8.0_pre b52ccb02e (tools/get_core.py fetches the newest
