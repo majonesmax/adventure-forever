@@ -1,0 +1,22 @@
+# personal and third-party material - never published
+private/
+roms/
+music/*.nsf
+music/*.wav
+cores/
+STATE.md
+
+# generated / local
+rooms.json
+recordings/
+shots/
+package/build/
+package/dist/
+package/stage/
+lib/
+__pycache__/
+.venv/
+.DS_Store
+
+# a local art workspace (drafts, candidates)
+art/

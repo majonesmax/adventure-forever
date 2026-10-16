@@ -1,0 +1,28 @@
+{
+  "name": "PBJ AND FRIENDS",
+  "cast": {
+    "win_lines": ["WOOF! WOOF! PBJ!", "THE STORYBOOK", "IS HOME!"],
+    "title_cast": ["hero_down_0", "messenger"],
+    "foot_gap": 1
+  },
+  "world": {
+    "name": "THE SWEET KINGDOMS",
+    "title_small": "FOREVER",
+    "footer": "ADVENTURE FOREVER",
+    "areas": {
+      "meadow":              {"theme": "grass",    "name": "THE MEADOW"},
+      "gold_castle":         {"theme": "candy",    "name": "GUMDROP HILLS"},
+      "gold_castle_inside":  {"theme": "candy_in", "name": "GUMDROP CASTLE"},
+      "labyrinth":           {"theme": "forest",   "name": "DARK FOREST"},
+      "catacombs":           {"theme": "crypt",    "name": "THE CRYPT"},
+      "white_castle":        {"theme": "ice",      "name": "FROSTHOLD"},
+      "white_castle_inside": {"theme": "ice_in",   "name": "FROST CASTLE"},
+      "black_castle":        {"theme": "fire",     "name": "EMBER KEEP"},
+      "black_castle_inside": {"theme": "fire_in",  "name": "EMBER CASTLE"},
+      "black_maze":          {"theme": "fire",     "name": "FLAME CAVES"},
+      "red_maze":            {"theme": "dungeon",  "name": "DUNGEON"},
+      "purple_room":         {"theme": "crystal",  "name": "CRYSTAL CAVE"},
+      "credit_room":         {"theme": "secret",   "name": "CRYSTAL CAVE"}
+    }
+  }
+}

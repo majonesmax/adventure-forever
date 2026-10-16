@@ -1,0 +1,14 @@
+{
+  "name": "TEMPLATE",
+  "cast": {
+    "name": "TEMPLATE CAST",
+    "win_lines": ["YOU WIN!", "THE CHALICE", "IS HOME!"],
+    "title_cast": ["hero_down_0"],
+    "foot_gap": 1
+  },
+  "world": {
+    "name": "TEMPLATE WORLD",
+    "title_small": "TEMPLATE",
+    "footer": "A TEMPLATE PACK"
+  }
+}

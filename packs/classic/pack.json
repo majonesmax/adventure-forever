@@ -1,0 +1,30 @@
+{
+  "name": "CLASSIC",
+  "cast": {
+    "name": "THE KNIGHT",
+    "win_lines": ["YOU WIN!", "THE CHALICE", "IS HOME!"],
+    "title_cast": ["hero_down_0", "dragon_normal_yellow"],
+    "foot_gap": 0
+  },
+  "world": {
+    "name": "THE CASTLES",
+    "title_small": "FOREVER",
+    "footer": "ADVENTURE FOREVER",
+    "outline": [0, 0, 0],
+    "shadow": 0.6,
+    "areas": {
+      "default":             {"wall": "wall_gold",   "floor": "floor_sand"},
+      "meadow":              {"wall": "wall_hedge"},
+      "labyrinth":           {"wall": "wall_blue"},
+      "catacombs":           {"wall": "wall_dark",   "floor": "floor_cave"},
+      "white_castle":        {"wall": "wall_white"},
+      "white_castle_inside": {"wall": "wall_red",    "floor": "floor_flag"},
+      "black_castle":        {"wall": "wall_black"},
+      "black_castle_inside": {"wall": "wall_red",    "floor": "floor_flag"},
+      "black_maze":          {"wall": "wall_dark",   "floor": "floor_cave"},
+      "red_maze":            {"wall": "wall_red",    "floor": "floor_flag"},
+      "purple_room":         {"wall": "wall_purple"},
+      "credit_room":         {"wall": "wall_purple"}
+    }
+  }
+}
