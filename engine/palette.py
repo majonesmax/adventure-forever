@@ -4,7 +4,7 @@ loads at $F13C (`lda #$08`) for each colour in turn; we run a few frames and sam
 Each colour is probed in its own process: the Stella core keeps global state and does not survive being
 unloaded and re-loaded many times in one process (that gave random black entries).
 
-Usage: .venv/bin/python palette.py <scratch dir>   -> writes palette_ntsc.json (colour byte -> [r, g, b])
+Usage: python palette.py <scratch dir>   -> writes palette_ntsc.json (colour byte -> [r, g, b])
 """
 
 import json

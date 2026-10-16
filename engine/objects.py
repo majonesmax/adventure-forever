@@ -11,7 +11,7 @@ Graphic: bytes from the top down, ending at a 0 byte; bit 7 is the leftmost pixe
 
 The RAM byte $9D (carried) and the game's own object loops use object number * 9.
 
-Usage: .venv/bin/python objects.py   -> prints every object's graphics as ASCII
+Usage: python objects.py   -> prints every object's graphics as ASCII
 """
 
 import os

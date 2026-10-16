@@ -4,7 +4,7 @@ the game is complete: tests/verify_render.py compares it pixel for pixel with th
 Differences from the real thing, on purpose: every object in the room is drawn every frame (the 2600 can only
 draw two per frame and takes turns - the flicker), and carried items are drawn at hero + carry offset.
 
-Usage: .venv/bin/python tools/rebuild_2600.py      the emulator (left) beside the rebuild (right)
+Usage: python tools/rebuild_2600.py      the emulator (left) beside the rebuild (right)
 Keys: arrows + space = joystick, Tab = GAME SELECT, Enter = RESET, L = labels/boxes overlay,
       D = diff view (red = pixels where we disagree with the emulator), P = pause, Esc = quit.
 """
@@ -16,6 +16,7 @@ import numpy as np
 import pygame
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, when run as a script
+from app.fonts import mono
 from engine import emulator as h
 from engine import objects as O
 from engine import paths
@@ -123,7 +124,7 @@ def main():
     sx, sy = 6, 3  # 160x228 -> 960x684 per side (2600 pixels are wide)
     screen = pygame.display.set_mode((FRAME_W * sx * 2 + 16, FRAME_H * sy + 40))
     pygame.display.set_caption("Adventure - emulator (left) vs our re-render (right)")
-    font = pygame.font.SysFont("menlo", 14)
+    font = mono(14)
     joymap = {pygame.K_UP: h.JOY_UP, pygame.K_DOWN: h.JOY_DOWN, pygame.K_LEFT: h.JOY_LEFT,
               pygame.K_RIGHT: h.JOY_RIGHT, pygame.K_SPACE: h.JOY_B, pygame.K_TAB: h.JOY_SELECT,
               pygame.K_RETURN: h.JOY_START}

@@ -6,15 +6,16 @@ Where each area's music comes from (first file found wins):
                                           "win": {"file": "music/win.wav"},              a WAV file
                                           "dungeon": {"song": "dungeon"}, ...}           a built-in song
   otherwise                               the built-in original chiptune songs (chiptune.py) - no files needed
-NSF tracks are played by game-music-emu (libgme, `brew install game-music-emu`) through ctypes, opened at the
+NSF tracks are played by game-music-emu (libgme: macOS `brew install game-music-emu`, Linux your package manager) through ctypes, opened at the
 emulator's sample rate (31440 Hz) so samples add straight onto the 2600's.
 
-Usage: .venv/bin/python music.py --survey FILE.nsf          # length + loudness of every track
-       .venv/bin/python music.py --play FILE.nsf N [secs]   # listen to track N (1-based)
-       .venv/bin/python music.py --audition FILE.nsf N...   # 10 s of each listed track
+Usage: python music.py --survey FILE.nsf          # length + loudness of every track
+       python music.py --play FILE.nsf N [secs]   # listen to track N (1-based)
+       python music.py --audition FILE.nsf N...   # 10 s of each listed track
 """
 
 import ctypes as C
+import ctypes.util
 import os
 import sys
 
@@ -24,17 +25,18 @@ from engine import paths
 
 HERE = paths.ROOT
 NSF = None  # no NSF by default - see the music config above
-LIB_PATHS = [os.path.join(HERE, "lib", "libgme.dylib"), "/opt/homebrew/lib/libgme.dylib", "/usr/local/lib/libgme.dylib"]
+GME_FILE = {"macos": "libgme.dylib", "windows": "gme.dll", "linux": "libgme.so"}[paths.SYSTEM]
+LIB_PATHS = [os.path.join(HERE, "lib", GME_FILE),                     # bundled with a personal app build
+             "/opt/homebrew/lib/libgme.dylib", "/usr/local/lib/libgme.dylib"]  # Homebrew (macOS)
 RATE = 31440
 
 
 def _lib():
-    for p in LIB_PATHS:
-        if os.path.exists(p):
-            lib = C.CDLL(p)
-            break
-    else:
-        raise OSError("libgme not found - brew install game-music-emu")
+    found = [p for p in LIB_PATHS if os.path.exists(p)] or [ctypes.util.find_library("gme")]
+    if not found[0]:
+        raise OSError("libgme not found - install game-music-emu (macOS: brew install game-music-emu; "
+                      "Linux: your package manager's libgme)")
+    lib = C.CDLL(found[0])
     lib.gme_open_file.restype = C.c_char_p
     lib.gme_open_file.argtypes = [C.c_char_p, C.POINTER(C.c_void_p), C.c_int]  # (path, out, rate)
     lib.gme_track_count.argtypes = [C.c_void_p]

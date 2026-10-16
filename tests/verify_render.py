@@ -3,7 +3,7 @@
 'errors' = pixels the emulator shows that we don't (ignoring the thin-wall columns); 'flicker' = pixels we
 draw where the emulator shows floor this frame (objects the 2600 skipped). Saves the worst frames.
 
-Usage: .venv/bin/python verify_render.py [outdir]   (default shots/render)
+Usage: python verify_render.py [outdir]   (default shots/render)
 """
 
 import os

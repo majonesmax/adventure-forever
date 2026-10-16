@@ -96,11 +96,11 @@ Whatever a cast or world leaves out is the original 2600 graphic. What each look
 ## Checking your changes
 
 ```sh
-.venv/bin/python tests/golden.py          # every look, with every cast in every world, draws the same pixels
-.venv/bin/python tests/verify_ram.py      # the RAM map matches the running game
-.venv/bin/python tests/verify_rooms.py    # the walls decoded from the ROM match the real picture
-.venv/bin/python tests/verify_exits.py    # walking off each edge leads where rooms.py says
-.venv/bin/python tests/verify_render.py   # the rebuilt 2600 picture matches the emulator's
+python tests/golden.py          # every look, with every cast in every world, draws the same pixels
+python tests/verify_ram.py      # the RAM map matches the running game
+python tests/verify_rooms.py    # the walls decoded from the ROM match the real picture
+python tests/verify_exits.py    # walking off each edge leads where rooms.py says
+python tests/verify_render.py   # the rebuilt 2600 picture matches the emulator's
 ```
 
 `golden.py --update` accepts new pictures when you change a look on purpose. These checks need your ROM and

@@ -2,7 +2,7 @@
 Wall colours are the real ones, sampled from the frames verify_rooms.py saved (shots/rooms/room_XX.png);
 the dark rooms (catacombs, black maze) get a dark grey so their layout shows.
 
-Usage: .venv/bin/python room_sheet.py  -> shots/room_sheet.png
+Usage: python room_sheet.py  -> shots/room_sheet.png
 """
 
 import os

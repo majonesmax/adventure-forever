@@ -41,25 +41,36 @@ slide, so the game's timing is untouched too.
 
 **[How it all fits together →](docs/ARCHITECTURE.md)** (or the one-page version: [SHUT-UP-NERD.md](SHUT-UP-NERD.md))
 
-## Running it (macOS, Apple Silicon)
+## Download and play
+
+Ready-to-run downloads for macOS, Windows and Linux are on the Releases page. Unzip, start
+"Adventure Forever", and drag your Adventure ROM onto the window the first time (it's remembered). The
+README.txt inside each download explains the first-launch warnings of unsigned apps.
+
+## Running it from source (macOS, Windows, Linux)
+
+Needs Python 3.10 or newer.
 
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-tools/get_core.sh                          # downloads the Stella libretro core into cores/
-cp /path/to/adventure.a26 roms/            # your own ROM (4096 bytes)
-.venv/bin/python play.py                   # or: play.py --look snes --cast classic / --grid / --list / --help
+python -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python tools/get_core.py               # downloads the Stella emulator core for your system into cores/
+python play.py                         # drag your ROM onto the window the first time - or: python play.py path/to/adventure.a26
 ```
 
-Without `roms/adventure.a26`, the game asks for the ROM once in a Finder dialog and remembers it.
+More: `python play.py --list` (the looks and packs), `--look snes --cast classic`, `--grid`, `--help`.
+On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 
 **Keys:** arrows + space = joystick, Tab = game select (games 1–3), Enter = reset/start,
 **L** = look (NES → SNES), **C** = cast, **W** = world (classic → pbj → yours; an overlay names
 what's on screen; **I** shows it any time),
-**V** = view (side by side → remaster only → 2600 only → grid),
+**V** = view (side by side → remaster only → 2600 only → grid), **F** = fullscreen (or resize the window),
 T = room scrolls on/off, M / − / = = music on/off and volume, N = next music source, S = screenshot,
-R = record, P = pause, Esc = quit.
+R = record (needs ffmpeg), D = debug line (with the game's measured speed), P = pause, Esc = quit.
 
-`package/build_app.sh` builds a standalone macOS app (`Adventure Forever.app`).
+**Building the downloads:** `python package/build.py` on each system makes that system's download in
+`package/dist/` (PyInstaller can't build for another system, so the Windows one is built on Windows).
 
 ## Music
 
@@ -73,7 +84,7 @@ file:
 
 Areas not listed fall silent; N switches between your config and the built-in songs.
 `python -m engine.music --survey FILE.nsf` lists an NSF's tracks; NSF playback needs
-`brew install game-music-emu`.
+game-music-emu (macOS: `brew install game-music-emu`; Linux: your package manager's libgme).
 
 ## Make your own look or cast
 

@@ -10,7 +10,7 @@
      then one concat, where the audio is encoded once. The audio is pulled earlier by the take's own measured
      lag (measure_audio_lead), or edit.json's "audio_lead".
 
-Usage: .venv/bin/python make_video.py recordings/<take> [-o out.mp4]
+Usage: python make_video.py recordings/<take> [-o out.mp4]
 
 edit.json:
   {"keep": [[from, to], ...],                       source seconds on the wall clock (log.jsonl 't')

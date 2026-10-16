@@ -2,12 +2,12 @@
 pictures (a hero, and one dragon in two poses). This script is how those pictures were made - drawn as text,
 one character per pixel, "." = transparent - so they're easy to read and edit:
 
-    .venv/bin/python packs/template/source/template_sprites.py   -> packs/template/cast/*.png
+    python packs/template/source/template_sprites.py   -> packs/template/cast/*.png
 
 You don't need a script: draw the PNGs in any pixel-art editor. To start your own pack, copy the folder:
 
     cp -r packs/template private/packs/mine        # private/ is git-ignored
-    .venv/bin/python play.py --pack mine
+    python play.py --pack mine
 
 The full list of pictures a pack can have, and what pack.json can say: content/cast.py and content/world.py.
 """

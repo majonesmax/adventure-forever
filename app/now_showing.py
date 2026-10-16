@@ -8,6 +8,8 @@ import time
 
 import pygame
 
+from app.fonts import mono
+
 SHOW_FOR = 2.5  # seconds fully visible
 FADE_FOR = 0.6  # then fading out
 ROWS = (("look", "LOOK"), ("cast", "CAST"), ("world", "WORLD"))
@@ -16,8 +18,8 @@ LABEL, TEXT, CHANGED, HINT = (150, 150, 175), (235, 235, 245), (248, 200, 72), (
 
 class NowShowing:
     def __init__(self):
-        self.font = pygame.font.SysFont("menlo", 18, bold=True)
-        self.small = pygame.font.SysFont("menlo", 13)
+        self.font = mono(18, bold=True)
+        self.small = mono(13)
         self.shown_at, self.changed = None, None
 
     def show(self, changed=None):

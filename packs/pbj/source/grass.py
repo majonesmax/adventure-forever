@@ -3,7 +3,7 @@ greens. D = dark, G and g = mid, L = light.
 
 It was first generated with Stable Diffusion; this text art is the source now.
 
-Usage: .venv/bin/python packs/pbj/source/grass.py   -> packs/pbj/world/grass.png
+Usage: python packs/pbj/source/grass.py   -> packs/pbj/world/grass.png
 """
 
 import os

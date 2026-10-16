@@ -16,6 +16,7 @@ one, so the grid compares consoles.
     6. pace       vsync on a ~60 Hz display, else a timer at the game's frame rate
 """
 
+import collections
 import os
 import time
 
@@ -26,6 +27,7 @@ from PIL import Image
 import content
 import looks
 from app import debug_panel as DP
+from app.fonts import mono
 from app.now_showing import NowShowing
 from app import recorder as REC
 from app import transitions as TR
@@ -46,7 +48,7 @@ KEYS = {  # window commands -> GameWindow method
     pygame.K_t: "toggle_scrolls", pygame.K_p: "toggle_pause",
     pygame.K_m: "toggle_music", pygame.K_MINUS: "music_quieter", pygame.K_EQUALS: "music_louder",
     pygame.K_n: "next_music_source", pygame.K_s: "screenshot", pygame.K_r: "toggle_recording",
-    pygame.K_d: "toggle_debug_line", pygame.K_i: "show_info"}
+    pygame.K_d: "toggle_debug_line", pygame.K_i: "show_info", pygame.K_f: "toggle_fullscreen"}
 
 VIEWS = ("both", "look", "2600", "grid")
 CAPTIONS = {"both": "Adventure Forever - remaster (left) and the 2600 original (right)",
@@ -57,6 +59,7 @@ SIDE_SCALE = 2     # the 2600 picture beside it: 160x228 -> 2x wide (its pixels 
 SOLO_SCALE = 3     # the 2600 picture alone: 160x228 -> 960x684
 QUAD = (512, 480)  # grid: each quadrant is a 256x240 screen at x2 -> a 1024x960 window
 BACKGROUND = (16, 16, 24)
+FIT = 0.9  # a new window takes at most this share of the screen's width and height
 
 
 class GameWindow:
@@ -101,8 +104,8 @@ class GameWindow:
         self.panel = DP.DebugPanel(QUAD)
         self.recorder = REC.Recorder(paths.RECORDINGS, rate)
         self.audio.tap, self.panel.listener = self.recorder.audio_tap, self.recorder.event
-        self.font = pygame.font.SysFont("menlo", 14)
-        self.tag_font = pygame.font.SysFont("menlo", 12, bold=True)
+        self.font = mono(14)
+        self.tag_font = mono(12, bold=True)
         self.now_showing = NowShowing()
         self.now_showing.show()  # say what's on screen at the start
 
@@ -113,6 +116,8 @@ class GameWindow:
         self.pictures = {}
         self.music_area = None
         self.frame_no, self.render_ms = 0, []
+        self.frame_times = collections.deque(maxlen=121)  # when each of the last game frames ran: the real fps
+        self.fullscreen = False
         self.vsync = False
         self.screen = self.set_mode()
         rates = pygame.display.get_desktop_refresh_rates() if hasattr(pygame.display, "get_desktop_refresh_rates") else []
@@ -178,6 +183,7 @@ class GameWindow:
     def step_game(self):
         """One emulator frame - unless paused, or while a scroll slides (the game simply waits for it)."""
         if not self.paused and not self.scrolls:
+            self.frame_times.append(time.perf_counter())
             self.core.run()
             self.audio.push(self.core.take_audio())  # the music is added by the sound card's callback, not here
             self.frame_no += 1
@@ -221,7 +227,7 @@ class GameWindow:
 
     def show(self):
         main_w, main_h = L.SCREEN_W * SCALE, L.SCREEN_H * SCALE
-        screen = self.screen
+        screen = self.canvas
         screen.fill(BACKGROUND)
         if self.view == "grid":
             top, bottom = self.grid_looks()
@@ -247,30 +253,44 @@ class GameWindow:
         if self.debug:
             st, a = self.st, self.audio
             carried = O.NAMES.get(st.carried) if st.carried != 0x12 else "-"
-            info = (f"room ${st.room_num:02X} {st.room['name']}   hero {st.hero[0]:02X},{st.hero[1]:02X}   "
-                    f"carrying {carried}   render {np.mean(self.render_ms):.1f} ms   "
+            t = self.frame_times
+            fps = (len(t) - 1) / (t[-1] - t[0]) if len(t) > 1 and t[-1] > t[0] else 0.0
+            info = (f"game {fps:4.1f} fps   room ${st.room_num:02X} {st.room['name']}   "
+                    f"hero {st.hero[0]:02X},{st.hero[1]:02X}   carrying {carried}   "
+                    f"render {np.mean(self.render_ms):.1f} ms   "
                     f"2600 audio missing {a.missing} dropped {a.dropped}  card dropouts {a.xruns}")
             screen.blit(self.font.render(info, True, (200, 200, 220)), (8, main_h + 4))
+        if screen is not self.screen:  # a small screen: the canvas shrunk into the window
+            pygame.transform.smoothscale(screen, self.screen.get_size(), self.screen)
         pygame.display.flip()
 
     def set_mode(self):
-        """The window for the current view, with vsync (flip waits for the display's refresh - no tearing,
-        which room scrolls made obvious). pygame-ce only offers vsync with SCALED/OPENGL; fall back to a
-        plain window if refused."""
+        """The window for the current view. Each view is drawn at a fixed size (self.canvas) and shown scaled
+        to the window (SCALED): it can be resized or made fullscreen (F), the picture keeping its shape with
+        bars around it. On a screen too small for the view, the window opens at a size that fits (FIT) and
+        the canvas is shrunk into it each frame. Vsync where the system offers it (flip waits for the
+        display's refresh - no tearing, which room scrolls made obvious)."""
         main_w, main_h = L.SCREEN_W * SCALE, L.SCREEN_H * SCALE
         width = {"both": main_w + 16 + 160 * SIDE_SCALE * 2, "look": main_w, "2600": 160 * SOLO_SCALE * 2,
                  "grid": 2 * QUAD[0]}[self.view]
         height = 2 * QUAD[1] if self.view == "grid" else main_h
         size = (width, height + (24 if self.debug else 0))
+        screen_w, screen_h = pygame.display.get_desktop_sizes()[0]
+        k = min(1.0, FIT * screen_w / size[0], FIT * screen_h / size[1])
+        shown = (int(size[0] * k), int(size[1] * k))
         pygame.display.set_caption(CAPTIONS[self.view])
+        flags = pygame.SCALED | pygame.RESIZABLE
         try:
-            surf = pygame.display.set_mode(size, pygame.SCALED, vsync=1)
+            surf = pygame.display.set_mode(shown, flags, vsync=1)
             self.vsync = True
-            return surf
         except pygame.error as err:
             print(f"vsync unavailable ({err}); expect some tearing", flush=True)
+            surf = pygame.display.set_mode(shown, flags)
             self.vsync = False
-            return pygame.display.set_mode(size)
+        self.canvas = surf if k == 1.0 else pygame.Surface(size)
+        if self.fullscreen:
+            pygame.display.toggle_fullscreen()
+        return surf
 
     # ---- window commands (KEYS) ----------------------------------------------------------------------------
 
@@ -291,6 +311,11 @@ class GameWindow:
         self.world_key = following(self.world_keys, self.world_key or self.look.world.key)
         self.now_showing.show("world")
         print(f"world: {self.look.world.name} ({self.look.key})", flush=True)
+
+    def toggle_fullscreen(self):
+        """F: fullscreen on / off (the picture keeps its shape)."""
+        self.fullscreen = not self.fullscreen
+        pygame.display.toggle_fullscreen()
 
     def show_info(self):
         """I: the overlay naming the look, cast and world, without changing anything."""
@@ -337,7 +362,7 @@ class GameWindow:
         picture = self.pictures.get(self.look, next(iter(self.pictures.values())))
         Image.fromarray(picture).save(os.path.join(paths.SCREENSHOTS, f"{stamp}_{self.look.key}.png"))
         if self.view == "grid":
-            pygame.image.save(self.screen, os.path.join(paths.SCREENSHOTS, f"{stamp}_grid.png"))
+            pygame.image.save(self.canvas, os.path.join(paths.SCREENSHOTS, f"{stamp}_grid.png"))
         Image.fromarray(self.core.frame).save(os.path.join(paths.SCREENSHOTS, f"{stamp}_2600.png"))
         np.save(os.path.join(paths.SCREENSHOTS, f"{stamp}_ram.npy"), self.core.ram.copy())
         print("saved", stamp, flush=True)
@@ -352,7 +377,7 @@ class GameWindow:
         game = self.st.game if self.st else 1
         where = self.recorder.start({"game": game}, streams)
         print(f"recording to {where}" if where else
-              "can't record: ffmpeg isn't installed (brew install ffmpeg)", flush=True)
+              "can't record: ffmpeg isn't installed (https://ffmpeg.org/download.html)", flush=True)
 
     def stop_recording(self):
         if self.recorder.active:

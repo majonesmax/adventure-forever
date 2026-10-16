@@ -15,8 +15,8 @@ returns a 256x240 picture.
 
 ```sh
 cp looks/template_look.py looks/my_look.py
-.venv/bin/python play.py --look template                          # with its own cast and world
-.venv/bin/python play.py --look template --cast pbj --world pbj   # ... and with others
+python play.py --look template                          # with its own cast and world
+python play.py --look template --cast pbj --world pbj   # ... and with others
 ```
 
 The template is about 60 lines. It's a `RoomLook`, which means the hard part is already done: the world's

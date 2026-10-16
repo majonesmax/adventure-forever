@@ -65,6 +65,17 @@ shows which three are on screen.
   its logic once per frame, so the frame boundary is where the state is complete: sampling faster would catch
   half-updated state, and slower would miss frames. We never write RAM during play (only the tests do, to set
   up scenes).
+- **Speed: the emulator has no clock; we do.** `retro_run()` emulates one frame - 1/60 s of the game's
+  time, beam and all, cycle by cycle - in about a millisecond, then returns. Real time is set entirely outside
+  the emulator, by how often we call it:
+  - on a ~60 Hz display, the display's vsync paces it: one game frame per refresh, no tearing;
+  - on any other display (120/144 Hz), or without vsync, a timer does, so a fast monitor never means a fast
+    game;
+  - if a frame ever takes longer than 1/60 s to draw (a weak machine), the game slows down rather than
+    skipping frames, so the game's world and the picture stay one-to-one;
+  - the core runs at exactly 60.0 frames per second; a real NTSC 2600 ran at about 59.92, so we're 0.13%
+    faster (about 5 seconds an hour), as RetroArch is on a 60 Hz screen.
+  The debug line (**D**) shows the measured game speed, so anyone can check it on their own machine.
 - **Verified, not assumed.** `tests/verify_render.py` rebuilds the 2600 picture purely from our RAM snapshots
   and compares it with Stella's: 372 frames, 34 differing by 191 pixels in total (a known baseline), the rest
   exact. `verify_ram`, `verify_rooms` and `verify_exits` check the address map, walls and exits against the
@@ -89,9 +100,10 @@ shows which three are on screen.
 | `shared/` | room layout geometry, pixel-art helpers, palettes, the pixel font |
 | `app/` | the window: views, room scrolls, the RAM panel, the overlay, recording |
 | `tools/` | video editor, 2600-picture rebuild, RAM viewer |
+| `package/` | `build.py`: the download for the system it runs on (app + README + licences, Stella's GPL source link) |
 | `tests/` | checks against the real emulator; `golden.py` renders every look × cast × world and compares hashes |
 
-Not in the repository: your ROM, the emulator core (`tools/get_core.sh`), and `private/` (personal packs,
+Not in the repository: your ROM, the emulator core (`tools/get_core.py`), and `private/` (personal packs,
 personal music, the old AI art tools).
 
 ## Extend it

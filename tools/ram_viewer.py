@@ -1,7 +1,7 @@
 """The first tool of the project: play Adventure in the raw emulator with a live RAM panel beside it -
 handy for watching what a byte does. (The game window's grid view has a fancier panel: app/debug_panel.py.)
 
-Usage: .venv/bin/python tools/ram_viewer.py [rom]
+Usage: python tools/ram_viewer.py [rom]
 Keys: arrows + space = joystick, Tab = GAME SELECT, Enter = RESET, R = RAM panel on/off, P = pause, Esc = quit.
 """
 
@@ -12,6 +12,7 @@ import numpy as np
 import pygame
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, when run as a script
+from app.fonts import mono
 from engine import paths
 from engine.emulator import (JOY_B, JOY_DOWN, JOY_LEFT, JOY_RIGHT, JOY_SELECT, JOY_START, JOY_UP, AudioOut,
                              Core)
@@ -56,7 +57,7 @@ def main():
     scale, panel_w = 3, 420
     screen = pygame.display.set_mode((gw * scale + panel_w, gh * scale))  # the core already outputs 2600 pixels doubled (160 -> 320)
     pygame.display.set_caption("Adventure - Stella libretro core (spike)")
-    font = pygame.font.SysFont("menlo", 15)
+    font = mono(15)
     panel, show_panel, paused = RamPanel(font), True, False
     joymap = {pygame.K_UP: JOY_UP, pygame.K_DOWN: JOY_DOWN, pygame.K_LEFT: JOY_LEFT, pygame.K_RIGHT: JOY_RIGHT,
               pygame.K_SPACE: JOY_B, pygame.K_TAB: JOY_SELECT, pygame.K_RETURN: JOY_START}

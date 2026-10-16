@@ -1,7 +1,7 @@
 """The classic pack's items and bat, drawn by hand in NES colours. K = black outline, other letters per item (COLOURS below).
 The chalice's C pixels are FLASH (magenta): the look fills them with the game's flashing colour.
 
-Usage: .venv/bin/python packs/classic/source/items.py   -> packs/classic/cast/item_*.png, bat_*.png
+Usage: python packs/classic/source/items.py   -> packs/classic/cast/item_*.png, bat_*.png
 """
 
 import os

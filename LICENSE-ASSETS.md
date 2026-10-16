@@ -15,6 +15,6 @@ Credit: "Adventure Forever contributors".
 The code is MIT-licensed (see `LICENSE`).
 
 **Not included and not covered:** Atari 2600 *Adventure* itself (© 1980 Atari, by Warren Robinett) - bring
-your own ROM; the Stella emulator core (GPL-2.0, downloaded by `tools/get_core.sh`). The game's own
+your own ROM; the Stella emulator core (GPL-2.0, downloaded by `tools/get_core.py`, and bundled in the downloads with its licence and source link). The game's own
 graphics that appear on screen - the hidden "Created by Warren Robinett" credit, the wall layouts - are read
 from your ROM at run time and are not part of this repository.

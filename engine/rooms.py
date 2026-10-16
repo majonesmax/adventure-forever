@@ -10,7 +10,7 @@ Room table at $FE1B (Robinett's "room list"), 9 bytes per room:
 Wall graphics: 7 rows x 3 bytes (PF0, PF1, PF2) = the left 20 columns of a 40-column row.
 TIA bit order: PF0 uses bits 4..7 (left to right), PF1 bits 7..0, PF2 bits 0..7.
 
-Usage: .venv/bin/python rooms.py  -> prints every room as ASCII and writes rooms.json
+Usage: python rooms.py  -> prints every room as ASCII and writes rooms.json
 """
 
 import json

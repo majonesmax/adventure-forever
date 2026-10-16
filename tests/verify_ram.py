@@ -2,7 +2,7 @@
 table, then walk the hero to the yellow key, pick it up, and carry it. Prints PASS/FAIL per check and saves
 frames to the directory given as the first argument (default: shots/verify).
 
-Usage: .venv/bin/python verify_ram.py [outdir]
+Usage: python verify_ram.py [outdir]
 """
 
 import os

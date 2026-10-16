@@ -5,7 +5,7 @@ Rooms whose walls are the background colour (the dark catacombs / black maze) ca
 With --reveal, a patched COPY of the ROM (written to outdir) gives those dark rooms black walls so they can
 be checked too. The real ROM is never touched.
 
-Usage: .venv/bin/python verify_rooms.py [--reveal] [outdir]   (default shots/rooms)
+Usage: python verify_rooms.py [--reveal] [outdir]   (default shots/rooms)
 """
 
 import os

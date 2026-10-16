@@ -11,6 +11,7 @@ expose the CPU's program counter, so there is no (fake) running disassembly.
 import numpy as np
 import pygame
 
+from app.fonts import mono
 from engine import objects as O
 from engine import ram_map as M
 
@@ -53,7 +54,7 @@ def obj_name(n):
 class DebugPanel:
     def __init__(self, size=(512, 480)):
         self.size = size
-        self.font = pygame.font.SysFont("menlo", 13)
+        self.font = mono(13)
         self.cw, self.ch = self.font.size("0")[0], self.font.get_linesize()
         self.prev = None
         self.changed_at = np.full(128, -10_000)
@@ -128,7 +129,7 @@ class DebugPanel:
                 if ch == "X":
                     pygame.draw.rect(surf, GREEN, (x0 + x * px, y0 + y * px + (bob if y < 10 else 0), px, px))
         pygame.draw.line(surf, DIM, (20, y0 + len(rows) * px + 4), (self.size[0] - 20, y0 + len(rows) * px + 4), 2)
-        big = pygame.font.SysFont("menlo", 22, bold=True)
+        big = mono(22, bold=True)
         lines = [("YOU HAVE DIED", big, GREEN), ("OF DYSENTERY.", big, GREEN)]
         y = y0 + len(rows) * px + 40
         for text, font, colour in lines:

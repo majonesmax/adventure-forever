@@ -1,8 +1,8 @@
 """TEMPLATE LOOK - the smallest complete look (platform). Copy this file to start a new one: an Amiga look, a
 C64 look, a Game Boy look...
 
-Run it:   .venv/bin/python play.py --look template                          (its own cast and world)
-          .venv/bin/python play.py --look template --cast pbj --world pbj   (any cast, any world)
+Run it:   python play.py --look template                          (its own cast and world)
+          python play.py --look template --cast pbj --world pbj   (any cast, any world)
 (It isn't in the L cycle - add your own look to LOOKS in looks/__init__.py to put it there.)
 
 How a look fits in:

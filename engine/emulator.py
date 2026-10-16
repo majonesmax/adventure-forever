@@ -24,8 +24,8 @@ import sounddevice as sd
 from engine import paths
 
 HERE, CORE, FROZEN, USER_DIR, SHOTS_DIR = paths.ROOT, paths.CORE, paths.FROZEN, paths.USER_DIR, paths.SCREENSHOTS
-SYSTEM_DIR = os.path.join(USER_DIR, "cores", "system").encode()
-SAVE_DIR = os.path.join(USER_DIR, "cores", "save").encode()
+SYSTEM_DIR = os.fsencode(os.path.join(USER_DIR, "cores", "system"))
+SAVE_DIR = os.fsencode(os.path.join(USER_DIR, "cores", "save"))
 for _d in (SYSTEM_DIR, SAVE_DIR):
     os.makedirs(_d, exist_ok=True)
 

@@ -5,7 +5,7 @@ The shapes were first traced from Stable Diffusion silhouettes of the original 2
 the source now. The defeated dragon isn't drawn: it's the normal pose upside down (as the 2600 does), feet
 down on the bottom row.
 
-Usage: .venv/bin/python packs/classic/source/dragons.py   -> packs/classic/cast/dragon_<pose>_<colour>.png
+Usage: python packs/classic/source/dragons.py   -> packs/classic/cast/dragon_<pose>_<colour>.png
 """
 
 import os

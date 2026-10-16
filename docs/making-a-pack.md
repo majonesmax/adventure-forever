@@ -20,10 +20,10 @@ as richly as you like.
 | `packs/template` | a hero and one dragon | one wall tile and one floor tile | the template look |
 
 ```sh
-.venv/bin/python play.py --list                                # every look and pack there is
-.venv/bin/python play.py --look nes --cast pbj                  # PBJ on the NES, in the NES look's own world
-.venv/bin/python play.py --look snes --cast classic --world classic
-.venv/bin/python play.py --pack mine                            # a pack's cast in its own world
+python play.py --list                                # every look and pack there is
+python play.py --look nes --cast pbj                  # PBJ on the NES, in the NES look's own world
+python play.py --look snes --cast classic --world classic
+python play.py --pack mine                            # a pack's cast in its own world
 ```
 
 Until you choose (with an option, or C or W in the game), each look shows its own pack's cast and world.
@@ -32,7 +32,7 @@ Until you choose (with an option, or C or W in the game), each look shows its ow
 
 ```sh
 cp -r packs/template private/packs/mine
-.venv/bin/python play.py --pack mine
+python play.py --pack mine
 ```
 
 The folder is found by itself. **`private/` is git-ignored**, so a personal pack (your family as the

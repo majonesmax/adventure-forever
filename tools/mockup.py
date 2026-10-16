@@ -9,7 +9,7 @@ Layout A was chosen and lives on in shared/layout.py; this script keeps both for
 Placeholder art only: procedural brick walls in an NES palette, the 2600 object graphics scaled and
 outlined, a hand-drawn 16x16 knight. Object positions are real game state (game 1, from the emulator).
 
-Usage: .venv/bin/python mockup.py   -> shots/mockups/*.png
+Usage: python mockup.py   -> shots/mockups/*.png
 """
 
 import os

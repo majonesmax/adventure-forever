@@ -8,8 +8,8 @@ and the arpeggios are derived from the chords.
 Melody tokens (one per eighth note): a note like E5 / F#4 / Bb5, "-" holds the previous note, "." rests.
 Drums (16 per bar): k kick, s snare, h hi-hat, . nothing.
 
-Usage: .venv/bin/python chiptune.py              -> shots/music/<song>.wav (two loops each) to listen to
-       .venv/bin/python chiptune.py --play title
+Usage: python chiptune.py              -> shots/music/<song>.wav (two loops each) to listen to
+       python chiptune.py --play title
 """
 
 import os

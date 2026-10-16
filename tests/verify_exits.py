@@ -5,7 +5,7 @@ read back from $8A.
 Screen mapping used (measured in verify_rooms.py): column c covers frame pixels 4c..4c+3 and the hero's x is
 in the same units; the hero's y is drawn at scan line ~ 13 + 2 * (104 - y).
 
-Usage: .venv/bin/python verify_exits.py
+Usage: python verify_exits.py
 """
 
 import os

@@ -2,7 +2,7 @@
 16x16, 3 colours + transparent: K black outline, R red tunic, S grey armour.
 
 Views: side (faces right; mirrored for left), down (front), up (back) x 2 frames (0 = stand, 1 = stride).
-Usage: .venv/bin/python packs/classic/source/knight.py   -> packs/classic/cast/hero_<view>_<frame>.png
+Usage: python packs/classic/source/knight.py   -> packs/classic/cast/hero_<view>_<frame>.png
 """
 
 import os

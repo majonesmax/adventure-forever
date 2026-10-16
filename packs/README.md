@@ -19,7 +19,7 @@ everyone. Either way they're found by themselves:
 
 ```sh
 cp -r packs/template private/packs/mine
-.venv/bin/python play.py --pack mine        # in the game: C cycles the casts, W the worlds
+python play.py --pack mine        # in the game: C cycles the casts, W the worlds
 ```
 
 The guide: [docs/making-a-pack.md](../docs/making-a-pack.md). Every picture name and pack.json field:

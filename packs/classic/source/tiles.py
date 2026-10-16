@@ -4,7 +4,7 @@ repeated across each room. D = dark, M = mid, L = light, each an NES palette col
 They were first generated with Stable Diffusion and reduced to three NES colours; this text art is the
 source now. pack.json says which place uses which tile.
 
-Usage: .venv/bin/python packs/classic/source/tiles.py   -> packs/classic/world/<tile>.png
+Usage: python packs/classic/source/tiles.py   -> packs/classic/world/<tile>.png
 """
 
 import os

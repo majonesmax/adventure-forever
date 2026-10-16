@@ -29,7 +29,8 @@ FPS = 60
 
 
 def find_ffmpeg():
-    """Apps started from Finder get a bare PATH, so look in Homebrew's places too. None = not installed."""
+    """ffmpeg on the PATH - or, as apps started from the macOS Finder get a bare PATH, in Homebrew's places.
+    None = not installed."""
     for path in (shutil.which("ffmpeg"), "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
         if path and os.path.exists(path):
             return path

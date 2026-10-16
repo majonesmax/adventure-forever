@@ -6,10 +6,12 @@ looks/base.py), and compares a SHA-256 of each screen with tests/golden_hashes.j
 hashes are stored - no pictures of the game (whose walls come from the ROM) end up in the repository.
 
 Needs roms/adventure.a26 and the Stella core (cores/), so it runs locally, not in CI.
+The references were made with the Stella core 8.0_pre b52ccb02e (tools/get_core.py fetches the newest
+build, which may draw a pixel differently someday: if only the 2600-derived parts move, that's the core).
 
-Usage: .venv/bin/python tests/golden.py            compare; on a mismatch the screen is saved to
+Usage: python tests/golden.py            compare; on a mismatch the screen is saved to
                                                    shots/golden_fail/ so you can look at it
-       .venv/bin/python tests/golden.py --update   accept the current pictures as the new reference
+       python tests/golden.py --update   accept the current pictures as the new reference
 """
 
 import hashlib

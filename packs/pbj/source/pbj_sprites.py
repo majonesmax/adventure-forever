@@ -9,7 +9,7 @@
   The Storybook (the chalice), keys, sword, magnet, gates.
 Colours are SNES 15-bit (multiples of 8); every sprite stays within 15 colours.
 
-Usage: .venv/bin/python packs/pbj/source/pbj_sprites.py   -> packs/pbj/cast/*.png + shots/snes/cast.png
+Usage: python packs/pbj/source/pbj_sprites.py   -> packs/pbj/cast/*.png + shots/snes/cast.png
 """
 
 import os

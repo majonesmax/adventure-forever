@@ -1,9 +1,9 @@
 """Adventure Forever: Atari 2600 Adventure, running unmodified in an emulator and redrawn live as an NES game
 or a Super NES one, with the 2600 original alongside.
 
-Usage: .venv/bin/python play.py [--look nes|snes|template] [--cast <pack>] [--world <pack>] [--pack <pack>]
+Usage: python play.py [ROM] [--look nes|snes|template] [--cast <pack>] [--world <pack>] [--pack <pack>]
                                 [--grid] [--public] [--record]
-       .venv/bin/python play.py --list          the looks and packs there are
+       python play.py --list          the looks and packs there are
 
 A look is the console (how the game is drawn). A cast is who's in it, a world is where; both come in packs.
 Any look shows any cast in any world.
@@ -32,6 +32,7 @@ from app.window import GameWindow
 
 def options():
     ap = argparse.ArgumentParser(description="Atari 2600 Adventure, remastered live.")
+    ap.add_argument("rom", nargs="?", help="your Adventure ROM (only needed once: it's remembered)")
     ap.add_argument("--look", default=os.environ.get("ADVENTURE_LOOK"),
                     help="start in this look: nes, snes or template (--list shows them)")
     ap.add_argument("--cast", help="start with this pack's cast, on every look (default: each look's own)")
@@ -64,7 +65,7 @@ def options():
 
 def main():
     args = options()
-    rom = find_rom()
+    rom = find_rom(args.rom)
     if rom is None:
         return
     window = GameWindow(rom, look_key=args.look, cast_key=args.cast, world_key=args.world, grid=args.grid,
