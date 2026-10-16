@@ -23,6 +23,12 @@ RAM, in well-defined places (`engine/ram_map.py`, decoded from the game's commen
 against the running game by `tests/verify_ram.py`). Read those bytes and you know everything needed to draw
 the scene your own way.
 
+**RAM and ROM.** RAM holds everything that changes (positions, rooms, states, what you carry) and is
+read every frame. The ROM holds everything that doesn't (each room's walls, colour and exits; each object's
+size and graphics). `engine/rooms.py` and `engine/objects.py` decode it once at startup, from *your* copy:
+those tables are Atari's data, so they are deliberately not copied into this repository. What the code
+keeps is knowledge *about* the game: what each RAM address means and where the tables are in the ROM.
+
 Rules every look follows:
 
 - **Never change the game.** The emulator runs the original ROM; looks only read state.

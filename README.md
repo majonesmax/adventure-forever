@@ -39,7 +39,7 @@ slide, so the game's timing is untouched too.
 | `tools/` | the art pipeline, the video editor, viewers |
 | `tests/` | checks against the real emulator, including pixel-exact "golden" tests of every look |
 
-**[How it all fits together →](docs/ARCHITECTURE.md)**
+**[How it all fits together →](docs/ARCHITECTURE.md)** (or the one-page version: [SHUT-UP-NERD.md](SHUT-UP-NERD.md))
 
 ## Running it (macOS, Apple Silicon)
 
