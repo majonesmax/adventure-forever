@@ -54,6 +54,30 @@ shows which three are on screen.
 - **The game decides where walls are.** A world only decides what they're made of.
 - **The game's timing is sacred.** Scrolls pause the emulator; no frames are added or skipped.
 
+## Accuracy (for emulation people)
+
+- **The emulation is Stella's, untouched.** We load the Stella libretro core and the original ROM, both
+  unmodified. Stella emulates the CPU and TIA cycle by cycle, and every collision, dragon move and bat theft is
+  the real game code. The "2600" pane is Stella's own output.
+- **Sampling: once per emulated frame (60 Hz).** `retro_run()` emulates one whole TV frame and stops. We then
+  read the 128 RAM bytes through libretro's memory API: a pointer outside the emulated bus, so it costs zero
+  cycles and has no side effects. We copy them and draw from the copy. Adventure reads the joystick and runs
+  its logic once per frame, so the frame boundary is where the state is complete: sampling faster would catch
+  half-updated state, and slower would miss frames. We never write RAM during play (only the tests do, to set
+  up scenes).
+- **Verified, not assumed.** `tests/verify_render.py` rebuilds the 2600 picture purely from our RAM snapshots
+  and compares it with Stella's: 372 frames, 34 differing by 191 pixels in total (a known baseline), the rest
+  exact. `verify_ram`, `verify_rooms` and `verify_exits` check the address map, walls and exits against the
+  running game.
+- **Known deviations, all presentation:**
+  - room scrolls pause the emulator while they slide; no frame is skipped or doubled, and **T** turns them off;
+  - the remasters don't flicker (we know every object's position, so we draw them all every frame); the 2600
+    pane still flickers authentically;
+  - pacing follows your display's 60 Hz vsync, or a timer, and the core runs at 60.0 fps;
+  - the joystick is passed in before each frame, as the 2600 polls once per frame; vsync adds the usual frame or
+    so of display delay;
+  - the music is added on top, and the game's own sound comes from Stella unchanged.
+
 ## Where things live
 
 | Folder | |
