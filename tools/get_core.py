@@ -3,6 +3,9 @@ https://github.com/stella-emu/stella), built for this computer by the libretro b
 
 Usage: python tools/get_core.py            the core for this system
        python tools/get_core.py --force    download again even if it's there
+
+To try a different core without replacing this one, point ADVENTURE_CORE at it:
+       ADVENTURE_CORE=/path/to/stella_libretro.dylib python play.py      (also the tests)
 """
 
 import io

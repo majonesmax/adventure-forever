@@ -36,11 +36,14 @@ class GameState:
     def __init__(self, ram, reader, room_table):
         r = lambda addr: int(ram[addr - 0x80])
         self.ram = ram
-        self.room_num = r(M.ROOM)
+        # Right after power-on, before the game has set up its RAM, the bytes are whatever the console
+        # powered up with (random, on real hardware and on newer Stella cores): an impossible room or item
+        # is read as "still starting up" - the title screen, nothing carried - never as an error.
+        self.room_num = r(M.ROOM) if r(M.ROOM) < len(room_table) else M.NUMBER_ROOM
         self.room = room_table[self.room_num]
         self.hero = (r(M.X), r(M.Y))
-        self.carried = r(M.CARRIED) // 9
-        self.game = r(M.LEVEL) // 2 + 1
+        self.carried = r(M.CARRIED) // 9 if r(M.CARRIED) // 9 < len(reader.objects) else M.NOTHING_CARRIED // 9
+        self.game = min(r(M.LEVEL) // 2, 2) + 1
         self.on_title_screen = self.room_num == M.NUMBER_ROOM
         self.won = not self.on_title_screen and r(M.GAME_ACTIVE) != 0  # only a win sets it (being eaten doesn't)
         self.eaten_by = next((colour for addr, colour in DRAGON_COLOURS.items()

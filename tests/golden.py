@@ -7,8 +7,9 @@ stored: the tests keep no pictures of the game (whose walls and graphics come fr
 clip in the repository is the README's demo GIF.
 
 Needs roms/adventure.a26 and the Stella core (cores/), so it runs locally, not in CI.
-The references were made with the Stella core 8.0_pre b52ccb02e (tools/get_core.py fetches the newest
-build, which may draw a pixel differently someday: if only the 2600-derived parts move, that's the core).
+The references were made with the Stella core 8.0_pre b52ccb02e and pass unchanged on 2c3d702 too (try
+another core with ADVENTURE_CORE=<path to it>). tools/get_core.py fetches the newest build, which may someday
+differ: if only the 2600-derived parts move, that's the core.
 
 Usage: python tests/golden.py            compare; on a mismatch the screen is saved to
                                                    shots/golden_fail/ so you can look at it
@@ -30,6 +31,7 @@ import content  # noqa: E402
 import looks  # noqa: E402
 from app import transitions as TR  # noqa: E402
 from engine import emulator as h  # noqa: E402
+from engine import ram_map as M  # noqa: E402
 from engine.state import Game  # noqa: E402
 
 HASHES = os.path.join(ROOT, "tests", "golden_hashes.json")              # public casts and worlds only
@@ -40,7 +42,13 @@ FAIL_DIR = os.path.join(ROOT, "shots", "golden_fail")
 # ---- game moments -------------------------------------------------------------------------------------
 
 def boot(game):
-    """The emulator after power-on, GAME SELECT to `game`, RESET: (core, ram copy)."""
+    """The emulator after power-on, GAME SELECT to `game`, RESET: (core, ram copy).
+
+    The console switches are held for a fixed number of frames, but the waits after them count from the frame
+    the game *sees* the switch released (its switch byte, ram_map.SWITCHES): cores differ in how many frames a
+    switch takes to arrive (SELECT: Stella b52ccb02e at once, 2c3d702 two frames late), and counting this way
+    puts every core at the same moment of the game.
+    """
     core = h.Core()
     core.load(os.path.join(ROOT, "roms", "adventure.a26"))
 
@@ -49,13 +57,21 @@ def boot(game):
         core.joy.update(keys)
         for _ in range(n):
             core.run()
+
+    def press(key, bit, then, seen_after):
+        """Hold `key` 8 frames, release it; once the game sees the release, wait out the rest of `then`
+        frames - `seen_after` is how many frames the reference core (b52ccb02e) takes to show the release."""
+        run(8, {key})
+        for _ in range(12):  # until the game sees the switch released
+            run(1)
+            if core.ram[M.SWITCHES - 0x80] & bit:
+                break
+        run(then - seen_after)
     run(60)
     for _ in range(game - 1):
-        run(8, {h.JOY_SELECT})
-        run(20)
+        press(h.JOY_SELECT, 0x02, 20, seen_after=1)
     title = core.ram.copy()
-    run(8, {h.JOY_START})
-    run(60)
+    press(h.JOY_START, 0x01, 60, seen_after=2)
     return core, title, core.ram.copy()
 
 
@@ -82,7 +98,10 @@ def scenarios(g1, g2, title):
     s = {}
     s["title"] = ([title, title], [0, 31], [0, 1])
     s["start_game1"] = ([g1], [0], [0])
-    s["start_game2"] = ([g2], [0], [0])
+    # game 2 starts with the bat flying off with the sword; its path depends on when the game saw the last
+    # input, which cores deliver a frame or two apart - so place the two where the reference core has them
+    s["start_game2"] = ([poke(g2, {0xCB: 0x11, 0xCC: 0x20, 0xCD: 0x1E, 0xCF: 0x00,      # the bat (room, x, y, state)
+                                   0xB6: 0x11, 0xB7: 0x28, 0xB8: 0x1E})], [0], [0])   # the sword
     s["dragons"] = ([poke(g1, place(0x0F, (0x50, 0x20), [(0xA4, 0x30, 0x40, 0), (0xA9, 0x60, 0x40, 3),
                                                            (0xAE, 0x90, 0x40, 1)]))], [0], [0])
     s["eaten"] = ([poke(g1, place(0x11, (0x50, 0x20), [(0xA9, 0x50, 0x24, 2)]))], [0], [0])

@@ -15,7 +15,8 @@ SYSTEM = {"darwin": "macos", "win32": "windows"}.get(sys.platform, "linux")
 
 ROM = os.path.join(ROOT, "roms", "adventure.a26")
 CORE_FILE = {"macos": "stella_libretro.dylib", "windows": "stella_libretro.dll", "linux": "stella_libretro.so"}[SYSTEM]
-CORE = os.path.join(ROOT, "cores", CORE_FILE)  # the emulator (tools/get_core.py downloads it)
+CORE = (os.environ.get("ADVENTURE_CORE")  # another core to try, e.g. a newer Stella build
+        or os.path.join(ROOT, "cores", CORE_FILE))  # the emulator (tools/get_core.py downloads it)
 PRIVATE = os.path.join(ROOT, "private")      # personal packs and music config - git-ignored, never published
 SHOTS = os.path.join(ROOT, "shots")          # development output (screenshots, sheets)
 FONTS = os.path.join(ROOT, "shared", "fonts")
