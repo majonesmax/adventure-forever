@@ -27,7 +27,9 @@ KEYS
   W                world: the brick castles -> the candy, ice and fire kingdoms
   I                show which look, cast and world are on screen
   V                view: side by side with the original -> remaster only -> 2600 only
-                   -> 4-way grid (both remasters, the original and its live RAM)
+                   -> 4-way grid: your game over a comparison (the other console, same cast
+                   and world), the original and its live RAM
+  Shift+L / C / W  the grid's comparison: its own look, cast or world
   F                fullscreen on/off (or resize the window: the picture keeps its shape)
   T                room-scroll transitions on/off
   M, - / =         music on/off, music volume

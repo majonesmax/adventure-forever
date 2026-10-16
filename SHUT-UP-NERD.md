@@ -50,7 +50,8 @@ shows which three are on screen.
      his movement), then the held item;
    - torch light in dark rooms, the status bar, and the win screens.
 4. Music follows the area; the recorder saves every look's picture, the audio and a log.
-5. Show: one look, side by side with the 2600, the 2600 alone, or the grid (NES, SNES, 2600, live RAM).
+5. Show: one look, side by side with the 2600, the 2600 alone, or the grid: what you're playing over a
+   comparison (the next look with the same cast and world, or its own via Shift+L / C / W), the 2600 and live RAM.
 
 ## Rules that never break
 

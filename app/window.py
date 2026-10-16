@@ -10,7 +10,8 @@ One frame (GameWindow.run):
 
 What's on screen is a look (the console: NES, SNES) showing a cast (who) in a world (where), both from packs/.
 L changes the look, C the cast, W the world, and a moment's overlay says what's showing (now_showing.py; I
-brings it up without changing anything).
+brings it up without changing anything). The grid shows what you're playing (top) over a comparison (bottom):
+by default the next look with the same cast and world; Shift+L / C / W set the comparison's own.
 Until C or W is pressed each look shows its own pack's cast and world; after, every look shows the chosen
 one, so the grid compares consoles.
     6. pace       vsync on a ~60 Hz display, else a timer at the game's frame rate
@@ -44,6 +45,7 @@ from shared import layout as L
 JOYSTICK = {pygame.K_UP: h.JOY_UP, pygame.K_DOWN: h.JOY_DOWN, pygame.K_LEFT: h.JOY_LEFT,
             pygame.K_RIGHT: h.JOY_RIGHT, pygame.K_SPACE: h.JOY_B,
             pygame.K_TAB: h.JOY_SELECT, pygame.K_RETURN: h.JOY_START}
+SHIFTED = {pygame.K_l: "compare_look", pygame.K_c: "compare_cast", pygame.K_w: "compare_world"}  # + Shift
 KEYS = {  # window commands -> GameWindow method
     pygame.K_l: "next_look", pygame.K_c: "next_cast", pygame.K_w: "next_world", pygame.K_v: "next_view",
     pygame.K_t: "toggle_scrolls", pygame.K_p: "toggle_pause",
@@ -90,6 +92,7 @@ class GameWindow:
         self.cast_key = cast_key or last
         self.world_key = world_key or (last if last in self.world_keys else None)
         self.made = {}  # (look, cast, world) -> the look, made the first time it's shown
+        self.compare = {"look": None, "cast": None, "world": None}  # the grid's comparison; None = follow yours
         print(f"looks: {', '.join(self.look_keys)}; casts: {', '.join(self.cast_keys)}; worlds: "
               f"{', '.join(self.world_keys)} - starting in {self.look.key}", flush=True)
 
@@ -134,9 +137,9 @@ class GameWindow:
 
     # ---- which looks ---------------------------------------------------------------------------------------
 
-    def get(self, look_key):
-        """The look `look_key` with the chosen cast and world - made once, then kept."""
-        key = (look_key, self.cast_key, self.world_key)
+    def get(self, look_key, cast_key=None, world_key=None):
+        """The look `look_key` with a cast and world (default: the chosen ones) - made once, then kept."""
+        key = (look_key, cast_key or self.cast_key, world_key or self.world_key)
         if key not in self.made:
             self.made[key] = looks.make(*key, self.game.reader)
         return self.made[key]
@@ -146,9 +149,16 @@ class GameWindow:
         """The look on screen."""
         return self.get(self.look_key)
 
+    @property
+    def comparison(self):
+        """The grid's bottom pane: the comparison's own look, cast and world where set (Shift+L / C / W), else
+        the look after yours, with your cast and world."""
+        look = self.compare["look"] or following(self.look_keys, self.look_key)
+        return self.get(look, self.compare["cast"] or self.look.cast.key, self.compare["world"] or self.look.world.key)
+
     def grid_looks(self):
-        """The grid's left column: the NES look over the SNES look, with the same cast and world."""
-        return self.get("nes"), self.get("snes")
+        """The grid's left column: what you're playing over the comparison."""
+        return self.look, self.comparison
 
     def recorded_looks(self):
         """While recording: every look in the L cycle (one stream each, named by the look), with the cast
@@ -181,6 +191,8 @@ class GameWindow:
             if e.type in (pygame.KEYDOWN, pygame.KEYUP):
                 if e.key in JOYSTICK:
                     (self.core.joy.add if e.type == pygame.KEYDOWN else self.core.joy.discard)(JOYSTICK[e.key])
+                elif e.type == pygame.KEYDOWN and e.key in SHIFTED and e.mod & pygame.KMOD_SHIFT:
+                    getattr(self, SHIFTED[e.key])()
                 elif e.type == pygame.KEYDOWN and e.key in KEYS:
                     getattr(self, KEYS[e.key])()
         return True
@@ -227,7 +239,8 @@ class GameWindow:
                                  **{lk.platform: self.pictures.get(lk) for lk in self.recorded_looks()}},
                                 {"g": self.frame_no, "room": st.room_num, "hero": st.hero, "carry": st.carried,
                                  "look": self.look.platform, "cast": self.look.cast.key,
-                                 "world": self.look.world.key, "grid16": "snes",
+                                 "world": self.look.world.key, "grid_top": self.look.platform,
+                                 "grid16": self.comparison.platform,
                                  "view": self.view, "scroll": bool(self.scrolls)}, self.core.ram)
 
     def show(self):
@@ -236,8 +249,9 @@ class GameWindow:
         screen.fill(BACKGROUND)
         if self.view == "grid":
             top, bottom = self.grid_looks()
-            draw_grid(screen, self.core.frame, (self.pictures.get(top), top.platform_name),
-                      (self.pictures.get(bottom), bottom.platform_name), self.panel, self.st, self.tag_font)
+            draw_grid(screen, self.core.frame, (self.pictures.get(top), f"PLAYING - {top.platform_name}"),
+                      (self.pictures.get(bottom), f"COMPARE - {bottom.platform_name}"), self.panel, self.st,
+                      self.tag_font)
         if self.view in ("both", "look"):
             picture = self.pictures.get(self.look, next(iter(self.pictures.values())))
             surf = pygame.surfarray.make_surface(picture.transpose(1, 0, 2))
@@ -251,7 +265,9 @@ class GameWindow:
                 solo_w, solo_h = 160 * SOLO_SCALE * 2, 228 * SOLO_SCALE
                 screen.blit(pygame.transform.scale(original, (solo_w, solo_h)), (0, (main_h - solo_h) // 2))
         centre = {"both": main_w // 2, "look": main_w // 2, "2600": 160 * SOLO_SCALE, "grid": QUAD[0]}[self.view]
-        self.now_showing.draw(screen, self.look, centre)  # window only - never in the recording
+        both = self.view == "grid" or (self.now_showing.changed or ("",))[0] == "COMPARE"
+        panes = [("PLAYING", self.look), ("COMPARE", self.comparison)] if both else [(None, self.look)]
+        self.now_showing.draw(screen, panes, centre)  # window only - never in the recording
         if self.recorder.active and (self.frame_no // 30) % 2 == 0:  # window only - never in the recording
             pygame.draw.circle(screen, (230, 40, 40), (18, 18), 7)
             screen.blit(self.font.render("REC", True, (230, 40, 40)), (30, 9))
@@ -300,22 +316,41 @@ class GameWindow:
     # ---- window commands (KEYS) ----------------------------------------------------------------------------
 
     def next_look(self):
-        """L: the next look (console), same cast and world - never changes the view."""
-        self.look_key = self.look_keys[(self.look_keys.index(self.look_key) + 1) % len(self.look_keys)]
-        self.now_showing.show("look")
+        """L: the next look (console), same cast and world - never changes the view. The comparison's look
+        follows again (the next one after yours)."""
+        self.look_key = following(self.look_keys, self.look_key)
+        self.compare["look"] = None
+        self.now_showing.show(("PLAYING", "look"))
         print(f"look: {self.look.key}", flush=True)
 
     def next_cast(self):
-        """C: the next cast, on every look."""
+        """C: the next cast, on every look; the comparison's cast follows yours again."""
         self.cast_key = following(self.cast_keys, self.cast_key or self.look.cast.key)
-        self.now_showing.show("cast")
+        self.compare["cast"] = None
+        self.now_showing.show(("PLAYING", "cast"))
         print(f"cast: {self.look.cast.name} ({self.look.key})", flush=True)
 
     def next_world(self):
-        """W: the next world, on every look."""
+        """W: the next world, on every look; the comparison's world follows yours again."""
         self.world_key = following(self.world_keys, self.world_key or self.look.world.key)
-        self.now_showing.show("world")
+        self.compare["world"] = None
+        self.now_showing.show(("PLAYING", "world"))
         print(f"world: {self.look.world.name} ({self.look.key})", flush=True)
+
+    def compare_look(self):
+        """Shift+L: the grid comparison's next look (it stays until L)."""
+        self.compare["look"] = following(self.look_keys, self.comparison.platform)
+        self.now_showing.show(("COMPARE", "look"))
+
+    def compare_cast(self):
+        """Shift+C: the grid comparison's next cast (it stays until C)."""
+        self.compare["cast"] = following(self.cast_keys, self.comparison.cast.key)
+        self.now_showing.show(("COMPARE", "cast"))
+
+    def compare_world(self):
+        """Shift+W: the grid comparison's next world (it stays until W)."""
+        self.compare["world"] = following(self.world_keys, self.comparison.world.key)
+        self.now_showing.show(("COMPARE", "world"))
 
     def toggle_fullscreen(self):
         """F: fullscreen on / off (the picture keeps its shape)."""

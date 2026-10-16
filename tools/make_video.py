@@ -131,7 +131,7 @@ def tag_overlay(tags, path):
 
 
 def layout(name):
-    """name: both_<look> / solo_<look> / 2600 / grid_<look> / finale_<look>
+    """name: both_<look> / solo_<look> / 2600 / grid_<top look>_<bottom look> (or grid_<bottom>) / finale_<look>
     -> (placements [(stream, x, y, w, h)], tags [(text, x, y)])."""
     kind, _, rem = name.partition("_")
     label = NAMES.get(rem, rem.upper())
@@ -142,10 +142,12 @@ def layout(name):
         return [(rem, 448, 60, 1024, 960)], [(label, 448, 24)]
     if name == "2600":
         return [("a2600", 320, 70, 1280, 912)], [("ATARI 2600 - 1980", 320, 34)]
-    if kind == "grid":  # as in play.py: remasters left, the original over its RAM right
-        return [("nes", 448, 60, 512, 480), (rem, 448, 540, 512, 480), ("a2600", 960, 117, 512, 365),
+    if kind == "grid":  # as in play.py: playing over the comparison left, the original over its RAM right
+        top, _, bottom = rem.partition("_") if "_" in rem else ("nes", "", rem)  # older takes: NES on top
+        top_label, label = NAMES.get(top, top.upper()), NAMES.get(bottom, bottom.upper())
+        return [(top, 448, 60, 512, 480), (bottom, 448, 540, 512, 480), ("a2600", 960, 117, 512, 365),
                 ("ram", 960, 540, 512, 480)], \
-               [("NES REMASTER", 448, 24), ("ATARI 2600 - 1980", 960, 24),  # bottom row: side margins (the
+               [(top_label, 448, 24), ("ATARI 2600 - 1980", 960, 24),        # bottom row: side margins (the
                 (label, 448 - HUD.text_width(label, 2) - 24, 548),          # captions own the bottom)
                 ("INTERNALS", 1472 + 24, 548)]
     if kind == "finale":
@@ -202,7 +204,7 @@ def plan(take):
         r = rows[max(0, np.searchsorted(t, ts, side="right") - 1)]
         view, look = r["view"], r["look"]
         return {"both": f"both_{look}", "nes": f"solo_{look}", "look": f"solo_{look}", "2600": "2600",
-                "grid": f"grid_{r.get('grid16', GRID16)}"}[view]
+                "grid": f"grid_{r.get('grid_top', 'nes')}_{r.get('grid16', GRID16)}"}[view]
 
     segs = []
     for k, (a, b) in enumerate(KEEP):

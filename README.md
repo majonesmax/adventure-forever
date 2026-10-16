@@ -17,7 +17,8 @@ Who's in the game and where it happens come in **packs**, and any look shows any
 
 You can mix them: the knight in the candy kingdom, PBJ in the brick castles, either on either console.
 
-The original 2600 picture can run alongside, and a four-way grid shows the NES and SNES looks, the
+The original 2600 picture can run alongside, and a four-way grid shows your game and a comparison (by
+default the other console), the
 original, and the game's live RAM at once (**[how to read the live RAM view →](docs/reading-the-ram.md)**).
 Gameplay is 100% the original: the emulator runs the real
 game, and the remasters only *draw* it.
@@ -72,7 +73,10 @@ On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 **Keys:** arrows + space = joystick, Tab = game select (games 1–3), Enter = reset/start,
 **L** = look (NES → SNES), **C** = cast, **W** = world (classic → pbj → yours; an overlay names
 what's on screen; **I** shows it any time),
-**V** = view (side by side → remaster only → 2600 only → grid), **F** = fullscreen (or resize the window),
+**V** = view (side by side → remaster only → 2600 only → grid), **F** = fullscreen (or resize the window).
+The grid shows what you're playing over a comparison (by default the other console with the same cast and
+world); **Shift+L / C / W** set the comparison's own look, cast or world.
+
 T = room scrolls on/off, M / − / = = music on/off and volume, N = next music source, S = screenshot,
 R = record (needs ffmpeg), D = debug line (with the game's measured speed), P = pause, Esc = quit.
 

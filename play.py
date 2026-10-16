@@ -11,6 +11,7 @@ Any look shows any cast in any world.
 Keys:  arrows + space   joystick + fire (drop an item)      Tab / Enter   GAME SELECT / GAME RESET
        L   next look (NES -> SNES)     C   next cast     W   next world   (classic -> pbj -> your packs)
            (each brings up a moment's overlay naming the look, cast and world; I shows it without a change)
+       Shift+L / C / W   the grid's comparison pane: its own look, cast, world (plain L / C / W: it follows yours)
        V   view: side by side -> look only -> 2600 only -> grid
        T   room scrolls on/off      P   pause                M   music on/off      - / =   music volume
        N   next music source        S   screenshot           R   record on/off     D   debug line      Esc   quit
