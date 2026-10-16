@@ -1,0 +1,88 @@
+# Builds the Stella libretro core at ONE pinned commit for every platform and publishes it as a release of this
+# repository (stella-<commit>), with SHA-256 checksums and that commit's source (GPL-2.0). tools/get_core.py
+# downloads from there, so every computer runs the identical, tested emulator. Why not libretro's nightlies:
+# they only keep "latest", and they drift per platform (the macOS build has been stuck at b52ccb02e since
+# Stella started needing macOS 26 to compile - see tools/get_core.py).
+#
+# Run it by hand: Actions -> "Stella cores" -> Run workflow (or: gh workflow run stella-cores.yml -f commit=...).
+name: Stella cores
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Stella commit to build (short hash is fine)
+        default: b52ccb02e
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: macos-arm64, runner: macos-14, file: stella_libretro.dylib,
+             make: "CROSS_COMPILE=1 LIBRETRO_APPLE_PLATFORM=arm64-apple-macos11.0"}
+          - {name: macos-x64, runner: macos-14, file: stella_libretro.dylib,
+             make: "CROSS_COMPILE=1 LIBRETRO_APPLE_PLATFORM=x86_64-apple-macos10.13"}
+          - {name: linux-x64, runner: ubuntu-22.04, file: stella_libretro.so, make: ""}  # older glibc: runs on more Linuxes
+          - {name: windows-x64, runner: windows-latest, file: stella_libretro.dll, make: ""}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: ${{ matrix.runner == 'windows-latest' && 'msys2 {0}' || 'bash' }}
+    steps:
+      - if: matrix.runner == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: git make mingw-w64-x86_64-gcc zip
+      - name: Stella at ${{ inputs.commit }}
+        run: |
+          git clone --filter=blob:none https://github.com/stella-emu/stella.git stella
+          git -C stella -c advice.detachedHead=false checkout ${{ inputs.commit }}
+      - name: Build the libretro core
+        run: make -C stella/src/os/libretro -j4 ${{ matrix.make }}
+      - name: Package
+        run: |
+          short=$(git -C stella rev-parse --short=9 HEAD)
+          mkdir out && cp stella/src/os/libretro/${{ matrix.file }} out/
+          (cd out && zip -9 ../stella-$short-${{ matrix.name }}.zip ${{ matrix.file }})
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stella-${{ matrix.name }}
+          path: stella-*-${{ matrix.name }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: cores
+          merge-multiple: true
+      - name: Source, checksums, release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone --filter=blob:none https://github.com/stella-emu/stella.git stella
+          git -C stella -c advice.detachedHead=false checkout ${{ inputs.commit }}
+          short=$(git -C stella rev-parse --short=9 HEAD)
+          full=$(git -C stella rev-parse HEAD)
+          git -C stella archive --format=tar.gz --prefix=stella-$short/ -o ../cores/stella-$short-source.tar.gz HEAD
+          cd cores && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+          notes="The Stella emulator core (libretro) at commit $full, built for each platform by this repository's
+          'Stella cores' workflow. tools/get_core.py downloads it and checks SHA256SUMS.txt.
+
+          Stella is free software under the GNU GPL, version 2 or later: its source for exactly this build is
+          stella-$short-source.tar.gz here, and https://github.com/stella-emu/stella/tree/$full"
+          tag=stella-$short
+          if gh release view $tag --repo ${{ github.repository }} >/dev/null 2>&1; then
+            gh release upload $tag * --clobber --repo ${{ github.repository }}
+          else
+            gh release create $tag * --repo ${{ github.repository }} --title "Stella core $short" \
+              --notes "$notes" --prerelease
+          fi

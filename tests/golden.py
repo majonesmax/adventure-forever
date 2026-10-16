@@ -7,9 +7,8 @@ stored: the tests keep no pictures of the game (whose walls and graphics come fr
 clip in the repository is the README's demo GIF.
 
 Needs roms/adventure.a26 and the Stella core (cores/), so it runs locally, not in CI.
-The references were made with the Stella core 8.0_pre b52ccb02e and pass unchanged on 2c3d702 too (try
-another core with ADVENTURE_CORE=<path to it>). tools/get_core.py fetches the newest build, which may someday
-differ: if only the 2600-derived parts move, that's the core.
+The references were made with the Stella core b52ccb02e - the one tools/get_core.py installs on every
+platform - and pass unchanged on 2c3d702 too (try another core with ADVENTURE_CORE=<path to it>).
 
 Usage: python tests/golden.py            compare; on a mismatch the screen is saved to
                                                    shots/golden_fail/ so you can look at it

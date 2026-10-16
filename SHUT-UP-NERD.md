@@ -64,7 +64,8 @@ shows which three are on screen.
 ## Accuracy (for emulation people)
 
 - **The emulation is Stella's, untouched.** We load the Stella libretro core and the original ROM, both
-  unmodified. Stella emulates the CPU and TIA cycle by cycle, and every collision, dragon move and bat theft is
+  unmodified - the same Stella commit (`b52ccb02e`) on every platform, built by this repository's workflow
+  and checksum-verified by `tools/get_core.py`. Stella emulates the CPU and TIA cycle by cycle, and every collision, dragon move and bat theft is
   the real game code. The "2600" pane is Stella's own output.
 - **Sampling: once per emulated frame (60 Hz).** `retro_run()` emulates one whole TV frame and stops. We then
   read the 128 RAM bytes through libretro's memory API: a pointer outside the emulated bus, so it costs zero
