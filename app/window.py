@@ -20,6 +20,7 @@ one, so the grid compares consoles.
 import collections
 import os
 import time
+import warnings
 
 import numpy as np
 import pygame
@@ -320,7 +321,8 @@ class GameWindow:
             surf = pygame.display.set_mode(shown, flags)
             self.vsync = False
         self.canvas = surf if k == 1.0 else pygame.Surface(size)
-        if self.fullscreen:
+        if self.fullscreen:  # a new view while fullscreen: leaving it later gives this view's own size
+            self.windowed_size = pygame.display.get_window_size()
             pygame.display.toggle_fullscreen()
         return surf
 
@@ -364,9 +366,16 @@ class GameWindow:
         self.now_showing.show(("COMPARE", "world"))
 
     def toggle_fullscreen(self):
-        """F: fullscreen on / off (the picture keeps its shape)."""
+        """F: fullscreen on / off (the picture keeps its shape). Back from fullscreen, SCALED would pick the
+        largest whole multiple that fits the screen (e.g. double), so the window gets its own size back."""
         self.fullscreen = not self.fullscreen
+        if self.fullscreen:
+            self.windowed_size = pygame.display.get_window_size()
         pygame.display.toggle_fullscreen()
+        if not self.fullscreen:
+            with warnings.catch_warnings():  # from_display_module warns about its surface methods, not .size
+                warnings.simplefilter("ignore", DeprecationWarning)
+                pygame.Window.from_display_module().size = self.windowed_size
 
     def show_info(self):
         """I: the overlay naming the look, cast and world, without changing anything."""
