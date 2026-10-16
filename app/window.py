@@ -20,7 +20,6 @@ one, so the grid compares consoles.
 import collections
 import os
 import time
-import warnings
 
 import numpy as np
 import pygame
@@ -289,8 +288,8 @@ class GameWindow:
                     f"render {np.mean(self.render_ms):.1f} ms   "
                     f"2600 audio missing {a.missing} dropped {a.dropped}  card dropouts {a.xruns}")
             screen.blit(self.font.render(info, True, (200, 200, 220)), (8, main_h + 4))
-        if screen is not self.screen:  # a small screen: the canvas shrunk into the window
-            pygame.transform.smoothscale(screen, self.screen.get_size(), self.screen)
+        if screen is not self.screen:  # a small screen, or a view changed in fullscreen: fit the canvas in
+            fit_into(screen, self.screen)
         pygame.display.flip()
 
     def set_mode(self):
@@ -307,6 +306,12 @@ class GameWindow:
         screen_w, screen_h = pygame.display.get_desktop_sizes()[0]
         k = min(1.0, FIT * screen_w / size[0], FIT * screen_h / size[1])
         shown = (int(size[0] * k), int(size[1] * k))
+        if self.fullscreen and pygame.display.get_surface() is not None:
+            # fullscreen: the window is the whole screen whatever the view, so keep it - a new window would
+            # leave fullscreen and come back (macOS animates that on every V); show() fits the canvas in
+            pygame.display.set_caption(CAPTIONS[self.view])
+            self.canvas = pygame.Surface(size)
+            return self.screen
         if pygame.display.get_surface() is not None:  # pygame-ce 2.5.8 segfaults re-calling set_mode with
             pygame.display.quit()                      # SCALED|RESIZABLE (or vsync), so a new view gets a new
             pygame.display.init()                      # window - which never sees the release of a held key
@@ -321,9 +326,6 @@ class GameWindow:
             surf = pygame.display.set_mode(shown, flags)
             self.vsync = False
         self.canvas = surf if k == 1.0 else pygame.Surface(size)
-        if self.fullscreen:  # a new view while fullscreen: leaving it later gives this view's own size
-            self.windowed_size = pygame.display.get_window_size()
-            pygame.display.toggle_fullscreen()
         return surf
 
     # ---- window commands (KEYS) ----------------------------------------------------------------------------
@@ -366,16 +368,14 @@ class GameWindow:
         self.now_showing.show(("COMPARE", "world"))
 
     def toggle_fullscreen(self):
-        """F: fullscreen on / off (the picture keeps its shape). Back from fullscreen, SCALED would pick the
-        largest whole multiple that fits the screen (e.g. double), so the window gets its own size back."""
+        """F: fullscreen on / off (the picture keeps its shape). Into fullscreen: the same window grows. Out of
+        it: a new window at the current view's own size - whatever views were chosen meanwhile, and not the
+        whole multiple of it that SCALED would otherwise pick (double, on a big screen)."""
         self.fullscreen = not self.fullscreen
         if self.fullscreen:
-            self.windowed_size = pygame.display.get_window_size()
-        pygame.display.toggle_fullscreen()
-        if not self.fullscreen:
-            with warnings.catch_warnings():  # from_display_module warns about its surface methods, not .size
-                warnings.simplefilter("ignore", DeprecationWarning)
-                pygame.Window.from_display_module().size = self.windowed_size
+            pygame.display.toggle_fullscreen()
+        else:
+            self.screen = self.set_mode()
 
     def show_info(self):
         """I: the overlay naming the look, cast and world, without changing anything."""
@@ -442,6 +442,18 @@ class GameWindow:
     def stop_recording(self):
         if self.recorder.active:
             print("recording saved:", *self.recorder.stop(), "frames", flush=True)
+
+
+def fit_into(canvas, screen):
+    """Paint `canvas` into `screen` as big as fits with its shape kept, centred, bars around it."""
+    (cw, ch), (sw, sh) = canvas.get_size(), screen.get_size()
+    k = min(sw / cw, sh / ch)
+    w, h = int(cw * k), int(ch * k)
+    if (w, h) == (sw, sh):
+        pygame.transform.smoothscale(canvas, (sw, sh), screen)
+        return
+    screen.fill(BACKGROUND)
+    screen.blit(pygame.transform.smoothscale(canvas, (w, h)), ((sw - w) // 2, (sh - h) // 2))
 
 
 def following(keys, key):
