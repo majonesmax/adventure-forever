@@ -13,7 +13,8 @@ Unzip, start **Adventure Forever**, and drag your own Adventure ROM onto the win
 remembered; the ROM isn't included). The apps aren't signed, so the first launch needs one extra click:
 macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway**. All versions and release notes:
 [Releases](https://github.com/majonesmax/adventure-forever/releases). Linux or an Intel Mac:
-[run it from source](#running-it-from-source-macos-windows-linux).
+[run it from source](#running-it-from-source-macos-windows-linux). In the game, press **H** for all the
+keys ([Controls](#controls)).
 
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in two new **looks**:
@@ -77,18 +78,42 @@ release, hacks) still run, and the game tells you what it found and whether the 
 More: `python play.py --list` (the looks and packs), `--look snes --cast classic`, `--grid`, `--help`.
 On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 
-**Keys:** arrows + space = joystick, Tab = game select (games 1–3), Enter = reset/start,
-**L** = look (NES → SNES), **C** = cast, **W** = world (classic → pbj → yours; an overlay names
-what's on screen; **I** shows it any time),
-**V** = view (side by side → remaster only → 2600 only → grid), **F** = fullscreen (or resize the window).
-The grid shows what you're playing over a comparison (by default the other console with the same cast and
-world); **Shift+L / C / W** set the comparison's own look, cast or world.
-
-T = room scrolls on/off, M / − / = = music on/off and volume, N = next music source, S = screenshot,
-R = record (needs ffmpeg), D = debug line (with the game's measured speed), P = pause, Esc = quit.
+The grid shows what you're playing over a comparison (by default the other console with the same cast and world); Shift+L / C / W set the comparison's own look, cast or world. Details: [Controls](#controls).
 
 **Building the downloads:** `python package/build.py` on each system makes that system's download in
 `package/dist/` (PyInstaller can't build for another system, so the Windows one is built on Windows).
+
+## Controls
+
+In the game, **H** shows all of these.
+
+| Key | |
+|---|---|
+| **Play** | |
+| `Arrows` | move |
+| `Space` | fire: drop what you carry |
+| `Tab` | game select (games 1-3) |
+| `Enter` | game reset: start |
+| **What you see** | |
+| `L` | next look: NES, SNES |
+| `C` | next cast: the knight, PBJ and friends |
+| `W` | next world: castles, kingdoms |
+| `I` | which look, cast and world |
+| `V` | view: side by side, look, 2600, grid |
+| `Shift+L/C/W` | the grid's comparison: its own |
+| `F` | fullscreen on / off |
+| `T` | room scrolls on / off |
+| **Sound** | |
+| `M` | music on / off |
+| `- / =` | music quieter / louder |
+| `N` | next music source |
+| **More** | |
+| `S` | screenshot |
+| `R` | record on / off (needs ffmpeg) |
+| `D` | debug line: speed, room, render time |
+| `P` | pause |
+| `H` | help: every key |
+| `Esc` | quit |
 
 ## Music
 

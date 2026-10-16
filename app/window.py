@@ -29,6 +29,7 @@ import content
 import looks
 from app import debug_panel as DP
 from app.fonts import mono
+from app.help_panel import HelpPanel
 from app.now_showing import NowShowing
 from app import recorder as REC
 from app import transitions as TR
@@ -51,12 +52,14 @@ KEYS = {  # window commands -> GameWindow method
     pygame.K_t: "toggle_scrolls", pygame.K_p: "toggle_pause",
     pygame.K_m: "toggle_music", pygame.K_MINUS: "music_quieter", pygame.K_EQUALS: "music_louder",
     pygame.K_n: "next_music_source", pygame.K_s: "screenshot", pygame.K_r: "toggle_recording",
-    pygame.K_d: "toggle_debug_line", pygame.K_i: "show_info", pygame.K_f: "toggle_fullscreen"}
+    pygame.K_d: "toggle_debug_line", pygame.K_i: "show_info", pygame.K_f: "toggle_fullscreen",
+    pygame.K_h: "toggle_help"}  # every key, for players: app/controls.py (the help panel, H)
 
 VIEWS = ("both", "look", "2600", "grid")
 CAPTIONS = {"both": "Adventure Forever - remaster (left) and the 2600 original (right)",
             "look": "Adventure Forever - remaster", "2600": "Adventure Forever - the Atari 2600 original",
             "grid": "Adventure Forever - one game, four ways"}
+CAPTIONS = {view: f"{text}  -  H for help" for view, text in CAPTIONS.items()}
 SCALE = 3          # a 256x240 look -> 768x720
 SIDE_SCALE = 2     # the 2600 picture beside it: 160x228 -> 2x wide (its pixels are wide) x 2 tall
 SOLO_SCALE = 3     # the 2600 picture alone: 160x228 -> 960x684
@@ -111,6 +114,7 @@ class GameWindow:
         self.font = mono(14)
         self.tag_font = mono(12, bold=True)
         self.now_showing = NowShowing()
+        self.help = HelpPanel()
         with open(rom, "rb") as f:  # a ROM that isn't the version this is made for: say so, and what it means
             self.now_showing.warning = self.rom_report = versions.report(f.read())
         if self.rom_report:
@@ -185,6 +189,9 @@ class GameWindow:
     def handle_input(self):
         """Keys -> the joystick or a window command. False = quit."""
         for e in pygame.event.get():
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE and self.help.open:
+                self.help.toggle()  # Esc closes the help first; the next Esc quits
+                continue
             if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
                 self.stop_recording()  # finish the files properly
                 return False
@@ -199,15 +206,15 @@ class GameWindow:
 
     def step_game(self):
         """One emulator frame - unless paused, or while a scroll slides (the game simply waits for it)."""
-        if not self.paused and not self.scrolls:
+        if not self.paused and not self.scrolls and not self.help.open:  # the game waits while the help is up
             self.frame_times.append(time.perf_counter())
             self.core.run()
             self.audio.push(self.core.take_audio())  # the music is added by the sound card's callback, not here
             self.frame_no += 1
             self.panel.update(None, self.core.ram, self.frame_no)  # always, so the event log has history
         if self.music:
-            self.music.paused = self.paused  # P pauses the music too; scrolls don't
-        self.audio.expect = not self.paused and not self.scrolls  # silence from the game is deliberate then
+            self.music.paused = self.paused or self.help.open  # P and the help pause the music too; scrolls don't
+        self.audio.expect = not (self.paused or self.scrolls or self.help.open)  # silence is deliberate then
 
     def draw_pictures(self):
         """Every look that's needed draws this frame (all of them while recording)."""
@@ -275,6 +282,7 @@ class GameWindow:
         both = self.view == "grid" or (self.now_showing.changed or ("",))[0] == "COMPARE"
         panes = [("PLAYING", self.look), ("COMPARE", self.comparison)] if both else [(None, self.look)]
         self.now_showing.draw(screen, panes, centre)  # window only - never in the recording
+        self.help.draw(screen)
         if self.recorder.active and (self.frame_no // 30) % 2 == 0:  # window only - never in the recording
             pygame.draw.circle(screen, (230, 40, 40), (18, 18), 7)
             screen.blit(self.font.render("REC", True, (230, 40, 40)), (30, 9))
@@ -376,6 +384,11 @@ class GameWindow:
             pygame.display.toggle_fullscreen()
         else:
             self.screen = self.set_mode()
+
+    def toggle_help(self):
+        """H: every key (app/controls.py); the game waits while it's open."""
+        self.help.toggle()
+        self.now_showing.shown_at = None  # one panel at a time
 
     def show_info(self):
         """I: the overlay naming the look, cast and world, without changing anything."""

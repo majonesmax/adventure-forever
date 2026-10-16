@@ -8,13 +8,14 @@ Usage: python play.py [ROM] [--look nes|snes|template] [--cast <pack>] [--world 
 A look is the console (how the game is drawn). A cast is who's in it, a world is where; both come in packs.
 Any look shows any cast in any world.
 
-Keys:  arrows + space   joystick + fire (drop an item)      Tab / Enter   GAME SELECT / GAME RESET
+Keys (H in the game shows them all - the list is app/controls.py):
+       arrows + space   joystick + fire (drop an item)      Tab / Enter   GAME SELECT / GAME RESET
        L   next look (NES -> SNES)     C   next cast     W   next world   (classic -> pbj -> your packs)
            (each brings up a moment's overlay naming the look, cast and world; I shows it without a change)
        Shift+L / C / W   the grid's comparison pane: its own look, cast, world (plain L / C / W: it follows yours)
-       V   view: side by side -> look only -> 2600 only -> grid
+       V   view: side by side -> look only -> 2600 only -> grid      F   fullscreen      I   what's on screen
        T   room scrolls on/off      P   pause                M   music on/off      - / =   music volume
-       N   next music source        S   screenshot           R   record on/off     D   debug line      Esc   quit
+       N   next music source        S   screenshot           R   record on/off     D   debug line      H   help      Esc   quit
 
 The window itself is app/window.py; looks are in looks/ (looks/base.py), casts and worlds in packs/
 (content/cast.py, content/world.py).

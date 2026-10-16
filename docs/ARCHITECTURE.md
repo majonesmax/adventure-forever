@@ -54,7 +54,9 @@ Rules every look follows:
 
 ## One frame, in order (`app/window.py`)
 
-1. **Input:** arrows and space become the joystick; other keys are window commands (L, C, W, V, R...).
+1. **Input:** arrows and space become the joystick; other keys are window commands (L, C, W, V, R...). Every key
+   is listed once, in `app/controls.py`: the help panel (H) draws it, and `tests/test_controls.py` checks the READMEs
+   list the same keys.
 2. **The game:** one emulator frame, unless paused or a room scroll is sliding.
 3. **Pictures:** `Game.state(ram)` snapshots the RAM into a `GameState`; each look that's on screen (all of
    them while recording) draws it. When the hero walks into another room, a `Scroll` slides the old room out
@@ -102,6 +104,7 @@ python tests/verify_ram.py      # the RAM map matches the running game
 python tests/verify_rooms.py    # the walls decoded from the ROM match the real picture
 python tests/verify_exits.py    # walking off each edge leads where rooms.py says
 python tests/verify_render.py   # the rebuilt 2600 picture matches the emulator's
+python tests/test_controls.py   # every key the window handles is in the help panel and both READMEs
 ```
 
 `golden.py --update` accepts new pictures when you change a look on purpose. These checks need your ROM and

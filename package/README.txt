@@ -7,7 +7,8 @@ knight and dragons in brick castles or PBJ and friends in the candy kingdoms, or
 picture runs alongside so you can compare. Gameplay is 100% the original.
 
 You need your own copy of the Adventure ROM (a 4 KB .a26 or .bin file). The first time the game
-starts, it asks you to drag the ROM onto its window, and remembers it after that.
+starts, it asks you to drag the ROM onto its window, and remembers it after that. Once it's
+running, press H for every key.
 
 STARTING IT
   macOS     Open "Adventure Forever.app". The app isn't signed with an Apple developer ID, so the
@@ -18,7 +19,8 @@ STARTING IT
   Linux     Run the "Adventure Forever" program in this folder. If there's no sound, install your
             distribution's PortAudio package (e.g. libportaudio2).
 
-KEYS
+KEYS (in the game, H shows them all)
+  H                help: every key
   Arrows / Space   joystick / fire (drop item)
   Tab              GAME SELECT (games 1-3)
   Enter            GAME RESET (start)
@@ -29,7 +31,7 @@ KEYS
   V                view: side by side with the original -> remaster only -> 2600 only
                    -> 4-way grid: your game over a comparison (the other console, same cast
                    and world), the original and its live RAM
-  Shift+L / C / W  the grid's comparison: its own look, cast or world
+  Shift+L/C/W      the grid's comparison: its own look, cast or world
   F                fullscreen on/off (or resize the window: the picture keeps its shape)
   T                room-scroll transitions on/off
   M, - / =         music on/off, music volume
@@ -38,7 +40,8 @@ KEYS
   R                record gameplay on/off (saved to your Movies / Videos folder, in "Adventure
                    Forever"; needs ffmpeg installed: https://ffmpeg.org/download.html)
   D                debug line: game speed (frames per second), room, render time
-  P                pause        Esc  quit
+  P                pause
+  Esc              quit (or close the help)
 
 The music is original chiptune written for this project. Licences: licenses/ (the game is MIT, its
 art and music CC BY 4.0; the Stella emulator is GPL - licenses/STELLA.txt says where its source is).

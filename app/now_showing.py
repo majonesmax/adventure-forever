@@ -49,8 +49,8 @@ class NowShowing:
             for key, label in ROWS:
                 lit = self.changed == ((title or "PLAYING"), key)
                 lines.append((self.font, label.ljust(6), LABEL, names[key], CHANGED if lit else TEXT))
-        hint = ("L, C, W change yours - Shift+L, C, W the comparison - I shows this" if len(panes) > 1
-                else "press L, C or W to change, I to see this again")
+        hint = ("L, C, W change yours - Shift+L, C, W the comparison - H: all keys" if len(panes) > 1
+                else "L, C or W to change - I shows this - H: all keys")
         label_w = max(self.font.size(lbl)[0] for _, lbl, *_ in lines)
         width = max(label_w + font.size(text)[0] for font, _, _, text, _ in lines)
         width = max(width, self.small.size(hint)[0]) + 32
