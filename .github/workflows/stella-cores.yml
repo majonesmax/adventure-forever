@@ -45,7 +45,19 @@ jobs:
           git clone --filter=blob:none https://github.com/stella-emu/stella.git stella
           git -C stella -c advice.detachedHead=false checkout ${{ inputs.commit }}
       - name: Build the libretro core
+        # Windows: -static too, or the DLL needs MSYS2's libwinpthread-1.dll, which players don't have (the
+        # Makefile only makes libgcc and libstdc++ static). From the environment: the Makefile adds to LDFLAGS
+        # with +=, which a command-line LDFLAGS would override.
+        env:
+          LDFLAGS: ${{ matrix.runner == 'windows-latest' && '-static' || '' }}
         run: make -C stella/src/os/libretro -j4 ${{ matrix.make }}
+      - if: matrix.runner == 'windows-latest'
+        name: Needs only Windows' own DLLs
+        run: |
+          objdump -p stella/src/os/libretro/${{ matrix.file }} | grep "DLL Name" | tee dlls.txt
+          if grep -viE "DLL Name: (kernel32|msvcrt|user32|advapi32|ws2_32|shell32|ole32)\.dll" dlls.txt; then
+            echo "the core needs a DLL that isn't part of Windows"; exit 1
+          fi
       - name: Package
         run: |
           short=$(git -C stella rev-parse --short=9 HEAD)
