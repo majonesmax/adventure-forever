@@ -17,6 +17,12 @@ frame we read the game's memory and draw the scene again, our way.
 | Read | every frame | once, at startup |
 | By | `engine/state.py` turns it into a `GameState` (named fields, no addresses) | `engine/rooms.py`, `engine/objects.py` decode its tables |
 
+**Which ROM.** Every good dump of the NTSC cartridge is the same 4096 bytes (MD5 `157bddb7...`), so "different
+dumps" isn't a problem. A different *version* (the PAL release, a hack) could keep its tables or RAM elsewhere,
+so at startup `engine/versions.py` names the ROM by its hash and checks our RAM map against its object
+table. If anything doesn't match, the game still runs, and the overlay says what moved, so the remasters
+drawing wrongly is never a mystery.
+
 The ROM's tables aren't copied into our code on purpose. They're Atari's data, so we read them from your copy
 and the repository stays free of it. What we *do* keep is knowledge about the game: which RAM address means
 what (`engine/ram_map.py`) and where the tables live in the ROM.

@@ -36,6 +36,7 @@ from engine import music as MU
 from engine import objects as O
 from engine import paths
 from engine import rooms as R
+from engine import versions
 from engine.state import Game
 from shared import layout as L
 
@@ -107,7 +108,11 @@ class GameWindow:
         self.font = mono(14)
         self.tag_font = mono(12, bold=True)
         self.now_showing = NowShowing()
-        self.now_showing.show()  # say what's on screen at the start
+        with open(rom, "rb") as f:  # a ROM that isn't the version this is made for: say so, and what it means
+            self.now_showing.warning = self.rom_report = versions.report(f.read())
+        if self.rom_report:
+            print("ROM: " + "\n     ".join([self.rom_report[0], *self.rom_report[1]]), flush=True)
+        self.now_showing.show(duration=12 if self.rom_report else 2.5)  # say what's on screen at the start
 
         self.view = "grid" if grid else "both"
         self.debug = self.paused = False

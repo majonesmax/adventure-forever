@@ -61,6 +61,11 @@ python tools/get_core.py               # downloads the Stella emulator core for 
 python play.py                         # drag your ROM onto the window the first time - or: python play.py path/to/adventure.a26
 ```
 
+**Which ROM:** the NTSC release of Adventure (Atari CX2613, also sold by Sears), MD5
+`157bddb7192754a45372be196797f284` - every good dump of that cartridge is identical. Other versions (the PAL
+release, hacks) still run, and the game tells you what it found and whether the remasters can follow it
+(`engine/versions.py`).
+
 More: `python play.py --list` (the looks and packs), `--look snes --cast classic`, `--grid`, `--help`.
 On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 

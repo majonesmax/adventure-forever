@@ -1,9 +1,11 @@
-"""The "now showing" overlay: which look, cast and world are on screen, shown for a moment when one changes.
+"""The "now showing" overlay: which look, cast and world are on screen, shown for a moment when one changes -
+and, when the ROM isn't the version Adventure Forever is made for, what that means (engine/versions.py).
 
 Drawn on the window only (like the REC dot) - never into a look's picture, so never into a recording.
 Timed on the wall clock, so it fades even while the game is paused.
 """
 
+import textwrap
 import time
 
 import pygame
@@ -14,27 +16,29 @@ SHOW_FOR = 2.5  # seconds fully visible
 FADE_FOR = 0.6  # then fading out
 ROWS = (("look", "LOOK"), ("cast", "CAST"), ("world", "WORLD"))
 LABEL, TEXT, CHANGED, HINT = (150, 150, 175), (235, 235, 245), (248, 200, 72), (120, 120, 145)
+WARN, WARN_TEXT = (240, 140, 60), (240, 220, 200)
 
 
 class NowShowing:
     def __init__(self):
         self.font = mono(18, bold=True)
         self.small = mono(13)
-        self.shown_at, self.changed = None, None
+        self.shown_at, self.changed, self.duration = None, None, SHOW_FOR
+        self.warning = None  # (headline, [details]) about the ROM, shown under the names
 
-    def show(self, changed=None):
-        """Bring it up; `changed` ("look" / "cast" / "world") is highlighted."""
-        self.shown_at, self.changed = time.perf_counter(), changed
+    def show(self, changed=None, duration=SHOW_FOR):
+        """Bring it up for `duration` seconds; `changed` ("look" / "cast" / "world") is highlighted."""
+        self.shown_at, self.changed, self.duration = time.perf_counter(), changed, duration
 
     def draw(self, screen, look, centre_x, top=16):
         """Paint it over `screen`, centred on centre_x, if it's up. look: the look on screen."""
         if self.shown_at is None:
             return
         age = time.perf_counter() - self.shown_at
-        if age > SHOW_FOR + FADE_FOR:
+        if age > self.duration + FADE_FOR:
             self.shown_at = None
             return
-        alpha = 255 if age < SHOW_FOR else int(255 * (1 - (age - SHOW_FOR) / FADE_FOR))
+        alpha = 255 if age < self.duration else int(255 * (1 - (age - self.duration) / FADE_FOR))
         names = {"look": look.platform_name, "cast": look.cast.name, "world": look.world.name}
         lines = [(self.font, label.ljust(6), LABEL, names[key], CHANGED if key == self.changed else TEXT)
                  for key, label in ROWS]
@@ -53,5 +57,22 @@ class NowShowing:
             box.blit(font.render(name, True, name_c), (16 + label_w, y))
             y += line_h
         box.blit(self.small.render(hint, True, HINT), (16, y + 6))
+        box.set_alpha(alpha)
+        screen.blit(box, (centre_x - width // 2, top))
+        if self.warning:
+            self.draw_warning(screen, centre_x, top + height + 8, alpha)
+
+    def draw_warning(self, screen, centre_x, top, alpha):
+        headline, details = self.warning
+        lines = [(self.small, line, WARN) for line in textwrap.wrap(headline, 64)]
+        for d in details:
+            lines += [(self.small, line, WARN_TEXT) for line in textwrap.wrap(d, 64)]
+        line_h = self.small.get_linesize()
+        width = max(self.small.size(text)[0] for _, text, _ in lines) + 32
+        box = pygame.Surface((width, len(lines) * line_h + 20), pygame.SRCALPHA)
+        box.fill((24, 10, 4, 225))
+        pygame.draw.rect(box, (*WARN, 255), box.get_rect(), 2, border_radius=6)
+        for i, (font, text, colour) in enumerate(lines):
+            box.blit(font.render(text, True, colour), (16, 10 + i * line_h))
         box.set_alpha(alpha)
         screen.blit(box, (centre_x - width // 2, top))

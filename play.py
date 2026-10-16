@@ -72,6 +72,11 @@ def main():
                         public=args.public, record=args.record)
     try:
         window.run()
+    except Exception:
+        if window.rom_report:  # the likeliest reason something broke
+            print("\nThis may be because of the ROM - " + " ".join([window.rom_report[0], *window.rom_report[1]]),
+                  file=sys.stderr)
+        raise
     finally:  # a recording only plays once ffmpeg has been told the stream ended - however the game stops
         window.stop_recording()
 
