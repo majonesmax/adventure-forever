@@ -214,6 +214,13 @@ class GameWindow:
         needed = (self.recorded_looks() if self.recorder.active else list(self.grid_looks()) if self.view == "grid"
                   else [self.look])
         if self.scrolls:  # every look scrolls the same distance at the same speed, so they finish together
+            caught_up = next(iter(self.scrolls.values())).offset
+            for lk in needed:  # a view switch (e.g. into the grid) mid-scroll can need a look not yet scrolling
+                if lk not in self.scrolls:
+                    sc = TR.Scroll.between(lk, self.prev_st, self.st, self.frame_no)
+                    if sc:
+                        sc.offset = caught_up
+                        self.scrolls[lk] = sc
             self.pictures = {lk: sc.frame() for lk, sc in self.scrolls.items()}
             if all(sc.done for sc in self.scrolls.values()):
                 self.scrolls = {}
@@ -299,6 +306,10 @@ class GameWindow:
         screen_w, screen_h = pygame.display.get_desktop_sizes()[0]
         k = min(1.0, FIT * screen_w / size[0], FIT * screen_h / size[1])
         shown = (int(size[0] * k), int(size[1] * k))
+        if pygame.display.get_surface() is not None:  # pygame-ce 2.5.8 segfaults re-calling set_mode with
+            pygame.display.quit()                      # SCALED|RESIZABLE (or vsync), so a new view gets a new
+            pygame.display.init()                      # window - which never sees the release of a held key
+            self.core.joy.clear()
         pygame.display.set_caption(CAPTIONS[self.view])
         flags = pygame.SCALED | pygame.RESIZABLE
         try:

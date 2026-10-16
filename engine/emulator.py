@@ -61,6 +61,11 @@ class Variable(C.Structure):
     _fields_ = [("key", C.c_char_p), ("value", C.c_char_p)]
 
 
+class SystemInfo(C.Structure):
+    _fields_ = [("name", C.c_char_p), ("version", C.c_char_p), ("extensions", C.c_char_p),
+                ("need_fullpath", C.c_bool), ("block_extract", C.c_bool)]
+
+
 ENV_CB = C.CFUNCTYPE(C.c_bool, C.c_uint, C.c_void_p)
 VIDEO_CB = C.CFUNCTYPE(None, C.c_void_p, C.c_uint, C.c_uint, C.c_size_t)
 AUDIO_CB = C.CFUNCTYPE(None, C.c_int16, C.c_int16)
@@ -102,6 +107,9 @@ class Core:
         L.retro_set_input_state(self._keep[5])
         L.retro_get_memory_data.restype = C.c_void_p
         L.retro_get_memory_size.restype = C.c_size_t
+        info = SystemInfo()
+        L.retro_get_system_info(C.byref(info))
+        self.need_fullpath = info.need_fullpath
         L.retro_init()
         self.ram = None  # numpy view of the 128 bytes, valid after load()
 
@@ -176,7 +184,15 @@ class Core:
         return info
 
     def load(self, path):
-        game = GameInfo(path.encode(), None, 0, None)
+        # need_fullpath: the core opens the path itself. Otherwise it wants the bytes already in memory
+        # (the path is kept too, for cores that still key off its extension).
+        if self.need_fullpath:
+            game = GameInfo(path.encode(), None, 0, None)
+        else:
+            with open(path, "rb") as f:
+                raw = f.read()
+            buf = self._rom = C.create_string_buffer(raw, len(raw))  # kept: a core may read it after loading
+            game = GameInfo(path.encode(), C.cast(buf, C.c_void_p), len(raw), None)
         if not self.lib.retro_load_game(C.byref(game)):
             raise RuntimeError(f"core refused {path}")
         self.lib.retro_set_controller_port_device(0, DEVICE_JOYPAD)
