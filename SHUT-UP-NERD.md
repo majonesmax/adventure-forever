@@ -99,7 +99,7 @@ shows which three are on screen.
 | `packs/` | the packs: `pack.json`, `cast/` pictures, `world/` tiles, `source/` (all art as text, one character a pixel) |
 | `shared/` | room layout geometry, pixel-art helpers, palettes, the pixel font |
 | `app/` | the window: views, room scrolls, the RAM panel, the overlay, recording |
-| `tools/` | video editor, 2600-picture rebuild, RAM viewer |
+| `tools/` | video editor, grid GIF maker (`make_gif.py`), 2600-picture rebuild, RAM viewer, emulator core download |
 | `package/` | `build.py`: the download for the system it runs on (app + README + licences, Stella's GPL source link) |
 | `tests/` | checks against the real emulator; `golden.py` renders every look × cast × world and compares hashes |
 

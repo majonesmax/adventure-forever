@@ -1,5 +1,7 @@
 # Adventure Forever
 
+![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
+
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in two new **looks**:
 
@@ -104,7 +106,8 @@ both. Any look shows any cast in any world, adapting the pictures to its own rul
 R records every look (with the cast and world on screen) plus the 2600 picture as separate lossless videos, the audio as heard, and a
 per-frame log of what happened (rooms, pickups, dragon fights, deaths, wins). `tools/make_video.py` cuts a take
 into a 1080p video from an `edit.json` you write per take (ranges to keep, captions, cards); see its
-docstring. Needs `ffmpeg`.
+docstring. Needs `ffmpeg`. `tools/make_gif.py` turns a stretch of a take into a four-way grid GIF (like the one
+at the top), redrawn with the current looks.
 
 ## How this was made
 

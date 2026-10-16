@@ -49,7 +49,7 @@ Rules every look follows:
 | `packs/` | **the packs**, one folder each: `pack.json`, `cast/` pictures, `world/` tiles, and the text art they were drawn from in `source/`. `classic` (the NES look's own), `pbj` (the SNES look's own), `template` (the smallest). Your own go in `private/packs/` |
 | `app/` | **the window around the game.** `window.py` (the frame loop, views, keys), `transitions.py` (room scrolls), `recorder.py` (gameplay recording), `debug_panel.py` (the live RAM view: [reading it](reading-the-ram.md)), `rom.py` (finding your ROM) |
 | `shared/` | helpers used by looks, content and the app: `layout.py` (the screen and room layout, where the walls are in pixels), `pixelart.py` (sprites drawn as text, pasting), `palettes.py` (the NES palette), `hud.py` (the pixel font) |
-| `tools/` | development tools: the video editor (`make_video.py`), the 2600-picture rebuild (`rebuild_2600.py`), the RAM viewer, mock-ups |
+| `tools/` | development tools: the emulator core download (`get_core.py`), the video editor (`make_video.py`), the grid GIF maker (`make_gif.py`), the 2600-picture rebuild (`rebuild_2600.py`), the RAM viewer, mock-ups |
 | `tests/` | checks against the real emulator; `golden.py` proves every look still draws exactly the same pixels |
 
 ## One frame, in order (`app/window.py`)
