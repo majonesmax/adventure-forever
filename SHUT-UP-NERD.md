@@ -71,17 +71,7 @@ shows which three are on screen.
   its logic once per frame, so the frame boundary is where the state is complete: sampling faster would catch
   half-updated state, and slower would miss frames. We never write RAM during play (only the tests do, to set
   up scenes).
-- **Speed: the emulator has no clock; we do.** `retro_run()` emulates one frame - 1/60 s of the game's
-  time, beam and all, cycle by cycle - in about a millisecond, then returns. Real time is set entirely outside
-  the emulator, by how often we call it:
-  - on a ~60 Hz display, the display's vsync paces it: one game frame per refresh, no tearing;
-  - on any other display (120/144 Hz), or without vsync, a timer does, so a fast monitor never means a fast
-    game;
-  - if a frame ever takes longer than 1/60 s to draw (a weak machine), the game slows down rather than
-    skipping frames, so the game's world and the picture stay one-to-one;
-  - the core runs at exactly 60.0 frames per second; a real NTSC 2600 ran at about 59.92, so we're 0.13%
-    faster (about 5 seconds an hour), as RetroArch is on a 60 Hz screen.
-  The debug line (**D**) shows the measured game speed, so anyone can check it on their own machine.
+- **Speed:** exactly the game's own, paced by us, not the emulator - see [Timing](#timing) below.
 - **Verified, not assumed.** `tests/verify_render.py` rebuilds the 2600 picture purely from our RAM snapshots
   and compares it with Stella's: 372 frames, 34 differing by 191 pixels in total (a known baseline), the rest
   exact. `verify_ram`, `verify_rooms` and `verify_exits` check the address map, walls and exits against the
@@ -94,6 +84,36 @@ shows which three are on screen.
   - the joystick is passed in before each frame, as the 2600 polls once per frame; vsync adds the usual frame or
     so of display delay;
   - the music is added on top, and the game's own sound comes from Stella unchanged.
+
+## Timing
+
+**The emulator never runs by itself.** We register its callbacks once, at startup. Then each call to
+`retro_run()` means "emulate one frame and come back": Stella runs the CPU and the TIA's beam cycle by cycle
+through one whole TV frame, calling us back *during* that call ("what's the joystick doing?", "here's the
+picture", "here's the sound"), and returns - in about a millisecond. Between calls it is frozen. So the
+emulator decides what happens in a frame (always 1/60 s of the game's time); **we decide when the next
+frame happens.**
+
+```
+ our loop:  keys -> retro_run() ~1 ms -> read RAM -> draw the looks -> show (flip) -> wait -> again
+                   (callbacks fire inside)                                  └─ vsync or timer: ~16.7 ms a lap
+```
+
+Three clocks, and who follows whom:
+
+| Clock | Rate | What we do with it |
+|---|---|---|
+| **The game** | 60.0 frames a second (the core's; a real NTSC 2600 is ~59.92) | one `retro_run()` per lap, never skipped, never doubled |
+| **Your display** | its refresh rate | at ~60 Hz, vsync paces the loop: one game frame per refresh, no tearing. Anything else (120/144 Hz, or PAL's 50 Hz game), or no vsync: a timer paces it, so a fast screen never means a fast game |
+| **Your sound card** | its own exact rate, never quite the display's | a small buffer absorbs the drift; the debug line counts samples `missing` / `dropped` if it ever runs dry or overflows |
+
+- **Check it yourself:** the startup line says what was chosen (`display 60 Hz, vsync on, pacing by vsync`),
+  and the debug line (**D**) shows the measured game speed.
+- **Slower, never skipped:** if a lap takes longer than 1/60 s (a weak machine, the grid while recording), the
+  game slows down rather than skipping frames, so the game's world and the picture stay one-to-one.
+- **Pauses are free:** P and room scrolls simply don't call `retro_run()`; the game sees no time pass.
+- **The 0.13%:** at 60.0 instead of ~59.92 fps we're about 5 seconds an hour faster than a 1980 TV, as
+  RetroArch is on a 60 Hz screen.
 
 ## Where things live
 
