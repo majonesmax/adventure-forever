@@ -136,6 +136,8 @@ class Reel:
             if abs(hy - y) > near:
                 keys.add(h.JOY_UP if y > hy else h.JOY_DOWN)
             self.play(1, keys)
+        print(f"walk_to: didn't reach ({x:02X}, {y:02X}) from ({hx:02X}, {hy:02X}) in room "
+              f"${int(self.win.core.ram[0x8A - 0x80]):02X} - {self.caption!r} at {self.frame / FPS:.1f} s", flush=True)
         return most
 
     def route(self, *points, most=400):
@@ -176,10 +178,12 @@ class Reel:
             print(f"poke: the hero didn't stay in room ${values[0x8A]:02X}", flush=True)
 
     def clear(self):
-        """Every dragon, item and the bat out of the way (into the far red maze), nothing carried - for a
-        scene of its own."""
+        """Every dragon, item and the bat out of the way (into the far red maze), the dragons dead, nothing
+        carried - for a scene of its own."""
         for addr in (0xA4, 0xA9, 0xAE, 0xB3, 0xB6, 0xB9, 0xBC, 0xBF, 0xC2, 0xC5, 0xCB):
             self.win.core.ram[addr - 0x80] = 0x1D
+        for dragon in (0xA4, 0xA9, 0xAE):  # dead, so they don't wander back in (a scene revives its own)
+            self.win.core.ram[dragon + 4 - 0x80] = 1
         self.win.core.ram[0x9D - 0x80] = 0xA2
         self.win.core.ram[0xD0 - 0x80] = 0
 
@@ -306,31 +310,32 @@ def script(r):
     r.say("Same game, same moves. Only the picture is new.")
     r.play(140, {UP})  # the key opens the gate; into the castle
     r.press("next_view")  # -> the look alone
-    r.poke({0x8A: 0x11, 0x8B: 0x50, 0x8C: 0x18})  # back out in front of the castle
+    r.clear()  # the key too: carried past the gate, it would open it again
+    r.poke({0x8A: 0x11, 0x8B: 0x50, 0x8C: 0x1C, 0xC8: 0x1C})  # back out in front of the castle, its gate shut
 
     # looks
     r.say("Press L to change the look.")
-    r.route((0x20, 0x18), most=60)
+    r.route((0x20, 0x1C), most=60)
     for look, line in (("snes", "SNES: 16-bit colour and a bigger cast."),
                        ("vga", "VGA: an early-90s PC game, 256 colours."),
                        ("paper", "Paper: crayon in a sketchbook."),
                        ("nes", "NES: where it started.")):
         r.press("next_look")
         r.say(line)
-        r.route((0x20, 0x40), (0x20, 0x18), (0x80, 0x18), (0x80, 0x40), most=45)
+        r.route((0x20, 0x50), (0x20, 0x1C), (0x40, 0x1C), most=60)  # clear of the gate
 
     # casts and worlds
     r.say("C changes the cast: who's in the game.")
     r.press("next_cast")
-    r.route((0x80, 0x18), (0x20, 0x18), most=80)
+    r.route((0x20, 0x50), (0x20, 0x1C), most=80)
     r.say("W changes the world: where it happens.")
     r.press("next_world")
-    r.route((0x20, 0x40), (0x20, 0x18), (0x80, 0x18), most=60)
+    r.route((0x40, 0x1C), (0x20, 0x1C), (0x20, 0x40), most=60)
     r.say("Any look shows any cast in any world.")
     for look, cast, world in (("snes", "classic", "pbj"), ("vga", "pbj", "classic"), ("paper", "pbj", "pbj"),
                               ("nes", "classic", "classic"), ("snes", "pbj", "pbj")):
         r.use(look, cast, world)
-        r.route((0x80, 0x18), (0x20, 0x18), most=45)
+        r.route((0x40, 0x1C), (0x20, 0x1C), most=45)
 
     # the game itself, staged: each scene set up in RAM, then played out by the real game
     r.say("Fight dragons...")
