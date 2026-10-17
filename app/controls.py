@@ -13,7 +13,7 @@ SECTIONS = [
         ("Enter", "game reset: start", ["return"]),
     ]),
     ("WHAT YOU SEE", [
-        ("L", "next look: NES, SNES", ["l"]),
+        ("L", "next look: NES, SNES, VGA", ["l"]),
         ("C", "next cast: the knight, PBJ and friends", ["c"]),
         ("W", "next world: castles, kingdoms", ["w"]),
         ("I", "which look, cast and world", ["i"]),

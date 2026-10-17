@@ -16,9 +16,10 @@ import content
 from engine import paths
 from looks.nes.look import NesLook
 from looks.snes.look import SnesLook
+from looks.vga.look import VgaLook
 from looks.template_look import TemplateLook
 
-LOOKS = {"nes": NesLook, "snes": SnesLook}
+LOOKS = {"nes": NesLook, "snes": SnesLook, "vga": VgaLook}
 TEMPLATE_LOOKS = {"template": TemplateLook}
 OLD_NAMES = {"16bit": "snes", "forever": "snes"}  # what the SNES look used to be called
 

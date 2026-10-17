@@ -1,7 +1,7 @@
 """Adventure Forever: Atari 2600 Adventure, running unmodified in an emulator and redrawn live as an NES game
 or a Super NES one, with the 2600 original alongside.
 
-Usage: python play.py [ROM] [--look nes|snes|template] [--cast <pack>] [--world <pack>] [--pack <pack>]
+Usage: python play.py [ROM] [--look nes|snes|vga|template] [--cast <pack>] [--world <pack>] [--pack <pack>]
                                 [--grid] [--public] [--record]
        python play.py --list          the looks and packs there are
 
@@ -10,7 +10,7 @@ Any look shows any cast in any world.
 
 Keys (H in the game shows them all - the list is app/controls.py):
        arrows + space   joystick + fire (drop an item)      Tab / Enter   GAME SELECT / GAME RESET
-       L   next look (NES -> SNES)     C   next cast     W   next world   (classic -> pbj -> your packs)
+       L   next look (NES, SNES, VGA)   C   next cast     W   next world   (classic -> pbj -> your packs)
            (each brings up a moment's overlay naming the look, cast and world; I shows it without a change)
        Shift+L / C / W   the grid's comparison pane: its own look, cast, world (plain L / C / W: it follows yours)
        V   view: side by side -> look only -> 2600 only -> grid      F   fullscreen      I   what's on screen

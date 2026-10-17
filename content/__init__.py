@@ -1,12 +1,15 @@
 """What's IN the game: casts (who) and worlds (where), which come in packs (folders) - the one place that
 finds them. How the game is DRAWN is looks/ (the platforms); every look shows every cast in every world.
 
-    packs(public)    {key: folder}: packs/ (classic, pbj first, then A-Z), then private/packs/ unless public
+    packs(public)    {key: folder}: packs/ (classic, pbj first, then A-Z), then - unless public - the folders in
+                     ADVENTURE_PACKS (packs from elsewhere, e.g. another repository), then private/packs/
     load(key)        a pack, loaded once (content/pack.py): .cast, .world
     casts(public)    keys of the packs with a cast, in the order C cycles them
     worlds(public)   keys of the packs with a world, in the order W cycles them
 
-Packs need no code to be found: any folder in packs/ or private/packs/ with a pack.json.
+Packs need no code to be found: any folder in packs/ or private/packs/ with a pack.json. Packs kept somewhere
+else (another repository) join by listing their folder in ADVENTURE_PACKS, several separated like PATH:
+    ADVENTURE_PACKS=../shall-we-play-a-game/packs python play.py --pack orientation
 """
 
 import os
@@ -16,6 +19,7 @@ from engine import paths
 
 PUBLIC_PACKS = os.path.join(paths.ROOT, "packs")
 PRIVATE_PACKS = os.path.join(paths.PRIVATE, "packs")  # git-ignored: personal packs never get published
+EXTRA_PACKS = [os.path.abspath(p) for p in os.environ.get("ADVENTURE_PACKS", "").split(os.pathsep) if p]
 FIRST = ("classic", "pbj")  # the built-in packs lead the cycles
 EXAMPLES = ("template",)  # reachable by name, left out of the cycles
 
@@ -25,7 +29,7 @@ _loaded = {}
 def packs(public=False, examples=True):
     """{key: folder} - the public packs (built-in first), then the private ones unless public."""
     found = {}
-    for root in (PUBLIC_PACKS,) if public else (PUBLIC_PACKS, PRIVATE_PACKS):
+    for root in [PUBLIC_PACKS] if public else [PUBLIC_PACKS, *EXTRA_PACKS, PRIVATE_PACKS]:
         if not os.path.isdir(root):
             continue
         names = [d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "pack.json"))]
@@ -36,7 +40,9 @@ def packs(public=False, examples=True):
 
 
 def is_private(key):
-    return os.path.dirname(packs().get(key, "")) == PRIVATE_PACKS
+    """A pack that isn't the repository's own (private/packs/, or ADVENTURE_PACKS): kept out of --public builds
+    and tests/golden_hashes.json."""
+    return os.path.dirname(packs().get(key, "")) != PUBLIC_PACKS
 
 
 def load(key):

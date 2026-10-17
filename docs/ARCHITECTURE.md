@@ -6,7 +6,7 @@ memory, every frame. Nothing here changes how the game plays; it only changes ho
 ```
  ┌──────────────────────┐   128 bytes of RAM    ┌──────────────────────┐   GameState   ┌──────────────────────┐
  │ engine/emulator.py   │ ────────────────────▶ │ engine/state.py      │ ────────────▶ │ looks/ + content/    │
- │ the Stella core runs │      every frame      │ room, hero, objects, │               │ a look (NES, SNES)   │
+ │ the Stella core runs │      every frame      │ room, hero, objects, │               │ a look (NES, SNES…)  │
  │ the real game        │                       │ carried item, won... │               │ shows a cast+world   │
  └──────────▲───────────┘                       └──────────────────────┘               └──────────┬───────────┘
             │ joystick                                                                  256x240   │

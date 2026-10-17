@@ -17,10 +17,11 @@ macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway
 keys ([Controls](#controls)).
 
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
-redrawn live from the game's 128 bytes of RAM, in two new **looks**:
+redrawn live from the game's 128 bytes of RAM, in three new **looks**:
 
 - **NES**: an 8-bit remaster.
 - **SNES**: a 16-bit remaster.
+- **VGA**: an early-90s PC adventure: 256 colours, dithered light, a grey menu strip and message boxes.
 
 Who's in the game and where it happens come in **packs**, and any look shows any of them:
 
@@ -95,7 +96,7 @@ In the game, **H** shows all of these.
 | `Tab` | game select (games 1-3) |
 | `Enter` | game reset: start |
 | **What you see** | |
-| `L` | next look: NES, SNES |
+| `L` | next look: NES, SNES, VGA |
 | `C` | next cast: the knight, PBJ and friends |
 | `W` | next world: castles, kingdoms |
 | `I` | which look, cast and world |
