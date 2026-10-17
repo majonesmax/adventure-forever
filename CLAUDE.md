@@ -19,13 +19,14 @@ never assumes a particular look.
 ## Commands
 
 ```sh
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
+python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 python tools/get_core.py                    # the pinned Stella core, checksum-verified
 python play.py --pack <pack> --look <look>  # play (the user's ROM is roms/adventure.a26)
 python play.py --list                       # every look and pack
 python tools/preview.py --pack <pack>       # the pack in every look, as one PNG - look at it
 python tests/golden.py                      # every look x cast x world still draws the same pixels
 python tests/test_controls.py               # every key is documented
+python tools/readability.py                 # no file got harder to read (and FILE... lists a file's issues)
 ```
 
 ## Rules
@@ -43,6 +44,25 @@ python tests/test_controls.py               # every key is documented
   `shared/pixelart.py`) and generated into `cast/`. Don't hand-edit the PNGs; edit the source and rerun it.
 - **Public packs are original.** No names, logos, likenesses, quotes or exact designs from someone else's
   work. Inspired-by is fine; a copy is not. Fan art of real shows belongs in `private/packs/`.
+
+## Readable code
+
+The person who owns this code reads it rather than writes it, and isn't a Python specialist. Write for them:
+
+- **Names say what things are.** `state`, not `st`; `look`, not `lk`; `object_number`, not `n`. Short names
+  only for loop counters and coordinates (`i`, `x`, `y`, `dx`, `w`, `h`).
+- **One idea per line.** Don't put a calculation inside a call inside an assignment; name the steps.
+- **Name the numbers.** `224 - 2 * y` needs a name or a comment saying what 224 is.
+- **No conditional expression inside another expression**, and a loop instead of a comprehension that needs
+  more than one `if`.
+- **Short functions:** about 40 lines at most, with few branches.
+- Lines up to 110 characters.
+
+`tools/readability.py` checks what a tool can (ruff.toml's rules, plus names under 3 letters). Existing code
+doesn't all pass yet, so it's a ratchet: no file may get worse than `tools/readability_baseline.json`. The
+Claude Code hook in `.claude/settings.json` runs it after every edit and hands back anything new; fix it before
+moving on. After cleaning a file up, run `python tools/readability.py --update` to lock the improvement in.
+Refactors are safe: `tests/golden.py` proves every picture stays the same.
 
 ## Style
 

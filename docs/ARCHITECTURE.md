@@ -118,6 +118,7 @@ python tests/verify_rooms.py    # the walls decoded from the ROM match the real 
 python tests/verify_exits.py    # walking off each edge leads where rooms.py says
 python tests/verify_render.py   # the rebuilt 2600 picture matches the emulator's
 python tests/test_controls.py   # every key the window handles is in the help panel and both READMEs
+python tools/readability.py     # no file got harder to read than tools/readability_baseline.json
 ```
 
 `golden.py --update` accepts new pictures when you change a look on purpose. These checks need your ROM and

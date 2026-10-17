@@ -1,0 +1,273 @@
+{
+ "app/debug_panel.py": {
+  "C901": 1,
+  "E501": 7,
+  "E731": 2,
+  "N001": 24
+ },
+ "app/help_panel.py": {
+  "E501": 2,
+  "N001": 1
+ },
+ "app/now_showing.py": {
+  "N001": 1
+ },
+ "app/recorder.py": {
+  "E501": 3,
+  "N001": 1
+ },
+ "app/transitions.py": {
+  "E501": 1,
+  "N001": 11
+ },
+ "app/window.py": {
+  "C901": 1,
+  "E501": 24,
+  "N001": 18,
+  "PLR0915": 1
+ },
+ "content/__init__.py": {
+  "E501": 5,
+  "N001": 2,
+  "PLR1702": 1
+ },
+ "content/cast.py": {
+  "E501": 6,
+  "N001": 6
+ },
+ "content/pack.py": {
+  "E501": 1
+ },
+ "content/pictures.py": {
+  "E501": 2,
+  "N001": 2
+ },
+ "content/world.py": {
+  "E501": 2,
+  "N001": 5
+ },
+ "engine/chiptune.py": {
+  "C901": 1,
+  "E501": 12,
+  "E731": 1,
+  "N001": 17,
+  "PLR0912": 1,
+  "PLR0915": 1
+ },
+ "engine/emulator.py": {
+  "C901": 1,
+  "E501": 3,
+  "N001": 11,
+  "PLR0911": 1
+ },
+ "engine/fm.py": {
+  "C901": 1,
+  "E501": 2,
+  "E731": 1,
+  "N001": 21,
+  "PLR0912": 1,
+  "PLR0915": 1
+ },
+ "engine/music.py": {
+  "E501": 3,
+  "N001": 16
+ },
+ "engine/objects.py": {
+  "E501": 3,
+  "N001": 12
+ },
+ "engine/palette.py": {
+  "E501": 1,
+  "N001": 3
+ },
+ "engine/paths.py": {
+  "E501": 4
+ },
+ "engine/ram_map.py": {
+  "N001": 3
+ },
+ "engine/rooms.py": {
+  "E501": 5,
+  "N001": 9
+ },
+ "engine/state.py": {
+  "E501": 2,
+  "E731": 1,
+  "N001": 4
+ },
+ "engine/versions.py": {
+  "E501": 3,
+  "E731": 1,
+  "N001": 5
+ },
+ "looks/__init__.py": {
+  "E501": 2,
+  "N001": 1
+ },
+ "looks/base.py": {
+  "C901": 1,
+  "E501": 3,
+  "N001": 39,
+  "PLR0912": 1
+ },
+ "looks/nes/look.py": {
+  "E501": 1,
+  "N001": 9
+ },
+ "looks/paper/look.py": {
+  "E501": 3,
+  "N001": 16
+ },
+ "looks/snes/look.py": {
+  "E501": 4,
+  "N001": 7
+ },
+ "looks/snes/outline.py": {
+  "E501": 1,
+  "N001": 6
+ },
+ "looks/template_look.py": {
+  "N001": 3
+ },
+ "looks/vga/look.py": {
+  "E501": 3,
+  "N001": 11
+ },
+ "package/build.py": {
+  "C901": 1,
+  "E501": 3,
+  "N001": 5,
+  "PLR0912": 1,
+  "PLR0915": 1
+ },
+ "packs/classic/cast/cast.py": {
+  "N001": 5
+ },
+ "packs/classic/source/dragons.py": {
+  "E501": 2
+ },
+ "packs/classic/source/items.py": {
+  "E501": 2,
+  "N001": 3
+ },
+ "packs/classic/source/knight.py": {
+  "E501": 1,
+  "N001": 2
+ },
+ "packs/classic/source/tiles.py": {
+  "E501": 1,
+  "N001": 1
+ },
+ "packs/classic/world/world.py": {
+  "N001": 2
+ },
+ "packs/pbj/source/grass.py": {
+  "E501": 1
+ },
+ "packs/pbj/source/pbj_sprites.py": {
+  "E501": 7,
+  "N001": 15
+ },
+ "packs/pbj/world/scenery.py": {
+  "C901": 1,
+  "E501": 18,
+  "N001": 32,
+  "PLR0915": 1
+ },
+ "packs/pbj/world/world.py": {
+  "N001": 2
+ },
+ "packs/template/source/template_sprites.py": {
+  "E501": 1
+ },
+ "play.py": {
+  "E501": 5,
+  "N001": 1
+ },
+ "shared/hud.py": {
+  "N001": 10,
+  "PLR1702": 1
+ },
+ "shared/layout.py": {
+  "E501": 1,
+  "N001": 7
+ },
+ "shared/palettes.py": {
+  "E501": 6
+ },
+ "shared/pixelart.py": {
+  "N001": 6
+ },
+ "tests/golden.py": {
+  "E501": 6,
+  "E731": 1,
+  "N001": 15,
+  "PLR1702": 1
+ },
+ "tests/test_controls.py": {
+  "E501": 2
+ },
+ "tests/verify_exits.py": {
+  "E501": 2,
+  "E702": 4,
+  "E731": 1,
+  "N001": 5
+ },
+ "tests/verify_ram.py": {
+  "C901": 1,
+  "E501": 4,
+  "E731": 1,
+  "N001": 9,
+  "PLR0915": 1
+ },
+ "tests/verify_render.py": {
+  "E501": 5,
+  "N001": 11
+ },
+ "tests/verify_rooms.py": {
+  "E501": 2,
+  "N001": 11
+ },
+ "tools/get_core.py": {
+  "E501": 2
+ },
+ "tools/make_gif.py": {
+  "E501": 6,
+  "N001": 6,
+  "PLR0915": 1
+ },
+ "tools/make_reel.py": {
+  "E501": 6,
+  "N001": 22,
+  "PLR0915": 1
+ },
+ "tools/make_video.py": {
+  "C901": 1,
+  "E501": 14,
+  "N001": 33
+ },
+ "tools/mockup.py": {
+  "E501": 2,
+  "N001": 26
+ },
+ "tools/preview.py": {
+  "E501": 3,
+  "N001": 4
+ },
+ "tools/ram_viewer.py": {
+  "C901": 1,
+  "E501": 6,
+  "N001": 7
+ },
+ "tools/rebuild_2600.py": {
+  "C901": 2,
+  "E501": 3,
+  "N001": 17,
+  "PLR0912": 1,
+  "PLR0915": 1
+ },
+ "tools/room_sheet.py": {
+  "E501": 1,
+  "N001": 16
+ }
+}
