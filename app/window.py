@@ -89,7 +89,8 @@ class GameWindow:
                 keys.append(key)
         # default: NES with its own pack in development; a packaged app starts on the SNES with its last private
         # pack's cast and world, if it has one
-        private = [k for k in self.cast_keys if content.is_private(k)]
+        # (packs bundled in a personal build only - not packs the player added, which wait for C / W)
+        private = [k for k in self.cast_keys if os.path.dirname(content.packs().get(k, "")) == content.PRIVATE_PACKS]
         last = private[-1] if paths.FROZEN and private else None
         self.look_key = look_key or ("snes" if paths.FROZEN else "nes")
         self.cast_key = cast_key or last
