@@ -31,11 +31,17 @@ runs the real game, and the remasters only *draw* it.
 | **Windows** (64-bit) | [Adventure-Forever-windows-x64.zip](https://github.com/majonesmax/adventure-forever/releases/latest/download/Adventure-Forever-windows-x64.zip) |
 
 Unzip, start **Adventure Forever**, and drag your own Adventure ROM onto the window the first time (it's
-remembered; the ROM isn't included). The apps aren't signed, so the first launch needs one extra click:
-macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway**. All versions and release notes:
-[Releases](https://github.com/majonesmax/adventure-forever/releases). Linux or an Intel Mac:
-[run it from source](#running-it-from-source-macos-windows-linux). In the game, press **H** for all the
-keys ([Controls](#controls)).
+remembered; the ROM isn't included). In the game, press **H** for all the keys ([Controls](#controls)).
+
+**The first launch** - the apps aren't signed (that costs a yearly fee), so your system asks once:
+
+- **macOS:** double-click the app; macOS refuses to open it. Open **System Settings → Privacy & Security**,
+  scroll down to *"Adventure Forever" was blocked*, click **Open Anyway** and confirm. From then on it opens
+  normally. (Or, in Terminal, in the folder you unzipped: `xattr -dr com.apple.quarantine "Adventure Forever.app"`.)
+- **Windows:** at *"Windows protected your PC"*, click **More info**, then **Run anyway**.
+
+All versions and release notes: [Releases](https://github.com/majonesmax/adventure-forever/releases). Linux or
+an Intel Mac: [run it from source](#running-it-from-source-macos-windows-linux).
 
 ## More packs
 

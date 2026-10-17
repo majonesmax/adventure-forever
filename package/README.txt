@@ -12,8 +12,10 @@ running, press H for every key.
 
 STARTING IT
   macOS     Open "Adventure Forever.app". The app isn't signed with an Apple developer ID, so the
-            first time macOS blocks it: right-click the app -> Open -> Open (or double-click, then
-            System Settings -> Privacy & Security -> "Open Anyway"). After that it opens normally.
+            first time macOS refuses to open it. Then open System Settings -> Privacy & Security,
+            scroll down to '"Adventure Forever" was blocked', click "Open Anyway" and confirm.
+            After that it opens normally. (Or, in Terminal, in this folder:
+              xattr -dr com.apple.quarantine "Adventure Forever.app"  )
   Windows   Open "Adventure Forever.exe". The app isn't signed, so the first time Windows may show
             "Windows protected your PC": click "More info" -> "Run anyway".
   Linux     Run the "Adventure Forever" program in this folder. If there's no sound, install your
