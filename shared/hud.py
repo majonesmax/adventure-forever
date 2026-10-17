@@ -58,6 +58,10 @@ for _line in _FONT.strip().split("\n"):
     _ch, *_rows = _line.split(" ")
     assert len(_rows) == 7 and all(len(r) == 5 for r in _rows), _line
     GLYPHS[_ch] = "".join(_rows)
+GLYPHS.update({  # a few more, for DOS prompts and paths (a backslash can't sit in the table above)
+    "\\": "#...." "#...." ".#..." "..#.." "...#." "....#" "....#",
+    "/": "....#" "....#" "...#." "..#.." ".#..." "#...." "#....",
+    "_": "....." "....." "....." "....." "....." "....." "#####"})
 
 
 def text_width(text, scale=1):

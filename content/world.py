@@ -183,6 +183,11 @@ class World:
         reps = (-(-h // pic.shape[0]), -(-w // pic.shape[1]), 1)
         return np.tile(pic, reps)[-h:, :w]
 
+    def lighting(self, room_num, frame_no):
+        """How lit a room is this frame, 0-1: 1 = as painted (the default, always). A world with flickering
+        lights returns less now and then; the look shows the room dimmed (kept to its own colour rules)."""
+        return 1.0
+
     def wall_tile(self, room_num):
         """The wall tile of a room's place (for screens that draw a miniature castle), or None."""
         return self.tile(area(room_num), "wall")

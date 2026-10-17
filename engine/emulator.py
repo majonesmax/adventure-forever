@@ -13,6 +13,7 @@ call retro_get_memory_data(SYSTEM_RAM) hands us a pointer to it, no core-specifi
 The core binary goes in cores/ (tools/get_core.sh). tools/ram_viewer.py is a raw viewer built on this.
 """
 
+import atexit
 import ctypes as C
 import os
 import threading
@@ -112,6 +113,7 @@ class Core:
         self.need_fullpath = info.need_fullpath
         L.retro_init()
         self.ram = None  # numpy view of the 128 bytes, valid after load()
+        atexit.register(self.shutdown)  # before C++'s own exit-time cleanup - see shutdown()
 
     # --- callbacks -------------------------------------------------------------------------
     def _env(self, cmd, data):
@@ -202,6 +204,20 @@ class Core:
             raise RuntimeError(f"core exposes no system RAM (ptr={ptr}, size={size})")
         # a live view: reading it between retro_run() calls sees the current state, no copying, no pausing
         self.ram = np.ctypeslib.as_array(C.cast(ptr, C.POINTER(C.c_uint8)), shape=(128,))
+
+    def shutdown(self):
+        """Shut the core down while the program is still running. Left to the C++ cleanup at exit, Stella's
+        emulator object is destroyed after its logger's timer thread is gone, and its destructor can wait for
+        that thread forever (TimerManager::clear): the program then hangs instead of quitting, now and then.
+        Destroying it here, first (retro_deinit), leaves nothing for that cleanup to do."""
+        if getattr(self, "_shut", False):
+            return
+        self._shut = True
+        try:
+            self.lib.retro_unload_game()
+            self.lib.retro_deinit()
+        except Exception:  # never let shutting down get in the way of quitting
+            pass
 
     def run(self):
         self.lib.retro_run()

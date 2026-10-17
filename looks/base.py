@@ -237,11 +237,16 @@ class RoomLook(Look):
 
     # ---- shared machinery ---------------------------------------------------------------------------------
 
-    def room_image(self, room):
-        """The room's walls and floor as this look shows them: the world's picture through adapt_scenery."""
-        key = (self.platform, self.world.key, room["room"])
+    def room_image(self, room, light=1.0):
+        """The room's walls and floor as this look shows them: the world's picture through adapt_scenery -
+        dimmed to `light` first when the world's lights dip (world.lighting)."""
+        light = round(light, 2)
+        key = (self.platform, self.world.key, room["room"], light)
         if key not in self.scenery:
-            self.scenery[key] = self.adapt_scenery(self.world.room(room))
+            picture = self.world.room(room)
+            if light < 1.0:
+                picture = (picture.astype(float) * light).astype(np.uint8)
+            self.scenery[key] = self.adapt_scenery(picture)
         return self.scenery[key]
 
     def hero_sprite(self, view, frame):
@@ -330,7 +335,7 @@ class RoomLook(Look):
         self.cur_st = st
         if st.on_title_screen:
             return self.title_screen(st, frame_no)
-        room = self.room_image(st.room).copy()
+        room = self.room_image(st.room, self.world.lighting(st.room_num, frame_no)).copy()
         hx, hy = L.to_room(st.hero[0], 224 - 2 * st.hero[1] + 4)  # hero hit-box centre
         for n, x, y, s in sorted(st.objects, key=lambda o: -o[0]):
             if n == 0:  # the "surround" (the lit square in dark rooms): replaced by the torch light below

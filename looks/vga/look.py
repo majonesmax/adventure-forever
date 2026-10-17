@@ -101,6 +101,7 @@ class VgaLook(RoomLook):
         h = 14 * len(lines) + 20
         if portrait is not None:
             h = max(h, portrait.shape[0] + 20)
+        top = min(top, L.SCREEN_H - h - 2)  # always on screen, however many lines a world's words take
         x0 = (L.SCREEN_W - w) // 2
         screen[top:top + h, x0:x0 + w] = PAPER
         for d, colour in ((0, BLUE), (2, BLUE)):
@@ -123,22 +124,36 @@ class VgaLook(RoomLook):
         HUD.draw_text(screen, msg, (L.SCREEN_W - HUD.text_width(msg)) // 2, 160, PAPER, shadow=INK)
 
     def title_screen(self, st, frame_no):
-        """A DOS prompt types the program's name, then the title over the gold castle's room."""
+        """A DOS prompt types the program's name; then the gold castle's room fades up from black - dim, its
+        corners darker - with the cast's title figures standing small in the middle, under the title."""
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
         typed = "ADVENTUR"[:max(0, (frame_no - 20) // 6)]
         if frame_no < 90:  # the prompt, then the program starts
             cursor = "_" if (frame_no // 15) % 2 == 0 else " "
             HUD.draw_text(screen, f"C:\\GAMES>{typed}{cursor}", 8, 8, GREY, shadow=None)
             return screen
-        room = self.room_image(R.decode_room(R.load_rom(), 0x11))
+        light = round(min(1.0, (frame_no - 90) / 60) * 0.55, 2)  # fades up over a second, to a gloom
+        key = ("title", self.world.key, light)
+        if key not in self.sprite_cache:
+            room = self.world.room(R.decode_room(R.load_rom(), 0x11)).astype(float)
+            yy, xx = np.mgrid[0:L.ROOM_H, 0:L.ROOM_W]
+            vignette = 1 - 0.55 * np.clip(np.hypot((xx - L.ROOM_W / 2) / (L.ROOM_W / 2),
+                                                   (yy - L.ROOM_H / 2) / (L.ROOM_H / 2)) - 0.35, 0, 1)
+            self.sprite_cache[key] = self.adapt_scenery((room * light * vignette[..., None]).astype(np.uint8))
+        room = self.sprite_cache[key].copy()
+        cast = [self.adapt(c) for c in self.cast.title_cast()]
+        x = L.ROOM_W // 2 - (sum(c.shape[1] for c in cast) + 8 * (len(cast) - 1)) // 2
+        for c in cast:  # standing in the middle of the room, small, together
+            blit(room, c, x, L.ROOM_H // 2 + 14 - c.shape[0])
+            x += c.shape[1] + 8
         screen[L.HUD_H:L.HUD_H + L.ROOM_H, L.ROOM_X:L.ROOM_X + L.ROOM_W] = room
         self.menu_strip(screen)
         title, small = "ADVENTURE", self.world.title_small
         HUD.draw_text(screen, title, (L.SCREEN_W - HUD.text_width(title, 3)) // 2, 40, PAPER, scale=3, shadow=INK)
         HUD.draw_text(screen, small, (L.SCREEN_W - HUD.text_width(small)) // 2, 68, PAPER, shadow=INK)
-        lines = [f"SELECT GAME  < {st.game} >", "", "ENTER TO START", "TAB CHANGES THE GAME", "",
+        lines = [f"SELECT GAME  < {st.game} >", "ENTER TO START" if (frame_no // 30) % 2 == 0 else "",
                  "BY WARREN ROBINETT 1980"]
         if self.world.footer:
             lines.append(self.world.footer)
-        self.message_box(screen, lines, [INK, INK, BLUE, INK, INK, DARK, DARK][:len(lines)], 120)
+        self.message_box(screen, lines, [INK, BLUE, DARK, DARK][:len(lines)], 168)
         return screen
