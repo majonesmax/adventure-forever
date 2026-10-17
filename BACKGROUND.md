@@ -1,6 +1,6 @@
-# John Henry
+# Background
 
-Some background on why this exists and how it was made.
+Why this exists and how it was made.
 
 I'm not really a big gamer. But the games that stuck with me are a short list: *Adventure* on the Atari 2600,
 *The Goonies* on the Commodore 64, and, years later, *Myst*. They have one thing in common: you work the world
@@ -54,5 +54,3 @@ If you want to extend it, I'd suggest working the same way. Open an assistant in
 pack or look you want, and push back until it's right. [CLAUDE.md](CLAUDE.md) gives it the rules, and
 `tools/preview.py` lets it see what it made. [Making a pack](docs/making-a-pack.md#start-with-an-ai-assistant)
 has an example.
-
-John Henry raced the steam drill and won, once. This time the drill and I were on the same side.

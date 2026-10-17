@@ -25,7 +25,7 @@ the other console), the original, and the game's live RAM at once
 (**[how to read the live RAM view →](docs/reading-the-ram.md)**). Gameplay is 100% the original: the emulator
 runs the real game, and the remasters only *draw* it.
 
-Why this exists, and why it was built with an AI assistant: [JOHN-HENRY.md](JOHN-HENRY.md).
+Why this exists, and why it was built with an AI assistant: [BACKGROUND.md](BACKGROUND.md).
 
 ## ⬇️ Download
 
