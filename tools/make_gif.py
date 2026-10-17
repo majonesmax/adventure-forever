@@ -7,6 +7,7 @@ picture is the take's own recording of it; the RAM panel is rebuilt from ram.bin
 
 Usage: python tools/make_gif.py recordings/<take> --start 1300 --end 2140 [-o docs/media/grid.gif]
        [--fps 15] [--width 768] [--cast pbj] [--world pbj]
+       -o grid.mp4 makes a video instead (60 fps, H.264), for sites that don't play GIFs (Reddit)
   start / end: the take's video frames (log.jsonl "f"; 60 a second). Needs ffmpeg.
 """
 
@@ -54,11 +55,13 @@ def main():
     ap.add_argument("--start", type=int, required=True)
     ap.add_argument("--end", type=int, required=True)
     ap.add_argument("-o", "--out", default=os.path.join("docs", "media", "grid.gif"))
-    ap.add_argument("--fps", type=int, default=15)
+    ap.add_argument("--fps", type=int, help="frames a second (default: 15 for a GIF, 60 for a video)")
     ap.add_argument("--width", type=int, default=768, help="the GIF's width (the grid is 1024x960)")
     ap.add_argument("--cast")
     ap.add_argument("--world")
     args = ap.parse_args()
+    video = args.out.endswith(".mp4")
+    args.fps = args.fps or (60 if video else 15)
     pygame.display.init()
     pygame.font.init()
 
@@ -111,6 +114,15 @@ def main():
             store.write(pygame.surfarray.array3d(screen).transpose(1, 0, 2).tobytes())
             kept += 1
     scale = f"scale={args.width}:{height}:flags=lanczos"
+    if video:  # pixel art: whole-pixel scaling; yuv420p so every player takes it
+        with open(raw, "rb") as f:
+            subprocess.run(encode + ["-vf", f"scale={args.width}:{height}:flags=neighbor", "-c:v", "libx264",
+                                     "-crf", "14", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                                     args.out], stdin=f, check=True)
+        os.remove(raw)
+        print(f"{args.out}: {kept} frames, {kept / args.fps:.1f} s, {args.width}x{height}, "
+              f"{os.path.getsize(args.out) / 1e6:.1f} MB")
+        return
     with open(raw, "rb") as f:
         subprocess.run(encode + ["-vf", f"{scale},palettegen=stats_mode=diff", palette], stdin=f, check=True)
     with open(raw, "rb") as f:
