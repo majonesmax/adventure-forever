@@ -12,13 +12,15 @@ kept. For how the code fits together (the folders, one frame, looks, casts and w
 
 ## Which ROM
 
-Every good dump of the NTSC cartridge is the same 4096 bytes (MD5 `157bddb7...`), so "different
-dumps" isn't a problem. A different *version* (the PAL release, a hack) could keep its tables or RAM elsewhere,
-so at startup `engine/versions.py` names the ROM by its hash and checks our RAM map against its object
-table. If anything doesn't match, the game still runs, and the overlay says what moved, so the remasters
-drawing wrongly is never a mystery.
+Adventure Forever is made for the original NTSC cartridge (Atari CX2613), MD5
+`157bddb7192754a45372be196797f284`.
 
-(Why the ROM's tables are read from your copy rather than kept in the code: [the architecture guide](docs/ARCHITECTURE.md#why-it-works-this-way).)
+Any other ROM still runs, since Stella plays it either way, but the remasters read the ROM's tables and the RAM
+at fixed addresses. At startup `engine/versions.py` identifies the ROM by its MD5 and checks those addresses
+against the ROM's object table. If something has moved, the game still starts and the overlay lists what
+doesn't match.
+
+The PAL release is recognised, but hasn't been tested yet.
 
 ## Accuracy
 
