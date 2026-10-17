@@ -1,4 +1,4 @@
-# Shut up, nerd: how Adventure Forever works
+# Go outside, nerd: how Adventure Forever works
 
 The real Atari 2600 *Adventure* runs, untouched, in an emulator. We never draw what the 2600 draws. Every
 frame we read the game's memory and draw the scene again, our way.
