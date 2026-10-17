@@ -196,6 +196,9 @@ class GameWindow:
             if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
                 self.stop_recording()  # finish the files properly
                 return False
+            if e.type == pygame.DROPFILE:  # a pack (folder or .zip) dropped on the window
+                self.install_pack(e.file)
+                continue
             if e.type in (pygame.KEYDOWN, pygame.KEYUP):
                 if e.key in JOYSTICK:
                     (self.core.joy.add if e.type == pygame.KEYDOWN else self.core.joy.discard)(JOYSTICK[e.key])
@@ -391,6 +394,33 @@ class GameWindow:
             pygame.display.toggle_fullscreen()
         else:
             self.screen = self.set_mode()
+
+    def install_pack(self, path):
+        """A folder or .zip dropped on the window: add the packs in it (content.install) and show the first."""
+        try:
+            keys = content.install(path)
+        except Exception as err:
+            print(f"couldn't add {path}: {err}", flush=True)
+            self.now_showing.show(note=f"COULDN'T ADD THAT: {err}"[:60], duration=5)
+            return
+        if not keys:
+            self.now_showing.show(note="NO PACK IN THAT (A PACK HAS A PACK.JSON)", duration=5)
+            return
+        self.cast_keys = content.casts(self.public) + [k for k in self.cast_keys if k not in content.casts(self.public)]
+        self.world_keys = content.worlds(self.public) + [k for k in self.world_keys
+                                                         if k not in content.worlds(self.public)]
+        self.made = {k: v for k, v in self.made.items() if k[1] not in keys and k[2] not in keys}
+        pack = content.load(keys[0])
+        if pack.cast:
+            self.cast_key, self.compare["cast"] = keys[0], None
+        if pack.world:
+            self.world_key, self.compare["world"] = keys[0], None
+            if self.music:
+                self.music.use_world(self.look.world)
+                self.music_area = None
+        names = ", ".join(content.load(k).name for k in keys)
+        print(f"added: {names} -> {paths.USER_PACKS}", flush=True)
+        self.now_showing.show(note=f"ADDED: {names}", duration=5)
 
     def toggle_help(self):
         """H: every key (app/controls.py); the game waits while it's open."""

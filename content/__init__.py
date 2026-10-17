@@ -2,7 +2,9 @@
 finds them. How the game is DRAWN is looks/ (the platforms); every look shows every cast in every world.
 
     packs(public)    {key: folder}: packs/ (classic, pbj first, then A-Z), then - unless public - the folders in
-                     ADVENTURE_PACKS (packs from elsewhere, e.g. another repository), then private/packs/
+                     ADVENTURE_PACKS (packs from elsewhere, e.g. another repository), the packs the player added
+                     (paths.USER_PACKS), then private/packs/
+    install(path)    add the packs in a folder or .zip (a pack, a repository, a GitHub download) to USER_PACKS
     load(key)        a pack, loaded once (content/pack.py): .cast, .world
     casts(public)    keys of the packs with a cast, in the order C cycles them
     worlds(public)   keys of the packs with a world, in the order W cycles them
@@ -29,7 +31,7 @@ _loaded = {}
 def packs(public=False, examples=True):
     """{key: folder} - the public packs (built-in first), then the private ones unless public."""
     found = {}
-    for root in [PUBLIC_PACKS] if public else [PUBLIC_PACKS, *EXTRA_PACKS, PRIVATE_PACKS]:
+    for root in [PUBLIC_PACKS] if public else [PUBLIC_PACKS, *EXTRA_PACKS, paths.USER_PACKS, PRIVATE_PACKS]:
         if not os.path.isdir(root):
             continue
         names = [d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "pack.json"))]
@@ -72,3 +74,43 @@ def casts(public=False, examples=False):
 
 def worlds(public=False, examples=False):
     return _having("world", public, examples)
+
+
+def find_packs(folder, depth=3):
+    """Every pack folder (one with a pack.json) in `folder`, looking down to `depth` levels."""
+    if os.path.exists(os.path.join(folder, "pack.json")):
+        return [folder]
+    if depth == 0 or not os.path.isdir(folder):
+        return []
+    found = []
+    for name in sorted(os.listdir(folder)):
+        if not name.startswith(".") and os.path.isdir(os.path.join(folder, name)):
+            found += find_packs(os.path.join(folder, name), depth - 1)
+    return found
+
+
+def install(path):
+    """Copy the packs in `path` - a pack folder, a folder holding packs (e.g. a cloned repository), or a .zip of
+    either (e.g. GitHub's "Download ZIP") - into the player's packs folder, replacing older copies. -> their keys.
+    A pack can hold code (cast.py / world.py) that runs when it's shown: only add packs you trust."""
+    import shutil
+    import tempfile
+    import zipfile
+    with tempfile.TemporaryDirectory() as tmp:
+        if os.path.isfile(path) and zipfile.is_zipfile(path):
+            with zipfile.ZipFile(path) as z:
+                for member in z.namelist():  # nothing may land outside the folder it's unpacked into
+                    if os.path.isabs(member) or ".." in member.replace("\\", "/").split("/"):
+                        raise ValueError(f"unsafe path in the zip: {member}")
+                z.extractall(tmp)
+            path = tmp
+        keys = []
+        for pack in find_packs(path):
+            key = os.path.basename(os.path.normpath(pack))
+            target = os.path.join(paths.USER_PACKS, key)
+            if os.path.abspath(pack) != os.path.abspath(target):
+                shutil.rmtree(target, ignore_errors=True)
+                shutil.copytree(pack, target, ignore=shutil.ignore_patterns("__pycache__", ".git"))
+            _loaded.pop(key, None)
+            keys.append(key)
+        return keys

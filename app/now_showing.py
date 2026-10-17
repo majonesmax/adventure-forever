@@ -23,13 +23,13 @@ class NowShowing:
     def __init__(self):
         self.font = mono(18, bold=True)
         self.small = mono(13)
-        self.shown_at, self.changed, self.duration = None, None, SHOW_FOR
+        self.shown_at, self.changed, self.duration, self.note = None, None, SHOW_FOR, None
         self.warning = None  # (headline, [details]) about the ROM, shown under the names
 
-    def show(self, changed=None, duration=SHOW_FOR):
+    def show(self, changed=None, duration=SHOW_FOR, note=None):
         """Bring it up for `duration` seconds. changed: (pane, what) to highlight, e.g. ("PLAYING", "cast") or
         ("COMPARE", "world"); a change to the comparison shows both panes, whatever the view."""
-        self.shown_at, self.changed, self.duration = time.perf_counter(), changed, duration
+        self.shown_at, self.changed, self.duration, self.note = time.perf_counter(), changed, duration, note
 
     def draw(self, screen, panes, centre_x, top=16):
         """Paint it over `screen`, centred on centre_x, if it's up. panes: [(title, look)] - [(None, look)]
@@ -42,6 +42,8 @@ class NowShowing:
             return
         alpha = 255 if age < self.duration else int(255 * (1 - (age - self.duration) / FADE_FOR))
         lines = []  # (font, label, label colour, text, text colour)
+        if self.note:  # e.g. what was just added
+            lines.append((self.small, "", CHANGED, self.note, CHANGED))
         for title, look in panes:
             if title:
                 lines.append((self.small, "", LABEL, title, LABEL))

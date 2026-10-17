@@ -44,7 +44,8 @@ class HelpPanel:
                     panel.blit(self.font.render(what, True, TEXT), (x + key_w, y))
                     y += line_h
                 y += 8
-        hint = self.small.render("H or Esc closes this - the game waits while it's open", True, HINT)
+        hint = self.small.render("H or Esc closes this.  To add a pack, drop its folder or .zip on the window.",
+                                 True, HINT)
         panel.blit(hint, ((width - hint.get_width()) // 2, height - 26))
         if k < 1.0:
             panel = pygame.transform.smoothscale(panel, (int(width * k), int(height * k)))

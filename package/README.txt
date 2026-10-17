@@ -43,5 +43,15 @@ KEYS (in the game, H shows them all)
   P                pause
   Esc              quit (or close the help)
 
+ADDING PACKS
+  A pack is a new cast, world (and soundtrack) - like the demos at
+  https://github.com/majonesmax/shall-we-play-a-game . Download it (on GitHub: Code -> Download ZIP)
+  and drag the zip or its folder onto the game window: it's copied into your packs folder and shown.
+  The packs folder is beside the remembered ROM:
+    macOS     ~/Library/Application Support/Adventure Forever/packs
+    Windows   %APPDATA%\Adventure Forever\packs
+    Linux     ~/.local/share/Adventure Forever/packs
+  Packs can contain code, so only add packs from people you trust.
+
 The music is original chiptune written for this project. Licences: licenses/ (the game is MIT, its
 art and music CC BY 4.0; the Stella emulator is GPL - licenses/STELLA.txt says where its source is).

@@ -16,6 +16,14 @@ macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway
 [run it from source](#running-it-from-source-macos-windows-linux). In the game, press **H** for all the
 keys ([Controls](#controls)).
 
+### More packs
+
+**[Shall we play a game?](https://github.com/majonesmax/shall-we-play-a-game)** is a collection of demo packs,
+starting with *ORIENTATION*: an office floor that goes on too long, with its own cast, scenery and soundtrack,
+best in the VGA look. To add a pack to the app, download it (on GitHub: **Code → Download ZIP**) and **drag
+the zip or folder onto the game window**: the game copies it into its packs folder and switches to it.
+Packs can contain code, so only add packs from people you trust.
+
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in three new **looks**:
 

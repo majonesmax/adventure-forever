@@ -50,3 +50,7 @@ else:
     USER_DIR = os.path.join(os.environ.get("XDG_DATA_HOME") or _home(".local", "share"), APP_NAME)
     SCREENSHOTS = os.path.join(_user_folder("PICTURES", "Pictures"), APP_NAME)
     RECORDINGS = os.path.join(_user_folder("VIDEOS", "Videos"), APP_NAME)
+
+# packs the player adds (dropped on the game window, or copied in): beside the remembered ROM in a packaged app,
+# private/packs/ when running from source (git-ignored, like the player's own)
+USER_PACKS = os.path.join(USER_DIR, "packs") if FROZEN else os.path.join(PRIVATE, "packs")

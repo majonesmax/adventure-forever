@@ -185,6 +185,17 @@ sprite = from_ascii(HERO, {"K": (24, 24, 40), "S": (232, 184, 136)})   # "." is 
 makes a variant (an attacking pose is the normal pose with the mouth redrawn). `content.pictures.save_folder`
 writes them out. `packs/template/source/template_sprites.py` is the smallest example.
 
+## Sharing a pack
+
+Put the pack folder online - a GitHub repository is easiest (one repository can hold several packs, like
+[shall-we-play-a-game](https://github.com/majonesmax/shall-we-play-a-game)). People using the app add it by
+downloading it (on GitHub: **Code → Download ZIP**) and **dropping the zip or folder onto the game window**: the
+game finds every folder with a `pack.json` inside, copies them into its packs folder, and switches to the
+first. People running from source can point at a checkout instead: `ADVENTURE_PACKS=path/to/repo/packs`.
+
+A `cast.py` or `world.py` is code that runs on the player's computer, so say in your README what it does, and
+keep packs to pictures and `pack.json` where you can.
+
 ## Tips
 
 - Give sprites a dark outline. The SNES look turns each outline pixel into a dark shade of the colour beside
