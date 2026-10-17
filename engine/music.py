@@ -1,7 +1,8 @@
 """Background music, one piece per AREA (title / overworld / dungeon / final / win), mixed under the 2600's
 own sound effects in the sound card's callback.
 
-Where each area's music comes from (first file found wins):
+Where each area's music comes from: the world on screen's own soundtrack if it has one (world/music.json -
+content/world.py), then (first file found wins):
   private/music.json, music/music.json   {"title": {"nsf": "music/x.nsf", "track": 1},   an NSF via libgme
                                           "win": {"file": "music/win.wav"},              a WAV file
                                           "dungeon": {"song": "dungeon"}, ...}           a built-in song
@@ -201,7 +202,8 @@ class MusicPlayer:
         self.rate, self.lock = rate, threading.Lock()
         self.on, self.gain, self.paused = True, 1.0, False
         # the first source found plays; next_source() cycles. public: only the built-in songs
-        self.configs = [("built-in songs", BUILT_IN)] if public else load_configs()
+        self.base = [("built-in songs", BUILT_IN)] if public else load_configs()
+        self.configs, self.world = list(self.base), None
         self.which = 0
         self.current, self.nsf, self.cache = None, {}, {}
 
@@ -217,11 +219,29 @@ class MusicPlayer:
         self.which = (self.which + 1) % len(self.configs)
         return self.source_name
 
+    def use_world(self, world):
+        """The world on screen: its soundtrack (if any) goes first and plays; N still cycles past it."""
+        if world is self.world:
+            return
+        self.world = world
+        own = []
+        if world is not None and world.music:
+            synth, songs = world.music.get("synth", "chiptune"), world.music["songs"]
+            own = [(f"{world.name} soundtrack", {area: {"world_song": songs[name], "synth": synth}
+                                                 for area, name in world.music["areas"].items()})]
+        self.configs, self.which = own + self.base, 0
+
     def has(self, area):
         return area in self.config
 
     def _source(self, area):
         spec = self.config[area]
+        if "world_song" in spec:  # a world's own song, rendered by its synth
+            from engine import chiptune, fm
+            key = (spec["synth"], id(spec["world_song"]))
+            if key not in self.cache:
+                self.cache[key] = (fm if spec["synth"] == "fm" else chiptune).render(spec["world_song"])
+            return Pcm(self.cache[key], spec["world_song"].get("loop", True))
         if "song" in spec:
             from engine import chiptune
             if spec["song"] not in self.cache:

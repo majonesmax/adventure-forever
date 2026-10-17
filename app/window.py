@@ -103,6 +103,7 @@ class GameWindow:
         pygame.font.init()
         try:  # background music (engine/music.py), mixed in the sound card's callback; the game runs without it
             self.music = MU.MusicPlayer(rate=rate, public=public)
+            self.music.use_world(self.look.world)
             print(f"music: {self.music.source_name}", flush=True)
         except Exception as err:
             print(f"no music: {err}", flush=True)
@@ -358,6 +359,12 @@ class GameWindow:
         self.world_key = following(self.world_keys, self.world_key or self.look.world.key)
         self.compare["world"] = None
         self.now_showing.show(("PLAYING", "world"))
+        if self.music:  # a world can bring its own soundtrack
+            before = self.music.source_name
+            self.music.use_world(self.look.world)
+            if self.music.source_name != before:
+                self.music_area = None
+                print(f"music: {self.music.source_name}", flush=True)
         print(f"world: {self.look.world.name} ({self.look.key})", flush=True)
 
     def compare_look(self):

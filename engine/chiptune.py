@@ -111,8 +111,9 @@ def parse_melody(text):
 
 
 def render(name):
-    """-> int16 stereo PCM of one pass of the song (loops cleanly when played back to back)."""
-    s = SONGS[name]
+    """-> int16 stereo PCM of one pass of the song (loops cleanly when played back to back). name: one of SONGS,
+    or a song dict in the same form (a world's own, from its music.json)."""
+    s = SONGS[name] if isinstance(name, str) else name
     step = 60.0 / s["bpm"] / 4                        # a sixteenth note, in seconds
     chords = s["chords"].split()
     bars = len(chords)

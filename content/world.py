@@ -26,11 +26,18 @@ pack.json "world" (every field optional):
     extends      another pack's world to start from: its scenery, with this world's names
     scale        the tiles are drawn this many times bigger than the room's pixels
 
+A SOUNDTRACK (optional): world/music.json - songs in engine/chiptune.py's notation, and which plays where:
+    {"synth": "fm" (engine/fm.py, an early-90s PC sound) or "chiptune" (the NES-style built-in synth),
+     "areas": {"title" / "overworld" / "dungeon" / "final" / "win": song name},
+     "songs": {name: {"bpm": ..., "chords": ..., "melody": ..., "drums": ..., "style": ..., "loop": ...}}}
+It plays while the world is on screen (engine/music.py); N cycles to the other music sources.
+
 Scenery pictures can't express (rounded walls, scattered flowers): add world.py to the world/ folder,
 defining `class CustomWorld(World)` - it's made like a World and overrides room(), gate() or colour().
 """
 
 import copy
+import json
 import os
 
 import numpy as np
@@ -103,6 +110,10 @@ class World:
         self.shadow = info.get("shadow")
         self.areas = info.get("areas", {})
         self.pictures = PIC.load_folder(folder, info.get("scale", 1))
+        self.music = None  # the soundtrack, if the world has one (music.json)
+        if os.path.exists(os.path.join(folder, "music.json")):
+            with open(os.path.join(folder, "music.json")) as f:
+                self.music = json.load(f)
         self.palette_2600 = P.load()
         self.rooms = {}  # room number -> picture: rooms never change
 
