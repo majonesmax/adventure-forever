@@ -53,19 +53,29 @@ class SnesLook(RoomLook):
         return n != BRIDGE
 
     def logo(self, screen, y, scale, colour, shadow):
-        """ADVENTURE with the world's small word: after it (HUD, scale 2) or under its last letter (title, 3)."""
+        """ADVENTURE with the world's small word: after it (HUD, scale 2) - or, when the word is too long to fit
+        there, on the status bar's bottom line, right-aligned - or under its last letter (title, scale 3)."""
         title, small = "ADVENTURE", self.world.title_small
         if scale == 2:  # the HUD: centre ADVENTURE + the small word in the space right of the item box
             total = HUD.text_width(title, 2) - 4 + HUD.text_width(small)
-            x = 48 + (L.SCREEN_W - 48 - total) // 2
+            beside = self.small_beside()
+            width = total if beside else HUD.text_width(title, 2)
+            x = 48 + (L.SCREEN_W - 48 - width) // 2
         else:
             x = (L.SCREEN_W - HUD.text_width(title, scale)) // 2
         HUD.draw_text(screen, title, x, y, colour, scale=scale, shadow=shadow)
-        if scale == 2:  # bottoms aligned (a 5x7 glyph x2 is 14 px tall)
+        if scale == 2 and beside:  # bottoms aligned (a 5x7 glyph x2 is 14 px tall)
             HUD.draw_text(screen, small, x + HUD.text_width(title, 2) - 4, y + 7, (240, 240, 240))
+        elif scale == 2:  # too long beside the logo: the bottom line, right-aligned (draw_hud moves GAME left)
+            HUD.draw_text(screen, small, L.SCREEN_W - HUD.text_width(small) - 6, 37, (152, 152, 176))
         else:  # right-aligned with the last letter (5 px glyph x3 = 15)
             right = x + HUD.text_width(title, scale) - 24 + 15
             HUD.draw_text(screen, small, right - (HUD.text_width(small) - 3), y + 24, (240, 240, 240), shadow=shadow)
+
+    def small_beside(self):
+        """Does the world's small word fit after ADVENTURE in the status bar (inside the screen)?"""
+        total = HUD.text_width("ADVENTURE", 2) - 4 + HUD.text_width(self.world.title_small)
+        return 48 + (L.SCREEN_W - 48 - total) // 2 >= 48
 
     def draw_hud(self, screen, st, frame_no):
         screen[:L.HUD_H] = BAR
@@ -76,7 +86,8 @@ class SnesLook(RoomLook):
         label = self.world.area_name(st.room_num)
         HUD.draw_text(screen, label, (L.SCREEN_W - HUD.text_width(label)) // 2 + 12, 26, (240, 240, 240))
         game = f"GAME {st.game}"
-        HUD.draw_text(screen, game, (L.SCREEN_W - HUD.text_width(game)) // 2 + 12, 37, (152, 152, 176))
+        x = (L.SCREEN_W - HUD.text_width(game)) // 2 + 12 if self.small_beside() else 52
+        HUD.draw_text(screen, game, x, 37, (152, 152, 176))
         if st.carried != 0x12:
             spr = self.held_icon(st.carried, frame_no)
             blit(screen, spr, 26 - spr.shape[1] / 2, 29 - spr.shape[0] / 2)
