@@ -223,8 +223,9 @@ class GameWindow:
 
     def draw_pictures(self):
         """Every look that's needed draws this frame (all of them while recording)."""
-        needed = (self.recorded_looks() if self.recorder.active else list(self.grid_looks()) if self.view == "grid"
-                  else [self.look])
+        needed = list(self.grid_looks()) if self.view == "grid" else [self.look]
+        if self.recorder.active:  # every look's stream - and still what's on screen (a comparison can differ)
+            needed = self.recorded_looks() + [lk for lk in needed if lk not in self.recorded_looks()]
         if self.scrolls:  # every look scrolls the same distance at the same speed, so they finish together
             caught_up = next(iter(self.scrolls.values())).offset
             for lk in needed:  # a view switch (e.g. into the grid) mid-scroll can need a look not yet scrolling
