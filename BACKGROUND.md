@@ -30,7 +30,7 @@ the text game, at the Stanford Artificial Intelligence Laboratory, where Don Woo
 first action-adventure on a home console began as an idea carried out of an AI lab. Forty-odd years later,
 this remaster of it was written with an AI.
 
-## Why it's vibe coded
+## Why it was built with an AI
 
 I didn't write this code by hand. I described what I wanted, looked at what came back, played it and said
 what was wrong, over and over, with Claude Code doing the typing. I typed very little of it.

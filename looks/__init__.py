@@ -1,6 +1,6 @@
 """Every look - the one place that lists them.
 
-A LOOK is the console (NES, SNES): how the game is drawn. What's drawn - a CAST (who) in a WORLD (where) -
+A LOOK is the console (NES, SNES, VGA, paper): how the game is drawn. What's drawn - a CAST (who) in a WORLD (where) -
 comes from packs, found by content/. Any look shows any cast in any world.
 
     LOOKS              {key: look class} in the order L cycles them

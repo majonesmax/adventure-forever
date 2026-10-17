@@ -2,7 +2,7 @@
 
 A pack is a folder that brings a **cast** (who's in the game: the hero, the dragons, the bat, the items, the
 bridge, who announces the win), a **world** (where: each place's walls, floor and gates, and their names),
-or both. Every look (NES, SNES) shows every cast in every world, adapting the pictures to its own rules.
+or both. Every look (NES, SNES, VGA, paper) shows every cast in every world, adapting the pictures to its own rules.
 
 | Pack | Cast | World |
 |---|---|---|

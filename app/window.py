@@ -6,10 +6,10 @@ One frame (GameWindow.run):
     3. pictures   a GameState snapshot -> each look that's needed draws it (or the scroll's next frame)
     4. extras     music follows the area, the recorder saves every look, the RAM panel logs events
     5. show       the current view: a look beside the 2600 original, a look alone, the 2600 alone, or the
-                  grid (the NES and SNES looks left, the 2600 over its live RAM right)
+                  grid (what you're playing over a comparison left, the 2600 over its live RAM right)
 
-What's on screen is a look (the console: NES, SNES) showing a cast (who) in a world (where), both from packs/.
-L changes the look, C the cast, W the world, and a moment's overlay says what's showing (now_showing.py; I
+What's on screen is a look (the console: NES, SNES, VGA, paper) showing a cast (who) in a world (where), both
+from packs/. L changes the look, C the cast, W the world, and a moment's overlay says what's showing (now_showing.py; I
 brings it up without changing anything). The grid shows what you're playing (top) over a comparison (bottom):
 by default the next look with the same cast and world; Shift+L / C / W set the comparison's own.
 Until C or W is pressed each look shows its own pack's cast and world; after, every look shows the chosen
@@ -513,8 +513,8 @@ def following(keys, key):
 
 
 def draw_grid(screen, frame_2600, top, bottom, panel, st, tag_font):
-    """The grid view: left column `top` over `bottom` ((picture, label) each: the NES and SNES looks); right
-    column the 2600 original over its RAM."""
+    """The grid view: left column `top` over `bottom` ((picture, label) each: what you're playing and the
+    comparison); right column the 2600 original over its RAM."""
     qw, qh = QUAD
     k = min(qw / 320, qh / 228)  # the 2600's 160x228 has 2:1 wide pixels (= 320x228): fit it, centred
     w26, h26 = int(320 * k), int(228 * k)
