@@ -33,8 +33,19 @@ this remaster of it was written with an AI.
 ## Why it's vibe coded
 
 I didn't write this code by hand. I described what I wanted, looked at what came back, played it and said
-what was wrong, over and over, with Claude Code doing the typing. That's how the looks, the packs, the tests
-and these docs were made. I read and steered all of it; I typed very little of it.
+what was wrong, over and over, with Claude Code doing the typing. I typed very little of it. But the parts
+that make it work are where my own professional experience came in:
+
+- **The approach was mine.** It's related to the HD packs some emulators support, which swap in better
+  graphics tile by tile. This is a different problem: it doesn't touch the 2600's picture at all. It reads
+  what the game *means* from its RAM and draws the whole scene again from that.
+- **I directed the architecture.** I played code reviewer: deciding what a look, a cast, a world and a pack
+  are, where the boundaries go, and when something needed refactoring because it no longer made sense to a
+  person reading it.
+- **The ideas came from me.** I didn't type "make me an interesting game level" and take what came out.
+  The looks and packs follow one thread: the games I grew up with, and the ones that came after. Adventure
+  and Zelda were solving very similar problems (a world of rooms, keys, items that change what you can do,
+  monsters in the way), which is why Adventure in an NES look feels like it could have existed.
 
 It suits a project like this. The game is fixed and thoroughly documented, so the rules are clear (never
 change the game, draw everything where the game has it), and the tests prove nothing broke. Inside those
