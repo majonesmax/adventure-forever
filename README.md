@@ -2,6 +2,9 @@
 
 ![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
 
+▶️ **[Watch a full playthrough on YouTube](https://youtu.be/XRQrsM7X3kE)** (1:44): game 1 start to finish, switching looks,
+casts, worlds and views along the way.
+
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 
