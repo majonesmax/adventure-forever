@@ -35,13 +35,13 @@ this remaster of it was written with an AI.
 I didn't write this code by hand. I described what I wanted, looked at what came back, played it and said
 what was wrong, over and over, with Claude Code doing the typing. I typed very little of it.
 
-The approach was my idea. It's related to the HD packs some emulators support, which swap in better graphics
-tile by tile, but it's a different problem: it never touches the 2600's picture. It reads what the game means
-from its RAM and draws the scene again. I directed the architecture the way I would at work, as the code
-reviewer: what a look, a cast, a world and a pack are, where the boundaries go, and when something needed
-refactoring because it stopped making sense to a person reading it. The looks and packs follow one thread,
-the games I grew up with and the ones that came after. Adventure and Zelda were solving very similar problems
-(a world of rooms, keys, items that change what you can do, monsters in the way), which is why Adventure in an
+The approach was my idea. It's related to the HD packs of NES emulators like Mesen, which swap in better
+graphics tile by tile, but it's a different problem: it never touches the 2600's picture. It reads what the
+game means from its RAM and draws the scene again. I directed the architecture the way I would at work, as the
+code reviewer: what a look, a cast, a world and a pack are, where the boundaries go, and when something needed
+refactoring because it stopped making sense to a person reading it. The looks and packs follow one thread, the
+games I grew up with and the ones that came after. Adventure and Zelda were solving very similar problems (a
+world of rooms, keys, items that change what you can do, monsters in the way), which is why Adventure in an
 NES look feels like it could have existed.
 
 It suits a project like this. The game is fixed and thoroughly documented, so the rules are clear (never
