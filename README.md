@@ -3,11 +3,13 @@
 ![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
 
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
-redrawn live from the game's 128 bytes of RAM, in three new **looks**:
+redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 
 - **NES**: an 8-bit remaster.
 - **SNES**: a 16-bit remaster.
 - **VGA**: an early-90s PC adventure: 256 colours, dithered light, a grey menu strip and message boxes.
+- **Paper**: drawn in crayon in a spiral-bound sketchbook: a box of crayons, the paper's grain through the wax,
+  handwriting, and messages on index cards.
 
 Who's in the game and where it happens come in **packs**. Two ship with it, and any look shows either:
 
@@ -46,8 +48,9 @@ an Intel Mac: [run it from source](#running-it-from-source-macos-windows-linux).
 ## More packs
 
 More casts and worlds can be added to the app. **[Shall we play a game?](https://github.com/majonesmax/shall-we-play-a-game)**
-is a collection of demo packs, starting with *ORIENTATION*: an office floor that goes on too long, with its own
-cast, scenery and soundtrack, best in the VGA look.
+is a collection of demo packs, each with its own cast, scenery and soundtrack: *ORIENTATION*, an office floor that
+goes on too long (best in the VGA look), and *SKETCHBOOK*, a world a boy draws in purple crayon as he walks
+through it (best in the paper look).
 
 To add a pack, download it (on GitHub: **Code → Download ZIP**) and **drag the zip or folder onto the game
 window**: the game copies it into its packs folder and switches to it. Packs can contain code, so only add
@@ -64,7 +67,7 @@ slide, so the game's timing is untouched too.
 | Folder | What's in it |
 |---|---|
 | `engine/` | the game itself: the emulator, the game's state (`GameState`), the RAM map and ROM tables, the music |
-| `looks/` | how it's drawn (the consoles): the look contract (`base.py`), the NES, SNES and VGA looks, a template |
+| `looks/` | how it's drawn (the consoles): the look contract (`base.py`), the NES, SNES, VGA and paper looks, a template |
 | `content/` | what's drawn: casts (who) and worlds (where), loaded from packs |
 | `packs/` | the packs: `pack.json`, `cast/` pictures and `world/` tiles each (`classic`, `pbj`, `template`) |
 | `app/` | the window: views, room scrolls, recording, the live RAM panel |
@@ -111,7 +114,7 @@ In the game, **H** shows all of these.
 | `Tab` | game select (games 1-3) |
 | `Enter` | game reset: start |
 | **What you see** | |
-| `L` | next look: NES, SNES, VGA |
+| `L` | next look: NES, SNES, VGA, paper |
 | `C` | next cast: the knight, PBJ and friends |
 | `W` | next world: castles, kingdoms |
 | `I` | which look, cast and world |

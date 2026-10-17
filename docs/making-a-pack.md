@@ -4,7 +4,7 @@ Adventure Forever separates three things:
 
 | | What it is | Examples | Chosen with |
 |---|---|---|---|
-| **look** | the console: how everything is drawn (colour rules, status bar, title and win screens) | NES, SNES, VGA | `--look`, **L** |
+| **look** | the console: how everything is drawn (colour rules, status bar, title and win screens) | NES, SNES, VGA, paper | `--look`, **L** |
 | **cast** | who's in the game: the hero, the dragons, the bat, the items, the bridge, who announces the win | the knight; PBJ and friends | `--cast`, **C** |
 | **world** | where it happens: each place's walls, floor and castle gates, the places' names, the title's word | the brick castles; the candy, ice and fire kingdoms | `--world`, **W** |
 

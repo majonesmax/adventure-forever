@@ -231,6 +231,10 @@ class RoomLook(Look):
         """A full-screen victory picture, shown SPLASH_AFTER frames after the win; None = keep the banner."""
         return None
 
+    def unlit(self, room, light):
+        """A dark room away from the torch: light is 0..1 per pixel (h, w). Default: fading to black."""
+        return (room * light[..., None]).astype(np.uint8)
+
     def carried_on_top(self, n):
         """Draw the held item over the hero (True) or under him, like the original (False)?"""
         return False
@@ -354,7 +358,7 @@ class RoomLook(Look):
             yy, xx = self.grid_yx
             d = np.hypot(xx - hx, (yy - hy) * 0.9)
             light = np.round(np.clip(1.35 - d / 34.0, 0, 1) * 3) / 3
-            room = (room * light[..., None]).astype(np.uint8)
+            room = self.unlit(room, light)
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
         x0, y0, w, h = self.ROOM_RECT
         screen[y0:y0 + h, x0:x0 + w] = room

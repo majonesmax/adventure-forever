@@ -34,6 +34,7 @@ item follows him, dark rooms are lit by a torch, and the win sequence plays. You
 | `win_banner(screen, st, frame_no)` | paints over the room once the chalice is home | yes |
 | `win_splash(st, frame_no)` | a full-screen victory picture shown a moment later, or None | no |
 | `object_sprite(n, state, box_w, box_h, frame_no)` | stand-ins for what a cast leaves out: ask `super()` first, it returns the cast's (and the world's gates) | no |
+| `unlit(room, light)` | what a dark room looks like away from the torch (default: fading to black) | no |
 | `carried_on_top(n)` | draw the held item over the hero rather than under | no |
 
 Whatever the cast or world leaves out is the **original 2600 graphic**, so the game is always playable.

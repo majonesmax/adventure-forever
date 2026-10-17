@@ -31,7 +31,7 @@ what (`engine/ram_map.py`) and where the tables live in the ROM.
 
 | | What | Examples | Code | Key |
 |---|---|---|---|---|
-| **look** | the console: colour rules, status bar, title and win screens | NES, SNES, VGA | `looks/` | L |
+| **look** | the console: colour rules, status bar, title and win screens | NES, SNES, VGA, paper | `looks/` | L |
 | **cast** | who: hero, dragons, bat, items, bridge, messenger, the win message | the knight, PBJ and friends | `content/cast.py` | C |
 | **world** | where: what each of the game's places is made of (walls, floor, gates), and what it's called | brick castles, candy kingdoms | `content/world.py` | W |
 | **pack** | a folder holding a cast, a world, or both | `packs/classic`, `packs/pbj` | `content/pack.py` | |

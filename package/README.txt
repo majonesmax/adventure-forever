@@ -26,7 +26,7 @@ KEYS (in the game, H shows them all)
   Arrows / Space   joystick / fire (drop item)
   Tab              GAME SELECT (games 1-3)
   Enter            GAME RESET (start)
-  L                look: NES -> SNES -> VGA (early-90s PC)
+  L                look: NES -> SNES -> VGA (early-90s PC) -> paper (crayon)
   C                cast: the knight -> PBJ and friends
   W                world: the brick castles -> the candy, ice and fire kingdoms
   I                show which look, cast and world are on screen
