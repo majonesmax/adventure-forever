@@ -32,17 +32,20 @@ this remaster of it was written with an AI.
 
 ## Why it was built with an AI
 
-I didn't write this code by hand. I described what I wanted, looked at what came back, played it and said
-what was wrong, over and over, with Claude Code doing the typing. I typed very little of it.
+None of this code was written by hand. A human described what was wanted, looked at what came back, played it
+and said what was wrong, over and over, with Claude Code doing the typing.
 
-The approach was my idea. It's related to the HD packs of NES emulators like Mesen, which swap in better
-graphics tile by tile, but it's a different problem: it never touches the 2600's picture. It reads what the
-game means from its RAM and draws the scene again. I directed the architecture the way I would at work, as the
-code reviewer: what a look, a cast, a world and a pack are, where the boundaries go, and when something needed
-refactoring because it stopped making sense to a person reading it. The looks and packs follow one thread, the
-games I grew up with and the ones that came after. Adventure and Zelda were solving very similar problems (a
-world of rooms, keys, items that change what you can do, monsters in the way), which is why Adventure in an
-NES look feels like it could have existed.
+The human brought what a human would: the idea, the direction and the review. The approach is related to the
+HD packs of NES emulators like Mesen, which swap in better graphics tile by tile, but it's a different
+problem: it never touches the 2600's picture. It reads what the game means from its RAM and draws the scene
+again. The architecture was directed the way it would be at work, from the code reviewer's chair: what a
+look, a cast, a world and a pack are, where the boundaries go, and when something needed refactoring because
+it stopped making sense to a person reading it. That direction and review were done as well as a weekend
+experiment allows, not to the standard of a production system.
+
+The looks and packs follow one thread, the games of the 2600's era and the ones that came after. Adventure
+and Zelda were solving very similar problems (a world of rooms, keys, items that change what you can do,
+monsters in the way), which is why Adventure in an NES look feels like it could have existed.
 
 It suits a project like this. The game is fixed and thoroughly documented, so the rules are clear (never
 change the game, draw everything where the game has it), and the tests prove nothing broke. Inside those
@@ -50,7 +53,6 @@ rules, the fun part is ideas: Adventure as a crayon drawing, or as an office flo
 Describing an idea is quicker than drawing it a pixel at a time, and it means anyone with an idea can make
 one.
 
-If you want to extend it, I'd suggest working the same way. Open an assistant in the repository, describe the
-pack or look you want, and push back until it's right. [CLAUDE.md](CLAUDE.md) gives it the rules, and
-`tools/preview.py` lets it see what it made. [Making a pack](docs/making-a-pack.md#start-with-an-ai-assistant)
-has an example.
+To extend it, work the same way. Open an assistant in the repository, describe the pack or look you want,
+and push back until it's right. [CLAUDE.md](CLAUDE.md) gives it the rules, and `tools/preview.py` lets it see
+what it made. [Making a pack](docs/making-a-pack.md#start-with-an-ai-assistant) has an example.
