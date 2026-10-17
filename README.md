@@ -2,6 +2,27 @@
 
 ![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
 
+Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
+redrawn live from the game's 128 bytes of RAM, in three new **looks**:
+
+- **NES**: an 8-bit remaster.
+- **SNES**: a 16-bit remaster.
+- **VGA**: an early-90s PC adventure: 256 colours, dithered light, a grey menu strip and message boxes.
+
+Who's in the game and where it happens come in **packs**. Two ship with it, and any look shows either:
+
+- **classic**: a knight, three dragons, the bat and the chalice, in brick and stone castles.
+- **pbj**: PBJ in her bear-ear hat, Alice the Scottish terrier, who stretches into a bridge, a Yeti, a
+  giant hen and a swamp Bog for dragons, a magpie that steals things, and the Storybook to bring home, in
+  candy, ice and fire kingdoms.
+
+You can mix them: the knight in the candy kingdom, PBJ in the brick castles, either on either console.
+
+The original 2600 picture can run alongside, and a four-way grid shows your game, a comparison (by default
+the other console), the original, and the game's live RAM at once
+(**[how to read the live RAM view →](docs/reading-the-ram.md)**). Gameplay is 100% the original: the emulator
+runs the real game, and the remasters only *draw* it.
+
 ## ⬇️ Download
 
 | | |
@@ -16,35 +37,15 @@ macOS: right-click the app → **Open**; Windows: **More info** → **Run anyway
 [run it from source](#running-it-from-source-macos-windows-linux). In the game, press **H** for all the
 keys ([Controls](#controls)).
 
-### More packs
+## More packs
 
-**[Shall we play a game?](https://github.com/majonesmax/shall-we-play-a-game)** is a collection of demo packs,
-starting with *ORIENTATION*: an office floor that goes on too long, with its own cast, scenery and soundtrack,
-best in the VGA look. To add a pack to the app, download it (on GitHub: **Code → Download ZIP**) and **drag
-the zip or folder onto the game window**: the game copies it into its packs folder and switches to it.
-Packs can contain code, so only add packs from people you trust.
+More casts and worlds can be added to the app. **[Shall we play a game?](https://github.com/majonesmax/shall-we-play-a-game)**
+is a collection of demo packs, starting with *ORIENTATION*: an office floor that goes on too long, with its own
+cast, scenery and soundtrack, best in the VGA look.
 
-Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
-redrawn live from the game's 128 bytes of RAM, in three new **looks**:
-
-- **NES**: an 8-bit remaster.
-- **SNES**: a 16-bit remaster.
-- **VGA**: an early-90s PC adventure: 256 colours, dithered light, a grey menu strip and message boxes.
-
-Who's in the game and where it happens come in **packs**, and any look shows any of them:
-
-- **classic**: a knight, three dragons, the bat and the chalice, in brick and stone castles.
-- **pbj**: PBJ in her bear-ear hat, Alice the Scottish terrier, who stretches into a bridge, a Yeti, a
-  giant hen and a swamp Bog for dragons, a magpie that steals things, and the Storybook to bring home, in
-  candy, ice and fire kingdoms.
-
-You can mix them: the knight in the candy kingdom, PBJ in the brick castles, either on either console.
-
-The original 2600 picture can run alongside, and a four-way grid shows your game and a comparison (by
-default the other console), the
-original, and the game's live RAM at once (**[how to read the live RAM view →](docs/reading-the-ram.md)**).
-Gameplay is 100% the original: the emulator runs the real
-game, and the remasters only *draw* it.
+To add a pack, download it (on GitHub: **Code → Download ZIP**) and **drag the zip or folder onto the game
+window**: the game copies it into its packs folder and switches to it. Packs can contain code, so only add
+packs from people you trust.
 
 ## How it works
 
@@ -57,7 +58,7 @@ slide, so the game's timing is untouched too.
 | Folder | What's in it |
 |---|---|
 | `engine/` | the game itself: the emulator, the game's state (`GameState`), the RAM map and ROM tables, the music |
-| `looks/` | how it's drawn (the consoles): the look contract (`base.py`), the NES and SNES looks, a template |
+| `looks/` | how it's drawn (the consoles): the look contract (`base.py`), the NES, SNES and VGA looks, a template |
 | `content/` | what's drawn: casts (who) and worlds (where), loaded from packs |
 | `packs/` | the packs: `pack.json`, `cast/` pictures and `world/` tiles each (`classic`, `pbj`, `template`) |
 | `app/` | the window: views, room scrolls, recording, the live RAM panel |
