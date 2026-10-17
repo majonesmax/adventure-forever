@@ -145,7 +145,8 @@ def layout(name):
     if kind == "grid":  # as in play.py: playing over the comparison left, the original over its RAM right
         top, _, bottom = rem.partition("_") if "_" in rem else ("nes", "", rem)  # older takes: NES on top
         top_label, label = NAMES.get(top, top.upper()), NAMES.get(bottom, bottom.upper())
-        return [(top, 448, 60, 512, 480), (bottom, 448, 540, 512, 480), ("a2600", 960, 117, 512, 365),
+        lower = "compare" if "compare" in STREAM_SIZE else bottom  # takes since 1.2.2: the pane as shown
+        return [(top, 448, 60, 512, 480), (lower, 448, 540, 512, 480), ("a2600", 960, 117, 512, 365),
                 ("ram", 960, 540, 512, 480)], \
                [(top_label, 448, 24), ("ATARI 2600 - 1980", 960, 24),        # bottom row: side margins (the
                 (label, 448 - HUD.text_width(label, 2) - 24, 548),          # captions own the bottom)

@@ -102,7 +102,7 @@ release, hacks) still run, and the game tells you what it found and whether the 
 More: `python play.py --list` (the looks and packs), `--look snes --cast classic`, `--grid`, `--help`.
 On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 
-The grid shows what you're playing over a comparison (by default the other console with the same cast and world); Shift+L / C / W set the comparison's own look, cast or world. Details: [Controls](#controls).
+The grid shows what you're playing over a comparison (by default the other console with the same cast and world); in the grid, L / C / W change only your game, and Shift+L / C / W only the comparison. Details: [Controls](#controls).
 
 **Building the downloads:** `python package/build.py` on each system makes that system's download in
 `package/dist/` (PyInstaller can't build for another system, so the Windows one is built on Windows).

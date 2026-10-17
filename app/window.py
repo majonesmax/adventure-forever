@@ -11,7 +11,8 @@ One frame (GameWindow.run):
 What's on screen is a look (the console: NES, SNES, VGA, paper) showing a cast (who) in a world (where), both
 from packs/. L changes the look, C the cast, W the world, and a moment's overlay says what's showing (now_showing.py; I
 brings it up without changing anything). The grid shows what you're playing (top) over a comparison (bottom):
-by default the next look with the same cast and world; Shift+L / C / W set the comparison's own.
+by default the next look with the same cast and world. In the grid L / C / W change only yours, and
+Shift+L / C / W only the comparison.
 Until C or W is pressed each look shows its own pack's cast and world; after, every look shows the chosen
 one, so the grid compares consoles.
     6. pace       vsync on a ~60 Hz display, else a timer at the game's frame rate
@@ -224,8 +225,9 @@ class GameWindow:
     def draw_pictures(self):
         """Every look that's needed draws this frame (all of them while recording)."""
         needed = list(self.grid_looks()) if self.view == "grid" else [self.look]
-        if self.recorder.active:  # every look's stream - and still what's on screen (a comparison can differ)
-            needed = self.recorded_looks() + [lk for lk in needed if lk not in self.recorded_looks()]
+        if self.recorder.active:  # every look's stream, and the grid's comparison (its own stream: it can have
+            needed = self.recorded_looks() + [lk for lk in self.grid_looks() if lk not in self.recorded_looks()]
+            # its own cast and world) - which includes what's on screen
         if self.scrolls:  # every look scrolls the same distance at the same speed, so they finish together
             caught_up = next(iter(self.scrolls.values())).offset
             for lk in needed:  # a view switch (e.g. into the grid) mid-scroll can need a look not yet scrolling
@@ -255,12 +257,12 @@ class GameWindow:
     def record_frame(self):
         if self.recorder.active and not self.paused:  # the RAM panel is rebuilt from the RAM at edit time
             st = self.st
-            self.recorder.frame({"a2600": self.core.frame,
+            self.recorder.frame({"a2600": self.core.frame, "compare": self.pictures.get(self.comparison),
                                  **{lk.platform: self.pictures.get(lk) for lk in self.recorded_looks()}},
                                 {"g": self.frame_no, "room": st.room_num, "hero": st.hero, "carry": st.carried,
                                  "look": self.look.platform, "cast": self.look.cast.key,
                                  "world": self.look.world.key, "grid_top": self.look.platform,
-                                 "grid16": self.comparison.platform,
+                                 "grid16": self.comparison.platform, "compare": self.comparison.key,
                                  "view": self.view, "scroll": bool(self.scrolls)}, self.core.ram)
 
     def show(self):
@@ -344,25 +346,34 @@ class GameWindow:
 
     # ---- window commands (KEYS) ----------------------------------------------------------------------------
 
+    def keep_comparison(self, part):
+        """Before L / C / W change what you play: in the grid, the comparison below stays exactly as it is
+        (only Shift+L / C / W change it). Elsewhere it goes on following yours, so the grid opens on the look
+        after yours with your cast and world."""
+        if self.view == "grid":
+            cmp = self.comparison
+            self.compare = {"look": cmp.platform, "cast": cmp.cast.key, "world": cmp.world.key}
+        else:
+            self.compare[part] = None
+
     def next_look(self):
-        """L: the next look (console), same cast and world - never changes the view. The comparison's look
-        follows again (the next one after yours)."""
+        """L: the next look (console), same cast and world - never changes the view."""
+        self.keep_comparison("look")
         self.look_key = following(self.look_keys, self.look_key)
-        self.compare["look"] = None
         self.now_showing.show(("PLAYING", "look"))
         print(f"look: {self.look.key}", flush=True)
 
     def next_cast(self):
-        """C: the next cast, on every look; the comparison's cast follows yours again."""
+        """C: the next cast, on every look."""
+        self.keep_comparison("cast")
         self.cast_key = following(self.cast_keys, self.cast_key or self.look.cast.key)
-        self.compare["cast"] = None
         self.now_showing.show(("PLAYING", "cast"))
         print(f"cast: {self.look.cast.name} ({self.look.key})", flush=True)
 
     def next_world(self):
-        """W: the next world, on every look; the comparison's world follows yours again."""
+        """W: the next world, on every look."""
+        self.keep_comparison("world")
         self.world_key = following(self.world_keys, self.world_key or self.look.world.key)
-        self.compare["world"] = None
         self.now_showing.show(("PLAYING", "world"))
         if self.music:  # a world can bring its own soundtrack
             before = self.music.source_name
@@ -373,17 +384,17 @@ class GameWindow:
         print(f"world: {self.look.world.name} ({self.look.key})", flush=True)
 
     def compare_look(self):
-        """Shift+L: the grid comparison's next look (it stays until L)."""
+        """Shift+L: the grid comparison's next look."""
         self.compare["look"] = following(self.look_keys, self.comparison.platform)
         self.now_showing.show(("COMPARE", "look"))
 
     def compare_cast(self):
-        """Shift+C: the grid comparison's next cast (it stays until C)."""
+        """Shift+C: the grid comparison's next cast."""
         self.compare["cast"] = following(self.cast_keys, self.comparison.cast.key)
         self.now_showing.show(("COMPARE", "cast"))
 
     def compare_world(self):
-        """Shift+W: the grid comparison's next world (it stays until W)."""
+        """Shift+W: the grid comparison's next world."""
         self.compare["world"] = following(self.world_keys, self.comparison.world.key)
         self.now_showing.show(("COMPARE", "world"))
 
@@ -485,7 +496,8 @@ class GameWindow:
         if self.recorder.active:
             self.stop_recording()
             return
-        streams = {"a2600": (160, 228), **{k: (L.SCREEN_W, L.SCREEN_H) for k in self.look_keys}}
+        streams = {"a2600": (160, 228), "compare": (L.SCREEN_W, L.SCREEN_H),  # compare: the grid's lower pane
+                   **{k: (L.SCREEN_W, L.SCREEN_H) for k in self.look_keys}}
         game = self.st.game if self.st else 1
         where = self.recorder.start({"game": game}, streams)
         print(f"recording to {where}" if where else

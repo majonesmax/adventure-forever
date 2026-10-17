@@ -4,6 +4,7 @@ recordings/<stamp>/ (frozen app: ~/Movies/Adventure Forever/<stamp>/)
   a2600.mp4   the 2600 picture, 160x228        } lossless H.264 RGB (libx264rgb -crf 0) at the native size -
   nes.mp4     the NES screen, 256x240          } scale up with nearest-neighbour when editing; one video
   snes.mp4    the SNES screen, 256x240         } frame per displayed frame (60 fps), including room scrolls,
+  compare.mp4 the grid's comparison (its lower left pane) exactly as shown - it can have its own cast and world
   ram.bin     the 128 RAM bytes of every video frame (128 bytes each) - the internals panel is NOT drawn
               live (it cost the game its 60 fps); render_ram_video() rebuilds ram.mp4 from this at edit time
   audio.wav   exactly what the sound card played (2600 SFX + music), tapped from AudioOut's callback
