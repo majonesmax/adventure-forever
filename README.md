@@ -56,6 +56,9 @@ To add a pack, download it (on GitHub: **Code → Download ZIP**) and **drag the
 window**: the game copies it into its packs folder and switches to it. Packs can contain code, so only add
 packs from people you trust.
 
+To make your own, describe it to an AI coding assistant and build it together: [making a pack](docs/making-a-pack.md#start-with-an-ai-assistant)
+shows how, and [CLAUDE.md](CLAUDE.md) gives the assistant the rules.
+
 ## How it works
 
 The 2600 has no screen memory; Adventure's whole world lives in 128 bytes of RAM: which room each object is

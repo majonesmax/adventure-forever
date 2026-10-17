@@ -1,0 +1,57 @@
+# Working on Adventure Forever with an AI assistant
+
+Notes for Claude Code (or any coding assistant) working in this repository. People: the same notes are a
+quick tour.
+
+Atari 2600 *Adventure* runs unmodified in the Stella emulator; every frame, the game's 128 bytes of RAM are
+read and the scene is redrawn. How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## The words
+
+- **look**: the console - colour rules, status bar, title and win screens (`looks/`: nes, snes, vga, paper).
+- **cast**: who - hero, dragons, bat, items, bridge, messenger, the win lines.
+- **world**: where - each place's walls, floor and gates, names, title word, soundtrack.
+- **pack**: a folder with a cast and/or a world (`packs/`, `private/packs/`, or folders in `ADVENTURE_PACKS`).
+
+Any look shows any cast in any world. Keep it that way: a look never knows about a particular pack, and a pack
+never assumes a particular look.
+
+## Commands
+
+```sh
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+python tools/get_core.py                    # the pinned Stella core, checksum-verified
+python play.py --pack <pack> --look <look>  # play (the user's ROM is roms/adventure.a26)
+python play.py --list                       # every look and pack
+python tools/preview.py --pack <pack>       # the pack in every look, as one PNG - look at it
+python tests/golden.py                      # every look x cast x world still draws the same pixels
+python tests/test_controls.py               # every key is documented
+```
+
+## Rules
+
+- **Never change the game.** No ROM patches, no RAM writes during play. Looks only read a `GameState`.
+- **Draw things where the game has them.** Hits, pickups and walls come from the game's own positions; a
+  sprite moved for looks makes the picture lie.
+- **Never commit** the ROM, emulator cores, `private/`, `STATE.md`, or anything from the ROM (its tables are
+  read from the user's copy at startup).
+- **Prove nothing else moved.** Run `tests/golden.py` after any change to `looks/`, `content/` or `shared/`. If
+  only what you meant to change differs, `--update` it, and say what changed.
+- **Look at your work.** After changing art, a world or a look, run `tools/preview.py` and read the PNG before
+  saying it's done.
+- **Art is text.** Sprites are drawn as text art in a pack's `source/*.py` (one character a pixel, see
+  `shared/pixelart.py`) and generated into `cast/`. Don't hand-edit the PNGs; edit the source and rerun it.
+- **Public packs are original.** No names, logos, likenesses, quotes or exact designs from someone else's
+  work. Inspired-by is fine; a copy is not. Fan art of real shows belongs in `private/packs/`.
+
+## Style
+
+Match the code around you: short modules with a docstring saying what they are, plain names, comments that
+say why. Docs are plain English for people - short sentences, no hype words, no "simply". When adding a key,
+add it to `app/controls.py`; the help panel and both READMEs follow from there.
+
+## Guides
+
+[Making a pack](docs/making-a-pack.md) · [making a look](docs/making-a-look.md) ·
+[platform rules](docs/platform-rules.md) · [reading the RAM view](docs/reading-the-ram.md) ·
+[Go outside, nerd](GO-OUTSIDE-NERD.md) (accuracy and timing)

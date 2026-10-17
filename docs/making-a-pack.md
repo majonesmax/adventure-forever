@@ -28,6 +28,32 @@ python play.py --pack mine                            # a pack's cast in its own
 
 Until you choose (with an option, or C or W in the game), each look shows its own pack's cast and world.
 
+## Start with an AI assistant
+
+The easiest way to make a pack is to describe it to an AI coding assistant (Claude Code, or any other) and
+build it together. Everything a pack needs suits one: the art is text (one character a pixel), a world is a
+short Python painter, the soundtrack is notes in a JSON file, and the tools show it the results.
+[CLAUDE.md](../CLAUDE.md) gives an assistant the commands and the rules; open it in this folder and ask:
+
+> Make a pack called *lighthouse*: a keeper with a lantern as the hero, three sea monsters, a gull as the
+> bat, a wild coast as the world, and a calm soundtrack. Draw the cast as text art in `source/`, and show
+> me previews in every look.
+
+Then look at what comes back and say what to change: "the hero is too small", "the walls should be
+rocks", "the music is too busy". Its own checks:
+
+```sh
+python tools/preview.py --pack lighthouse   # every look, the game's key moments, one picture
+python play.py --pack lighthouse            # play it
+python tests/golden.py                      # nothing else changed
+```
+
+Two things stay yours: deciding what looks right, and making sure a pack you publish is your own idea
+rather than someone else's characters ([CLAUDE.md](../CLAUDE.md) has the rule). The demos in
+[Shall we play a game?](https://github.com/majonesmax/shall-we-play-a-game) were made this way.
+
+The rest of this guide is what's underneath, for doing it by hand or knowing what to ask for.
+
 ## The quick way: start from the template
 
 ```sh

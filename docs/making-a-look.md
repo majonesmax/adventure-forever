@@ -8,6 +8,9 @@ What it draws comes from packs ([making a pack](making-a-pack.md)): a **world** 
 gates, and their names) and a **cast** (the hero, dragons, items...). Every look shows every cast in every
 world; your look only says how their pictures are adapted to its rules.
 
+An AI coding assistant can build one with you: [CLAUDE.md](../CLAUDE.md) has the rules, and
+`tools/preview.py --look <yours>` shows it every look's key moments in one picture.
+
 The game itself never changes. Every frame, your look is handed a `GameState` (where everything is) and
 returns a 256x240 picture.
 
