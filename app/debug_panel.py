@@ -23,7 +23,7 @@ GATES = (("gold", 0xC8), ("white", 0xC9), ("black", 0xCA))
 GATE_CLOSED = 0x1C
 COOL = 60  # frames for a changed byte to cool from HOT to GREEN
 
-# a famous 1980s game-over line: shown while a dragon has eaten the hero (its state byte = $02) - until RESET revives him
+# a famous 1980s wagon under the old hex marker for dead memory: shown while a dragon has eaten the hero (its state byte = $02) - until RESET revives him
 WAGON = """
 ..............XXXXXXXXXXXXXXX.........................
 ...........XXX...............XXX......................
@@ -117,8 +117,8 @@ class DebugPanel:
                 return name
         return None
 
-    def dysentery(self, surf, who):
-        """Green-screen tribute: the hero 'died of dysentery' (he was eaten - the footnote admits it)."""
+    def deadbeef(self, surf, who):
+        """The wagon and 0xDEADBEEF, the old marker for dead memory (he was eaten - the footnote admits it)."""
         cx = self.size[0] // 2
         rows = WAGON.strip("\n").split("\n")
         px = 7
@@ -130,7 +130,7 @@ class DebugPanel:
                     pygame.draw.rect(surf, GREEN, (x0 + x * px, y0 + y * px + (bob if y < 10 else 0), px, px))
         pygame.draw.line(surf, DIM, (20, y0 + len(rows) * px + 4), (self.size[0] - 20, y0 + len(rows) * px + 4), 2)
         big = mono(22, bold=True)
-        lines = [("YOU HAVE DIED", big, GREEN), ("OF DYSENTERY.", big, GREEN)]
+        lines = [("0xDEADBEEF", big, GREEN)]
         y = y0 + len(rows) * px + 40
         for text, font, colour in lines:
             img = font.render(text, True, colour)
@@ -150,7 +150,7 @@ class DebugPanel:
             return
         who = self.eaten_by()
         if who:
-            self.dysentery(surf, who)
+            self.deadbeef(surf, who)
             surf.blit(self.scanlines(), (0, 0))
             return
         ram, f = self.prev, self.frame_no

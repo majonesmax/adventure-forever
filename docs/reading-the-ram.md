@@ -53,11 +53,12 @@ What changed, worked out by comparing each frame's RAM with the one before. The 
 `ROOM $03 -> $1D` · `PICKUP black key` · `DROP sword` · `GRUNDLE normal -> ROAR` · `YORGLE enters the room`
 · `black gate opens` · `SOUND pickup` · `WIN - THE CHALICE IS HOME!`
 
-### 4. The dysentery screen
+### 4. The DEADBEEF screen
 
-When a dragon swallows you, the panel shows a covered wagon and **YOU HAVE DIED OF DYSENTERY.**, with the
-real culprit in small print. The trigger is a dragon's state byte becoming `$02` ("has eaten the hero").
-It goes back to the RAM view when RESET revives you.
+When a dragon swallows you, the panel shows a covered wagon and **0xDEADBEEF**, with the real culprit in small
+print. `DEADBEEF` is a hex number that reads as English, and programmers used to write it into unused or
+freed memory so it would stand out when they read through a crash dump. The trigger is a dragon's state byte
+becoming `$02` ("has eaten the hero"). It goes back to the RAM view when RESET revives you.
 
 ## The memory map
 
