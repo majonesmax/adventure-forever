@@ -75,7 +75,7 @@ slide, so the game's timing is untouched too.
 | `tools/` | the art pipeline, the video editor, viewers |
 | `tests/` | checks against the real emulator, including pixel-exact "golden" tests of every look |
 
-**[How it all fits together →](docs/ARCHITECTURE.md)** (or the one-page version: [GO-OUTSIDE-NERD.md](GO-OUTSIDE-NERD.md))
+**[How it all fits together →](docs/ARCHITECTURE.md)** (and for emulation people - accuracy, timing, which ROMs: [Go outside, nerd](GO-OUTSIDE-NERD.md))
 
 ## Running it from source (macOS, Windows, Linux)
 

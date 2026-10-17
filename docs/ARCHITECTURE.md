@@ -23,11 +23,17 @@ RAM, in well-defined places (`engine/ram_map.py`, decoded from the game's commen
 against the running game by `tests/verify_ram.py`). Read those bytes and you know everything needed to draw
 the scene your own way.
 
-**RAM and ROM.** RAM holds everything that changes (positions, rooms, states, what you carry) and is
-read every frame. The ROM holds everything that doesn't (each room's walls, colour and exits; each object's
-size and graphics). `engine/rooms.py` and `engine/objects.py` decode it once at startup, from *your* copy:
-those tables are Atari's data, so they are deliberately not copied into this repository. What the code
-keeps is knowledge *about* the game: what each RAM address means and where the tables are in the ROM.
+Two kinds of game data:
+
+| | **RAM** (128 bytes) | **ROM** (4 KB, your file) |
+|---|---|---|
+| What | everything that **changes**: your room and position, every object's room, position and state, what you carry, gates opening, the win | everything that **never changes**: each room's wall layout, colour and exits; each object's size, colour and graphics |
+| Read | every frame | once, at startup |
+| By | `engine/state.py` turns it into a `GameState` (named fields, no addresses) | `engine/rooms.py`, `engine/objects.py` decode its tables |
+
+The ROM's tables are Atari's data, so they're read from *your* copy and never copied into this repository.
+What the code keeps is knowledge *about* the game: what each RAM address means and where the tables are in the
+ROM. (Which ROMs work, and what happens with a hack or the PAL version: [Go outside, nerd](../GO-OUTSIDE-NERD.md#which-rom).)
 
 Rules every look follows:
 
@@ -38,19 +44,25 @@ Rules every look follows:
 - **The game's timing is sacred.** Room scrolls pause the emulator while they slide; no frame is skipped or
   added to the game itself.
 
+How faithful the emulation is, how the RAM is sampled and how the speed is kept: [Go outside, nerd](../GO-OUTSIDE-NERD.md).
+
 ## The folders
 
 | Folder | What's in it |
 |---|---|
 | `play.py` | the entry point: command-line options, then the window |
 | `engine/` | **the game itself.** `emulator.py` (the libretro core), `state.py` (`Game`, `GameState`), `ram_map.py` / `rooms.py` / `objects.py` (what the RAM and ROM tables mean), `palette.py` (the 2600's colours), `music.py` + `chiptune.py` (background music), `paths.py` (where files live) |
-| `looks/` | **how the game is drawn: the consoles.** `base.py` defines what a look is ([making a look](making-a-look.md)); `nes/` and `snes/` are the two built-in looks; `template_look.py` is the smallest complete look; `__init__.py` lists them |
+| `looks/` | **how the game is drawn: the consoles.** `base.py` defines what a look is ([making a look](making-a-look.md)); `nes/`, `snes/`, `vga/` and `paper/` are the built-in looks; `template_look.py` is the smallest complete look; `__init__.py` lists them |
 | `content/` | **what's drawn.** `cast.py` (who: hero, dragons, items...), `world.py` (where: the game's places, their walls, floors, gates and names), `pack.py` (a folder with a cast and/or a world), `__init__.py` (finds the packs) - [making a pack](making-a-pack.md) |
 | `packs/` | **the packs**, one folder each: `pack.json`, `cast/` pictures, `world/` tiles, and the text art they were drawn from in `source/`. `classic` (the NES look's own), `pbj` (the SNES look's own), `template` (the smallest). Your own go in `private/packs/` |
 | `app/` | **the window around the game.** `window.py` (the frame loop, views, keys), `transitions.py` (room scrolls), `recorder.py` (gameplay recording), `debug_panel.py` (the live RAM view: [reading it](reading-the-ram.md)), `rom.py` (finding your ROM) |
 | `shared/` | helpers used by looks, content and the app: `layout.py` (the screen and room layout, where the walls are in pixels), `pixelart.py` (sprites drawn as text, pasting), `palettes.py` (the NES palette), `hud.py` (the pixel font) |
 | `tools/` | development tools: the emulator core download (`get_core.py`), the video editor (`make_video.py`), the grid GIF maker (`make_gif.py`), the 2600-picture rebuild (`rebuild_2600.py`), the RAM viewer, mock-ups |
+| `package/` | `build.py`: the download for the system it runs on (the app, a README, the licences and Stella's GPL source link) |
 | `tests/` | checks against the real emulator; `golden.py` proves every look still draws exactly the same pixels |
+
+Not in the repository: your ROM, the emulator core (`tools/get_core.py` downloads it), and `private/` (personal
+packs and music).
 
 ## One frame, in order (`app/window.py`)
 
@@ -63,7 +75,8 @@ Rules every look follows:
    and the new one in.
 4. **Extras:** the music follows the area (title, overworld, dungeon, final, win); the recorder saves every
    look's picture, the audio and a log; the RAM panel logs events.
-5. **Show:** the current view is assembled and flipped to the screen. Vsync or a timer paces the loop at the
+5. **Show:** the current view is assembled - one look, side by side with the 2600, the 2600 alone, or the grid
+   (what you're playing over a comparison look, the 2600 and the live RAM) - and flipped to the screen. Vsync or a timer paces the loop at the
    game's 60 frames a second - the emulator has no clock of its own ([timing](../GO-OUTSIDE-NERD.md#timing)).
 
 ## Looks, casts and worlds
@@ -76,8 +89,8 @@ Three separate things meet on screen:
 
 Casts and worlds come in **packs** (folders in `packs/` and `private/packs/`). Any look shows any cast in any
 world: when a look is made, it passes the cast's pictures through its `adapt()` and the world's rooms and
-gates through its `adapt_scenery()` (NES colours; SNES 15-bit colour and soft outlines), once. "Author rich,
-platforms reduce."
+gates through its `adapt_scenery()` (the NES palette, SNES 15-bit colour, VGA's 256 colours, a box of crayons),
+once. "Author rich, platforms reduce." **I** in the game shows which three are on screen.
 
 ```
  packs/pbj/cast/hero_down_0.png ─▶ Cast  ─▶ SnesLook.adapt()          ─▶ RoomLook places it where the game has the hero
