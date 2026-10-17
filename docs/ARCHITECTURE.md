@@ -64,7 +64,7 @@ Rules every look follows:
 4. **Extras:** the music follows the area (title, overworld, dungeon, final, win); the recorder saves every
    look's picture, the audio and a log; the RAM panel logs events.
 5. **Show:** the current view is assembled and flipped to the screen. Vsync or a timer paces the loop at the
-   game's 60 frames a second - the emulator has no clock of its own ([timing](../SHUT-UP-NERD.md#timing)).
+   game's 60 frames a second - the emulator has no clock of its own ([timing](../GO-OUTSIDE-NERD.md#timing)).
 
 ## Looks, casts and worlds
 
