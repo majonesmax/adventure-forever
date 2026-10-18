@@ -1,25 +1,4 @@
 {
- "app/debug_panel.py": {
-  "C901": 1,
-  "E501": 7,
-  "E731": 2,
-  "N001": 24
- },
- "app/help_panel.py": {
-  "E501": 2,
-  "N001": 1
- },
- "app/now_showing.py": {
-  "N001": 1
- },
- "app/recorder.py": {
-  "E501": 3,
-  "N001": 1
- },
- "app/transitions.py": {
-  "E501": 1,
-  "N001": 11
- },
  "package/build.py": {
   "C901": 1,
   "E501": 3,

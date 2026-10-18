@@ -17,17 +17,17 @@ from shared.pixelart import blit
 PX_PER_FRAME = {"up": 6, "down": 6, "left": 8, "right": 8}  # ~32 frames (half a second) either way
 
 
-def scroll_direction(prev, st):
-    """'up' / 'down' / 'left' / 'right', or None for a cut. prev, st: GameStates before/after."""
-    a, b = prev.room_num, st.room_num
-    if a == b or a == 0 or b == 0:
+def scroll_direction(prev, state):
+    """'up' / 'down' / 'left' / 'right', or None for a cut. prev, state: GameStates before/after."""
+    room_before, room_after = prev.room_num, state.room_num
+    if room_before == room_after or room_before == 0 or room_after == 0:  # room 0: the game-select screen
         return None
     for castle, (inside, _) in R.CASTLES.items():
-        if (a, b) == (castle, inside):
+        if (room_before, room_after) == (castle, inside):
             return "up"
-        if (a, b) == (inside, castle):
+        if (room_before, room_after) == (inside, castle):
             return "down"
-    (x0, y0), (x1, y1) = prev.hero, st.hero
+    (x0, y0), (x1, y1) = prev.hero, state.hero
     dx, dy = x1 - x0, y1 - y0
     if abs(dy) >= 0x30 and abs(dy) >= abs(dx):
         return "up" if dy < 0 else "down"   # y counts up the screen: leaving the top wraps to a small y
@@ -49,8 +49,10 @@ class Scroll:
         direction = scroll_direction(before, after)
         if direction is None:
             return None
-        return cls(look.draw(before, frame_no, actors=False), look.draw(after, frame_no, actors=False), direction,
-                   look.actors(before, frame_no), look.actors(after, frame_no), look.ROOM_RECT)
+        old_screen = look.draw(before, frame_no, actors=False)
+        new_screen = look.draw(after, frame_no, actors=False)
+        old_actors, new_actors = look.actors(before, frame_no), look.actors(after, frame_no)
+        return cls(old_screen, new_screen, direction, old_actors, new_actors, look.ROOM_RECT)
 
     def __init__(self, old_screen, new_screen, direction, old_actors, new_actors, rect):
         x0, y0, w, h = self.rect = rect
@@ -68,35 +70,45 @@ class Scroll:
 
     def frame(self):
         self.offset = min(self.offset + PX_PER_FRAME[self.direction], self.span)
-        o, d = self.offset, self.direction
-        if d == "up":      # new room comes in from the top
-            strip = np.concatenate([self.new, self.old], axis=0)
-            view = strip[self.span - o:2 * self.span - o]
-        elif d == "down":  # from the bottom
-            strip = np.concatenate([self.old, self.new], axis=0)
-            view = strip[o:o + self.span]
-        elif d == "left":  # from the left
-            strip = np.concatenate([self.new, self.old], axis=1)
-            view = strip[:, self.span - o:2 * self.span - o]
-        else:              # from the right
-            strip = np.concatenate([self.old, self.new], axis=1)
-            view = strip[:, o:o + self.span]
-        view = view.copy()
-        # where each room's content sits right now (room-space shift of the old and the new room)
-        sp = self.span
-        old_shift, new_shift = {"up": ((0, o), (0, o - sp)), "down": ((0, -o), (0, sp - o)),
-                                "left": ((o, 0), (o - sp, 0)), "right": ((-o, 0), (sp - o, 0))}[d]
-        t = o / sp
-        for key in self.new_actors:  # the look's drawing order (item under or over the hero)
-            spr, nx, ny = self.new_actors[key]
-            if key in self.old_actors:
-                _, ox, oy = self.old_actors[key]
-                x = (1 - t) * (ox + old_shift[0]) + t * (nx + new_shift[0])
-                y = (1 - t) * (oy + old_shift[1]) + t * (ny + new_shift[1])
-            else:  # only in the new room: ride along with it
-                x, y = nx + new_shift[0], ny + new_shift[1]
-            blit(view, spr, x, y)
+        view = self.sliding_rooms()
+        self.glide_actors(view)
         out = self.base.copy()
         x0, y0, w, h = self.rect
         out[y0:y0 + h, x0:x0 + w] = view
         return out
+
+    def sliding_rooms(self):
+        """The two rooms side by side (or one above the other), and the window onto them right now."""
+        offset, span, direction = self.offset, self.span, self.direction
+        if direction == "up":      # the new room comes in from the top
+            strip = np.concatenate([self.new, self.old], axis=0)
+            view = strip[span - offset:2 * span - offset]
+        elif direction == "down":  # from the bottom
+            strip = np.concatenate([self.old, self.new], axis=0)
+            view = strip[offset:offset + span]
+        elif direction == "left":  # from the left
+            strip = np.concatenate([self.new, self.old], axis=1)
+            view = strip[:, span - offset:2 * span - offset]
+        else:                      # from the right
+            strip = np.concatenate([self.old, self.new], axis=1)
+            view = strip[:, offset:offset + span]
+        return view.copy()
+
+    def glide_actors(self, view):
+        """The hero and his item, drawn once, moving from where they were in the old room to where they are
+        in the new one as the rooms slide."""
+        offset, span = self.offset, self.span
+        # where each room's content sits right now (room-space shift of the old and the new room)
+        shifts = {"up": ((0, offset), (0, offset - span)), "down": ((0, -offset), (0, span - offset)),
+                  "left": ((offset, 0), (offset - span, 0)), "right": ((-offset, 0), (span - offset, 0))}
+        old_shift, new_shift = shifts[self.direction]
+        progress = offset / span  # 0 at the start, 1 when the new room has arrived
+        for key in self.new_actors:  # the look's drawing order (item under or over the hero)
+            sprite, new_x, new_y = self.new_actors[key]
+            if key in self.old_actors:
+                _, old_x, old_y = self.old_actors[key]
+                x = (1 - progress) * (old_x + old_shift[0]) + progress * (new_x + new_shift[0])
+                y = (1 - progress) * (old_y + old_shift[1]) + progress * (new_y + new_shift[1])
+            else:  # only in the new room: ride along with it
+                x, y = new_x + new_shift[0], new_y + new_shift[1]
+            blit(view, sprite, x, y)

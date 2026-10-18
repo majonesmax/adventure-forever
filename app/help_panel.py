@@ -6,7 +6,8 @@ import pygame
 from app import controls
 from app.fonts import mono
 
-TITLE, SECTION, KEY, TEXT, HINT = (248, 200, 72), (150, 150, 175), (248, 200, 72), (235, 235, 245), (120, 120, 145)
+TITLE, SECTION, KEY = (248, 200, 72), (150, 150, 175), (248, 200, 72)
+TEXT, HINT = (235, 235, 245), (120, 120, 145)
 
 
 class HelpPanel:
@@ -34,8 +35,8 @@ class HelpPanel:
         pygame.draw.rect(panel, (90, 90, 120), panel.get_rect(), 2)
         title = self.title.render("ADVENTURE FOREVER - KEYS", True, TITLE)
         panel.blit(title, ((width - title.get_width()) // 2, 16))
-        for c, col in enumerate(columns):
-            x, y = 24 + c * (col_w + 24), 56
+        for column_number, col in enumerate(columns):
+            x, y = 24 + column_number * (col_w + 24), 56
             for name, rows in col:
                 panel.blit(self.small.render(name, True, SECTION), (x, y + 2))
                 y += line_h
@@ -44,8 +45,8 @@ class HelpPanel:
                     panel.blit(self.font.render(what, True, TEXT), (x + key_w, y))
                     y += line_h
                 y += 8
-        hint = self.small.render("H or Esc closes this.  To add a pack, drop its folder or .zip on the window.",
-                                 True, HINT)
+        hint_text = "H or Esc closes this.  To add a pack, drop its folder or .zip on the window."
+        hint = self.small.render(hint_text, True, HINT)
         panel.blit(hint, ((width - hint.get_width()) // 2, height - 26))
         if k < 1.0:
             panel = pygame.transform.smoothscale(panel, (int(width * k), int(height * k)))

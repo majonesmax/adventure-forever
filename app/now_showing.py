@@ -78,8 +78,8 @@ class NowShowing:
     def draw_warning(self, screen, centre_x, top, alpha):
         headline, details = self.warning
         lines = [(self.small, line, WARN) for line in textwrap.wrap(headline, 64)]
-        for d in details:
-            lines += [(self.small, line, WARN_TEXT) for line in textwrap.wrap(d, 64)]
+        for detail in details:
+            lines += [(self.small, line, WARN_TEXT) for line in textwrap.wrap(detail, 64)]
         line_h = self.small.get_linesize()
         width = max(self.small.size(text)[0] for _, text, _ in lines) + 32
         box = pygame.Surface((width, len(lines) * line_h + 20), pygame.SRCALPHA)

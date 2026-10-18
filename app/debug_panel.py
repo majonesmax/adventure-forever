@@ -15,15 +15,16 @@ from app.fonts import mono
 from engine import objects as O
 from engine import ram_map as M
 
-BG, GREEN, DIM, HOT, AMBER, GREY, RED = ((4, 10, 6), (90, 230, 130), (40, 96, 56), (255, 255, 190),
-                                         (255, 190, 80), (120, 150, 128), (255, 110, 100))
+BACKGROUND, GREEN, DIM, HOT = (4, 10, 6), (90, 230, 130), (40, 96, 56), (255, 255, 190)
+AMBER, GREY, RED = (255, 190, 80), (120, 150, 128), (255, 110, 100)
 SOUNDS = {0: "game over", 1: "roar", 2: "eaten", 3: "dragon dies", 4: "drop", 5: "pickup"}
 DRAGONS = (("RHINDLE", M.RED_DRAGON), ("YORGLE", M.YELLOW_DRAGON), ("GRUNDLE", M.GREEN_DRAGON))
 GATES = (("gold", 0xC8), ("white", 0xC9), ("black", 0xCA))
 GATE_CLOSED = 0x1C
 COOL = 60  # frames for a changed byte to cool from HOT to GREEN
 
-# a famous 1980s wagon under the old hex marker for dead memory: shown while a dragon has eaten the hero (its state byte = $02) - until RESET revives him
+# a famous 1980s wagon under the old hex marker for dead memory: shown while a dragon has eaten the hero
+# (its state byte = $02) - until RESET revives him
 WAGON = """
 ..............XXXXXXXXXXXXXXX.........................
 ...........XXX...............XXX......................
@@ -44,11 +45,17 @@ WAGON = """
 
 
 def dragon_word(state):
-    return "dead" if state == 1 else "normal" if state == 0 else "ate hero" if state == 2 else "ROAR"
+    """A dragon's state byte, in a word."""
+    return {0: "normal", 1: "dead", 2: "ate hero"}.get(state, "ROAR")
 
 
-def obj_name(n):
-    return "-" if n == 0x12 else O.NAMES.get(n, f"?{n:02X}")
+def obj_name(object_number):
+    return "-" if object_number == 0x12 else O.NAMES.get(object_number, f"?{object_number:02X}")
+
+
+def byte(ram, addr):
+    """The byte at a 2600 address ($80-$FF) in a 128-byte RAM copy."""
+    return int(ram[addr - 0x80])
 
 
 class DebugPanel:
@@ -67,7 +74,7 @@ class DebugPanel:
         if self.listener is not None:
             self.listener(text)
 
-    def update(self, st, ram, frame_no):
+    def update(self, state, ram, frame_no):
         """Call once per emulated frame (also when the grid isn't showing, so the log has history)."""
         ram = np.asarray(ram, np.uint8).copy()
         self.frame_no = frame_no
@@ -76,37 +83,48 @@ class DebugPanel:
             self.diff_events(self.prev, ram)
         self.prev = ram
 
-    def diff_events(self, a, b):
-        r = lambda m, addr: int(m[addr - 0x80])
-        if r(a, 0x8A) != r(b, 0x8A):
-            self.event(f"ROOM ${r(a, 0x8A):02X} -> ${r(b, 0x8A):02X}")
-        ca, cb = r(a, M.CARRIED) // 9, r(b, M.CARRIED) // 9
-        if ca != cb:
-            if ca != 0x12:
-                self.event(f"DROP   {obj_name(ca)}", GREY)
-            if cb != 0x12:
-                self.event(f"PICKUP {obj_name(cb)}", AMBER)
-        for name, addr in DRAGONS:
-            sa, sb = r(a, addr + 4), r(b, addr + 4)
-            if sa != sb and dragon_word(sa) != dragon_word(sb):
-                colour = RED if sb >= 2 else AMBER if sb == 1 else GREEN
-                self.event(f"{name} {dragon_word(sa)} -> {dragon_word(sb)}", colour)
-            if r(a, addr) != r(b, addr) and r(b, addr) == r(b, 0x8A):
-                self.event(f"{name} enters the room", RED)
-        if r(a, 0xD0) != r(b, 0xD0):  # the bat's carry byte - format not decoded yet, so shown raw
-            self.event(f"BAT carry ${r(a, 0xD0):02X} -> ${r(b, 0xD0):02X}", AMBER)
+    def diff_events(self, before, after):
+        """Events, read from how the RAM changed since the last frame."""
+        if byte(before, M.ROOM) != byte(after, M.ROOM):
+            self.event(f"ROOM ${byte(before, M.ROOM):02X} -> ${byte(after, M.ROOM):02X}")
+        self.carry_events(before, after)
+        self.dragon_events(before, after)
+        if byte(before, 0xD0) != byte(after, 0xD0):  # the bat's carry byte - format not decoded yet: raw
+            self.event(f"BAT carry ${byte(before, 0xD0):02X} -> ${byte(after, 0xD0):02X}", AMBER)
         for name, addr in GATES:
-            ga, gb = r(a, addr), r(b, addr)
-            if (ga == GATE_CLOSED) != (gb == GATE_CLOSED):
-                self.event(f"{name} gate {'closes' if gb == GATE_CLOSED else 'opens'}")
-        if r(a, 0xDF) == 0 and r(b, 0xDF) != 0:
-            self.event(f"SOUND  {SOUNDS.get(r(b, 0xE0), r(b, 0xE0))}", GREY)
-        if r(a, M.GAME_ACTIVE) != r(b, M.GAME_ACTIVE):
+            was_closed, is_closed = byte(before, addr) == GATE_CLOSED, byte(after, addr) == GATE_CLOSED
+            if was_closed != is_closed:
+                self.event(f"{name} gate {'closes' if is_closed else 'opens'}")
+        if byte(before, 0xDF) == 0 and byte(after, 0xDF) != 0:  # a sound starts counting down
+            sound = byte(after, 0xE0)
+            self.event(f"SOUND  {SOUNDS.get(sound, sound)}", GREY)
+        if byte(before, M.GAME_ACTIVE) != byte(after, M.GAME_ACTIVE):
             # $DE is only ever set by a win (being eaten leaves it 0); RESET clears it
-            self.event("GAME START" if r(b, M.GAME_ACTIVE) == 0 else "WIN - THE CHALICE IS HOME!", AMBER)
+            started = byte(after, M.GAME_ACTIVE) == 0
+            self.event("GAME START" if started else "WIN - THE CHALICE IS HOME!", AMBER)
 
-    def text(self, surf, x, y, s, colour):
-        surf.blit(self.font.render(s, True, colour), (8 + x * self.cw, 6 + y * self.ch))
+    def carry_events(self, before, after):
+        carried_before, carried_after = byte(before, M.CARRIED) // 9, byte(after, M.CARRIED) // 9
+        if carried_before == carried_after:
+            return
+        if carried_before != 0x12:
+            self.event(f"DROP   {obj_name(carried_before)}", GREY)
+        if carried_after != 0x12:
+            self.event(f"PICKUP {obj_name(carried_after)}", AMBER)
+
+    def dragon_events(self, before, after):
+        for name, addr in DRAGONS:
+            state_before, state_after = byte(before, addr + 4), byte(after, addr + 4)
+            if state_before != state_after and dragon_word(state_before) != dragon_word(state_after):
+                colour = RED if state_after >= 2 else AMBER if state_after == 1 else GREEN
+                self.event(f"{name} {dragon_word(state_before)} -> {dragon_word(state_after)}", colour)
+            moved_room = byte(before, addr) != byte(after, addr)
+            if moved_room and byte(after, addr) == byte(after, M.ROOM):
+                self.event(f"{name} enters the room", RED)
+
+    def text(self, surf, column, row, words, colour):
+        """Words at a text position: column and row in characters."""
+        surf.blit(self.font.render(words, True, colour), (8 + column * self.cw, 6 + row * self.ch))
 
     def eaten_by(self):
         """Name of the dragon that has swallowed the hero, or None."""
@@ -118,34 +136,37 @@ class DebugPanel:
         return None
 
     def deadbeef(self, surf, who):
-        """The wagon and 0xDEADBEEF, the old marker for dead memory (he was eaten - the footnote admits it)."""
-        cx = self.size[0] // 2
+        """The wagon and 0xDEADBEEF, the old marker for dead memory (he was eaten - the footnote admits
+        it)."""
+        centre_x = self.size[0] // 2
         rows = WAGON.strip("\n").split("\n")
-        px = 7
-        x0, y0 = cx - len(rows[0]) * px // 2, 70
-        bob = (self.frame_no // 20) % 2  # the wagon rocks a little
+        dot = 7  # px per character of the drawing
+        x0, y0 = centre_x - len(rows[0]) * dot // 2, 70
+        bob = (self.frame_no // 20) % 2  # the wagon rocks a little (not its wheels)
         for y, row in enumerate(rows):
-            for x, ch in enumerate(row):
-                if ch == "X":
-                    pygame.draw.rect(surf, GREEN, (x0 + x * px, y0 + y * px + (bob if y < 10 else 0), px, px))
-        pygame.draw.line(surf, DIM, (20, y0 + len(rows) * px + 4), (self.size[0] - 20, y0 + len(rows) * px + 4), 2)
+            for x, char in enumerate(row):
+                if char == "X":
+                    lift = bob if y < 10 else 0
+                    pygame.draw.rect(surf, GREEN, (x0 + x * dot, y0 + y * dot + lift, dot, dot))
+        ground = y0 + len(rows) * dot + 4
+        pygame.draw.line(surf, DIM, (20, ground), (self.size[0] - 20, ground), 2)
         big = mono(22, bold=True)
         lines = [("0xDEADBEEF", big, GREEN)]
-        y = y0 + len(rows) * px + 40
+        y = y0 + len(rows) * dot + 40
         for text, font, colour in lines:
             img = font.render(text, True, colour)
-            surf.blit(img, (cx - img.get_width() // 2, y))
+            surf.blit(img, (centre_x - img.get_width() // 2, y))
             y += img.get_height() + 6
         y += 24
         for text, colour in ((f"(actually: eaten by {who})", GREY),
                              ("", GREY),
                              ("PRESS ENTER TO TRY AGAIN" if (self.frame_no // 30) % 2 == 0 else "", AMBER)):
             img = self.font.render(text, True, colour)
-            surf.blit(img, (cx - img.get_width() // 2, y))
+            surf.blit(img, (centre_x - img.get_width() // 2, y))
             y += self.ch + 4
 
-    def draw(self, surf, st):
-        surf.fill(BG)
+    def draw(self, surf, state):
+        surf.fill(BACKGROUND)
         if self.prev is None:
             return
         who = self.eaten_by()
@@ -153,42 +174,62 @@ class DebugPanel:
             self.deadbeef(surf, who)
             surf.blit(self.scanlines(), (0, 0))
             return
-        ram, f = self.prev, self.frame_no
-        self.text(surf, 0, 0, f"INTERNALS  6502 RAM $80-$FF   frame {f:06d}", AMBER)
+        self.text(surf, 0, 0, f"INTERNALS  6502 RAM $80-$FF   frame {self.frame_no:06d}", AMBER)
+        self.draw_ram(surf)
+        self.draw_decoded(surf, state, top=11)
+        self.text(surf, 0, 20, "EVENT LOG " + "-" * 44, GREY)
+        for i, (when, message, colour) in enumerate(reversed(self.log)):
+            self.text(surf, 0, 21 + i, f"{when:06d}  {message}", colour if i < 3 else DIM)
+        surf.blit(self.scanlines(), (0, 0))
+
+    def draw_ram(self, surf):
+        """The 128 bytes, 16 a row: a changed byte glows and cools over COOL frames; zeros dim."""
+        ram = self.prev
         for row in range(8):
             self.text(surf, 0, 2 + row, f"${0x80 + row * 16:02X}", GREY)
-            for col in range(16):
-                i = row * 16 + col
-                age = f - self.changed_at[i]
-                x, yy = 8 + (5 + col * 3) * self.cw, 6 + (2 + row) * self.ch
+            for column in range(16):
+                i = row * 16 + column
+                age = self.frame_no - self.changed_at[i]
+                x, y = 8 + (5 + column * 3) * self.cw, 6 + (2 + row) * self.ch
                 if age < COOL:  # just changed: a glowing cell that cools off
-                    t = age / COOL
-                    colour = tuple(int(h * (1 - t) + g * t) for h, g in zip(HOT, GREEN))
-                    glow = tuple(int(c * (1 - t) * 0.45) for c in (60, 255, 120))
-                    pygame.draw.rect(surf, glow, (x - 3, yy, self.cw * 2 + 6, self.ch))
+                    cooled = age / COOL
+                    colour = tuple(int(hot * (1 - cooled) + green * cooled) for hot, green in zip(HOT, GREEN))
+                    glow = tuple(int(channel * (1 - cooled) * 0.45) for channel in (60, 255, 120))
+                    pygame.draw.rect(surf, glow, (x - 3, y, self.cw * 2 + 6, self.ch))
                 else:
                     colour = DIM if ram[i] == 0 else GREEN
-                self.text(surf, 5 + col * 3, 2 + row, f"{ram[i]:02X}", colour)
-        r = lambda addr: int(ram[addr - 0x80])
-        y = 11
-        state = "playing" if r(M.GAME_ACTIVE) == 0 else "ended"
-        self.text(surf, 0, y, f"ROOM ${st.room_num:02X} {st.room['name'][:22]:22s} GAME {r(M.LEVEL) // 2 + 1} {state}", GREEN)
-        self.text(surf, 0, y + 1, f"HERO  x ${st.hero[0]:02X} y ${st.hero[1]:02X}    CARRY {obj_name(st.carried)}", GREEN)
+                self.text(surf, 5 + column * 3, 2 + row, f"{ram[i]:02X}", colour)
+
+    def draw_decoded(self, surf, state, top):
+        """What the bytes mean: the room and game, the hero, the dragons, the bat, the gates, the sound."""
+        ram = self.prev
+
+        def value(addr):
+            return byte(ram, addr)
+        playing = "playing" if value(M.GAME_ACTIVE) == 0 else "ended"
+        room_name = state.room["name"][:22]
+        game = value(M.LEVEL) // 2 + 1
+        self.text(surf, 0, top, f"ROOM ${state.room_num:02X} {room_name:22s} GAME {game} {playing}", GREEN)
+        hero_x, hero_y = state.hero
+        carrying = obj_name(state.carried)
+        self.text(surf, 0, top + 1, f"HERO  x ${hero_x:02X} y ${hero_y:02X}    CARRY {carrying}", GREEN)
         for i, (name, addr) in enumerate(DRAGONS):
-            here = r(addr) == st.room_num
-            self.text(surf, 0, y + 2 + i, f"{name:8s} room ${r(addr):02X}  ${r(addr + 1):02X},${r(addr + 2):02X}  "
-                                          f"state ${r(addr + 4):02X} {dragon_word(r(addr + 4))}",
-                      RED if here and r(addr + 4) >= 2 else AMBER if here else GREEN)
-        self.text(surf, 0, y + 5, f"BAT      room ${r(M.BAT):02X}  ${r(M.BAT + 1):02X},${r(M.BAT + 2):02X}  "
-                                  f"carry byte ${r(0xD0):02X}", GREEN)
-        gates = "  ".join(f"{n} {'shut' if r(a) == GATE_CLOSED else f'${r(a):02X}'}" for n, a in GATES)
-        self.text(surf, 0, y + 6, f"GATES    {gates}", GREEN)
-        self.text(surf, 0, y + 7, f"SOUND    type ${r(0xE0):02X} {SOUNDS.get(r(0xE0), '?'):11s} count ${r(0xDF):02X}"
-                                  f"   SEED ${r(M.RANDOM):02X}", GREEN)
-        self.text(surf, 0, y + 9, "EVENT LOG " + "-" * 44, GREY)
-        for i, (when, msg, colour) in enumerate(reversed(self.log)):
-            self.text(surf, 0, y + 10 + i, f"{when:06d}  {msg}", colour if i < 3 else DIM)
-        surf.blit(self.scanlines(), (0, 0))
+            dragon_state = value(addr + 4)
+            here = value(addr) == state.room_num
+            colour = RED if here and dragon_state >= 2 else AMBER if here else GREEN
+            where = f"room ${value(addr):02X}  ${value(addr + 1):02X},${value(addr + 2):02X}"
+            self.text(surf, 0, top + 2 + i,
+                      f"{name:8s} {where}  state ${dragon_state:02X} {dragon_word(dragon_state)}", colour)
+        bat_where = f"room ${value(M.BAT):02X}  ${value(M.BAT + 1):02X},${value(M.BAT + 2):02X}"
+        self.text(surf, 0, top + 5, f"BAT      {bat_where}  carry byte ${value(0xD0):02X}", GREEN)
+        gates = []
+        for name, addr in GATES:
+            gate = "shut" if value(addr) == GATE_CLOSED else f"${value(addr):02X}"
+            gates.append(f"{name} {gate}")
+        self.text(surf, 0, top + 6, f"GATES    {'  '.join(gates)}", GREEN)
+        sound = value(0xE0)
+        self.text(surf, 0, top + 7, f"SOUND    type ${sound:02X} {SOUNDS.get(sound, '?'):11s} count "
+                                    f"${value(0xDF):02X}   SEED ${value(M.RANDOM):02X}", GREEN)
 
     def scanlines(self):
         """CRT look: every other line darkened (cached)."""

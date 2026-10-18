@@ -4,7 +4,7 @@ recordings/<stamp>/ (frozen app: ~/Movies/Adventure Forever/<stamp>/)
   a2600.mp4   the 2600 picture, 160x228        } lossless H.264 RGB (libx264rgb -crf 0) at the native size -
   nes.mp4     the NES screen, 256x240          } scale up with nearest-neighbour when editing; one video
   snes.mp4    the SNES screen, 256x240         } frame per displayed frame (60 fps), including room scrolls,
-  compare.mp4 the grid's comparison (its lower left pane) exactly as shown - it can have its own cast and world
+  compare.mp4 the grid's comparison (its lower left pane) exactly as shown - with its own cast and world
   ram.bin     the 128 RAM bytes of every video frame (128 bytes each) - the internals panel is NOT drawn
               live (it cost the game its 60 fps); render_ram_video() rebuilds ram.mp4 from this at edit time
   audio.wav   exactly what the sound card played (2600 SFX + music), tapped from AudioOut's callback
@@ -102,8 +102,9 @@ class Recorder:
         self.log = open(os.path.join(self.dir, "log.jsonl"), "w")
         self.frames, self.t0, self.pending = 0, time.perf_counter(), []
         with open(os.path.join(self.dir, "meta.json"), "w") as f:
-            json.dump({"fps": FPS, "streams": self.streams, "audio_rate": self.rate, "started": stamp, **(info or {})},
-                      f, indent=1)
+            meta = {"fps": FPS, "streams": self.streams, "audio_rate": self.rate, "started": stamp,
+                    **(info or {})}
+            json.dump(meta, f, indent=1)
         self.active = True
         return self.dir
 
@@ -141,8 +142,8 @@ class Recorder:
         if not self.active:
             return None
         self.active = False
-        for v in self.videos.values():
-            v.close()
+        for video in self.videos.values():
+            video.close()
         self.audio_q.put(None)
         self.audio_thread.join()
         self.wav.close()
@@ -161,8 +162,9 @@ class Recorder:
 
 
 def render_ram_video(folder):
-    """Edit-time: rebuild the internals panel video (ram.mp4, 512x480, near-lossless) from ram.bin + log.jsonl,
-    exactly as debug_panel would have drawn it live: the panel steps once per new game frame ('g')."""
+    """Edit-time: rebuild the internals panel video (ram.mp4, 512x480, near-lossless) from ram.bin and
+    log.jsonl, exactly as debug_panel would have drawn it live: the panel steps once per new game frame
+    ('g')."""
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     import pygame
     from app import debug_panel as DP
