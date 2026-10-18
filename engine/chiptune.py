@@ -124,6 +124,7 @@ def render(name):
     """-> int16 stereo PCM of one pass of the song (loops cleanly when played back to back). name: one of
     SONGS, or a song dict in the same form (a world's own, from its music.json)."""
     song = SONGS[name] if isinstance(name, str) else name
+    song = {"drums": "", "style": "march", "loop": True, **song}  # what a world's song may leave out
     timing = Timing(song)
     chords = song["chords"].split()
     total = len(chords) * timing.bar_n
