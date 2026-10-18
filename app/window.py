@@ -35,12 +35,14 @@ from app.now_showing import NowShowing
 from app import recorder as REC
 from app import transitions as TR
 from engine import ambience as AMB
+from engine import effects as FX
 from engine import emulator as h
 from engine import music as MU
 from engine import objects as O
 from engine import paths
 from engine import rooms as R
 from engine import versions
+from engine.footsteps import Footsteps
 from engine.state import Game
 from shared import layout as L
 
@@ -143,6 +145,9 @@ class GameWindow:
         """The sound card, with the background music (engine/music.py) and the world's ambience
         (engine/ambience.py) mixed in its callback. The game runs without music if it can't start."""
         self.ambience = AMB.Ambience()
+        self.footsteps = Footsteps(self.ambience)
+        self.effects = FX.Effects()
+        self.sound_ram = None     # last frame's RAM, to hear when the game starts a sound
         try:
             self.music = MU.MusicPlayer(rate=rate, public=self.public)
             self.music.use_world(self.look.world)
@@ -153,9 +158,29 @@ class GameWindow:
         self.audio = h.AudioOut(rate, mixer=self.mix_sound)
 
     def mix_sound(self, block):
-        """The sound card's callback: the 2600's sound with the ambience under it, then the music."""
+        """The sound card's callback: the 2600's sound or the look's effects, with the ambience under them,
+        then the music."""
         block = MU.mix(block, self.ambience.render(len(block)))
+        block = MU.mix(block, self.effects.render(len(block)))
         return self.music.mixer(block) if self.music else block
+
+    @property
+    def remastered_sound(self):
+        """The look's own sound effects - everywhere but the 2600-only view, which has the 2600's."""
+        return self.view != "2600"
+
+    def game_sound(self):
+        """This frame's sound from the game: the 2600's own, or - in a remastered view - silence, with the
+        look's version of any sound the game just started."""
+        samples = self.core.take_audio()
+        ram = bytes(self.core.ram)
+        started = FX.heard(self.sound_ram, ram) if self.sound_ram else None
+        self.sound_ram = ram
+        if not self.remastered_sound:
+            return samples
+        if started:
+            self.effects.play(started, self.look.platform)
+        return np.zeros_like(samples)
 
     def check_rom(self, rom):
         """A ROM that isn't the version this is made for: say so, and what it means (engine/versions.py)."""
@@ -261,7 +286,7 @@ class GameWindow:
         if not waiting:
             self.frame_times.append(time.perf_counter())
             self.core.run()
-            self.audio.push(self.core.take_audio())  # the music is added in the sound card's callback
+            self.audio.push(self.game_sound())  # the music is added in the sound card's callback
             self.frame_no += 1
             self.panel.update(None, self.core.ram, self.frame_no)  # always, so the event log has history
         if self.music:
@@ -331,7 +356,10 @@ class GameWindow:
         song) and the game isn't paused."""
         music_playing = self.music is not None and self.music.on and self.music.current is not None
         waiting = self.paused or self.help.open
-        self.ambience.follow(self.look.world.sound(state.room_num), quiet=not music_playing and not waiting)
+        sound = self.look.world.sound(state.room_num)
+        self.ambience.follow(sound, quiet=not music_playing and not waiting)
+        if self.ambience.quiet and self.remastered_sound:
+            self.footsteps.follow(state, sound)
 
     def record_frame(self):
         """One frame of every stream, and the log line (the RAM panel is rebuilt from RAM at edit time)."""

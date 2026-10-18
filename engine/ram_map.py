@@ -24,6 +24,8 @@ GAME_ACTIVE = 0xDE     # 0 while playing; $FF once the chalice is home (the WIN 
 SWITCHES = 0x92        # last read of the console switches (edge detection for SELECT)
 RANDOM = 0xE5          # "low input counter", the game-3 random seed
 JOY_RAW, JOY_COOKED = 0x99, 0x9B  # joystick this frame (raw SWCHA) and after removing blocked directions
+SOUND_COUNTER = 0xDF   # counts down while one of the game's sounds plays (0: silence)...
+SOUND_TYPE = 0xE0      # ...and which: 0 the win, 1 a roar, 2 eaten, 3 a dragon dies, 4 drop, 5 pick up
 
 # --- the object list ($A1-$D1) -------------------------------------------------------------------------
 # name -> (room address, has movement+state bytes)

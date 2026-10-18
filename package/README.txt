@@ -32,7 +32,8 @@ KEYS (in the game, H shows them all)
   I                show which look, cast and world are on screen
   V                view: side by side with the original -> remaster only -> 2600 only
                    -> 4-way grid: your game over a comparison (the other console, same cast
-                   and world), the original and its live RAM
+                   and world), the original and its live RAM. Each look has its own sound
+                   effects; 2600 only plays the original's
   Shift+L/C/W      the grid's comparison: its own look, cast or world (in the grid,
                    L/C/W change only your game)
   F                fullscreen on/off (or resize the window: the picture keeps its shape)

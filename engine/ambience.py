@@ -135,6 +135,11 @@ class Ambience:
         with self.lock:
             self.voices.append([samples, 0, pan, end])
 
+    def add(self, samples, pan):
+        """Play a sound once (mono float32, from call_samples), placed at `pan` (-1 left to 1 right)."""
+        with self.lock:
+            self.voices.append([samples, 0, pan, pan])
+
     # --- the sound card's callback ---
     def render(self, count):
         """The next `count` stereo samples: the bed, as loud as the quiet allows, and the calls."""

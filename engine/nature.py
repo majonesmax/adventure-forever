@@ -219,5 +219,41 @@ def pop(seed):
     return filtered(noise(count, seed)[:, :1], 700, 4000)[:, 0] * decay(count, 0.008)
 
 
+# --- the characters moving (mono) -----------------------------------------------------------------------
+def thud(pitch, count, time_constant):
+    """A dull knock, with an overtone so small speakers play it too."""
+    tone = whistle(np.full(count, pitch)) + 0.5 * whistle(np.full(count, pitch * 2.3))
+    return tone * decay(count, time_constant)
+
+
+def step(surface, seed):
+    """A footstep on grass (a soft brush), stone (a tap) or snow (a crunch)."""
+    rng = np.random.default_rng(seed)
+    count = seconds(0.12)
+    if surface == "stone":
+        tap = filtered(noise(count, seed)[:, :1], 1500, 5000)[:, 0] * decay(count, 0.006)
+        return thud(rng.uniform(260, 340), count, 0.012) * 0.6 + 0.5 * tap
+    if surface == "snow":
+        grains = np.abs(filtered(noise(count, seed + 1)[:, :1], 30, 200)[:, 0]) ** 2
+        return filtered(noise(count, seed)[:, :1], 500, 3000)[:, 0] * grains * fade_in_out(count, 0.01, 0.05)
+    brush = filtered(noise(count, seed)[:, :1], 900, 4000)[:, 0] * fade_in_out(count, 0.015, 0.08)
+    return brush + 0.3 * thud(rng.uniform(150, 190), count, 0.015)
+
+
+def stomp(seed):
+    """A dragon's heavy foot coming down: a deep thump and the ground shaking under it."""
+    rng = np.random.default_rng(seed)
+    count = seconds(0.3)
+    ground = filtered(noise(count, seed)[:, :1], 80, 600, tilt=0.5)[:, 0] * decay(count, 0.05)
+    return thud(rng.uniform(70, 90), count, 0.07) + 0.5 * ground
+
+
+def wingbeat(seed):
+    """A bat's wings: a quick, soft whoosh."""
+    count = seconds(0.09)
+    swell = np.sin(np.pi * np.linspace(0, 1, count)) ** 2
+    return filtered(noise(count, seed)[:, :1], 300, 2000)[:, 0] * swell
+
+
 CALLS = {"chirps": chirps, "two_notes": two_notes, "trill": trill, "coo": coo, "woodpecker": woodpecker,
          "bee": bee, "drip": drip, "pop": pop}
