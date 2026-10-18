@@ -27,6 +27,9 @@ python tools/preview.py --pack <pack>       # the pack in every look, as one PNG
 python tests/golden.py                      # every look x cast x world still draws the same pixels
 python tests/test_controls.py               # every key is documented
 python tools/readability.py                 # no file got harder to read (and FILE... lists a file's issues)
+python play.py --check                      # the app plays itself for a few seconds and says whether it works
+gh workflow run downloads.yml               # GitHub builds the Windows and macOS downloads (and runs --check)
+git tag v1.3 && git push origin v1.3        # ...and a v* tag makes the release (notes: package/release-notes/)
 ```
 
 ## Rules

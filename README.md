@@ -108,7 +108,18 @@ On Linux, sound needs your distribution's PortAudio (e.g. `libportaudio2`).
 The grid shows what you're playing over a comparison (by default the other console with the same cast and world); in the grid, L / C / W change only your game, and Shift+L / C / W only the comparison. Details: [Controls](#controls).
 
 **Building the downloads:** `python package/build.py` on each system makes that system's download in
-`package/dist/` (PyInstaller can't build for another system, so the Windows one is built on Windows).
+`package/dist/` (PyInstaller can't build for another system). GitHub does it for Windows and macOS: the
+"Downloads" workflow (`.github/workflows/downloads.yml`) builds both and runs each with `--check` (it plays
+itself for a few seconds and says whether it works). Run it from the Actions tab to try a build; push a tag to
+make a release:
+
+```sh
+git tag v1.3 && git push origin v1.3
+```
+
+The release gets both zips and `SHA256SUMS.txt`. Its notes are what's new, from
+`package/release-notes/<tag>.md` (a first line `# <name>` becomes the title: "Adventure Forever 1.3: <name>"),
+then the same download section every time (`package/release-notes/download.md`), then the checksums.
 
 ## Controls
 

@@ -59,6 +59,7 @@ How faithful the emulation is, how the RAM is sampled and how the speed is kept:
 | `shared/` | helpers used by looks, content and the app: `layout.py` (the screen and room layout, where the walls are in pixels), `pixelart.py` (sprites drawn as text, pasting), `palettes.py` (the NES palette), `hud.py` (the pixel font) |
 | `tools/` | development tools: the emulator core download (`get_core.py`), a sizzle reel made by script (`make_reel.py`), a pack or look previewed in every look as one picture (`preview.py`), the video editor (`make_video.py`), the grid GIF maker (`make_gif.py`), the 2600-picture rebuild (`rebuild_2600.py`), the RAM viewer, mock-ups |
 | `package/` | `build.py`: the download for the system it runs on (the app, a README, the licences and Stella's GPL source link) |
+| `.github/workflows/` | `downloads.yml`: GitHub builds and checks the Windows and macOS downloads; a `v*` tag releases them. `stella-cores.yml`: the pinned Stella core |
 | `tests/` | checks against the real emulator; `golden.py` proves every look still draws exactly the same pixels |
 
 Not in the repository: your ROM, the emulator core (`tools/get_core.py` downloads it), and `private/` (personal

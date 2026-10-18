@@ -2,8 +2,9 @@
 (NES, SNES, VGA or paper), with the 2600 original alongside.
 
 Usage: python play.py [ROM] [--look nes|snes|vga|paper|template] [--cast <pack>] [--world <pack>]
-                      [--pack <pack>] [--grid] [--public] [--record]
+                      [--pack <pack>] [--grid] [--public] [--record] [--check]
        python play.py --list          the looks and packs there are
+       python play.py --check         plays itself for a few seconds and says whether it works
 
 A look is the console (how the game is drawn). A cast is who's in it, a world is where; both come in packs.
 Any look shows any cast in any world.
@@ -48,6 +49,8 @@ def options():
     parser.add_argument("--public", action="store_true",
                     help="exactly what the public release has: no private packs, the built-in music")
     parser.add_argument("--record", action="store_true", help="record from the first frame (needs ffmpeg)")
+    parser.add_argument("--check", action="store_true",
+                        help="run itself for a few seconds, silently, and say whether it works")
     args = parser.parse_args()
     if args.list:
         print(looks.listing(args.public))
@@ -72,8 +75,11 @@ def main():
     rom = find_rom(args.rom)
     if rom is None:
         return
-    window = GameWindow(rom, look_key=args.look, cast_key=args.cast, world_key=args.world, grid=args.grid,
-                        public=args.public, record=args.record)
+    window = GameWindow(rom, look_key=args.look, cast_key=args.cast, world_key=args.world,
+                        grid=args.grid or args.check, public=args.public, record=args.record)
+    if args.check:
+        from app import self_check
+        sys.exit(0 if self_check.run(window) else 1)
     try:
         window.run()
     except Exception:

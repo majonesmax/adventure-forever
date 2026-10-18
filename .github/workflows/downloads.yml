@@ -1,0 +1,113 @@
+# Builds the downloads - Windows and macOS - on GitHub's computers, so no one has to build on a PC. Each is
+# built by package/build.py with the pinned Stella (tools/get_core.py), then run with --check if the
+# ADVENTURE_ROM secret holds a ROM (base64; secrets are never shown or committed). Without it the build is
+# made but not run. The ROM never goes into a download (the build is made before it's written) or a log
+# (GitHub masks secrets); the logs say only what the check saw.
+#
+# Run it by hand to try a build: Actions -> "Downloads" -> Run workflow (or: gh workflow run downloads.yml).
+# The zips are the run's artifacts. Push a tag (git tag v1.3 && git push origin v1.3) and it also makes that
+# release: both zips and SHA256SUMS.txt, with notes put together from package/release-notes/<tag>.md (what's
+# new), download.md (the same every time) and the checksums. Edit them later with
+# gh release edit <tag> --notes-file ...
+name: Downloads
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: windows-x64, runner: windows-latest,
+             app: "package/dist/Adventure Forever/Adventure Forever.exe"}
+          - {name: macos-arm64, runner: macos-14,
+             app: "package/dist/Adventure Forever/Adventure Forever.app/Contents/MacOS/Adventure Forever"}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Requirements and the pinned Stella core
+        run: |
+          python -m pip install -r requirements.txt
+          python tools/get_core.py
+      - name: Build
+        run: python package/build.py
+      - name: The ROM, if there's a secret for it
+        id: rom
+        env:
+          ROM: ${{ secrets.ADVENTURE_ROM }}
+        run: |
+          if [ -z "$ROM" ]; then
+            echo "::notice::no ADVENTURE_ROM secret: the ${{ matrix.name }} build was made but not run"
+            exit 0
+          fi
+          python -c "import base64, os, sys; sys.stdout.buffer.write(base64.b64decode(os.environ['ROM']))" \
+            > "$RUNNER_TEMP/adventure.a26"
+          echo "path=$RUNNER_TEMP/adventure.a26" >> "$GITHUB_OUTPUT"
+      - name: Run it (--check)
+        if: steps.rom.outputs.path && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $rom = "${{ steps.rom.outputs.path }}"
+          $run = Start-Process -FilePath "${{ matrix.app }}" -ArgumentList "`"$rom`"", "--check" -Wait -PassThru
+          Get-Content "$env:USERPROFILE\Pictures\Adventure Forever\self-check.txt"
+          exit $run.ExitCode
+      - name: Run it (--check)
+        if: steps.rom.outputs.path && runner.os == 'macOS'
+        run: |
+          "${{ matrix.app }}" "${{ steps.rom.outputs.path }}" --check
+      - name: The check's picture (private repository only - it shows the 2600's picture, from the ROM)
+        if: always() && steps.rom.outputs.path && github.event.repository.private
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-check-${{ matrix.name }}
+          path: ~/Pictures/Adventure Forever/self-check.*
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: download-${{ matrix.name }}
+          path: package/dist/Adventure-Forever-*.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: download-*
+          path: downloads
+          merge-multiple: true
+      - name: Checksums, notes and the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd downloads && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          notes="$RUNNER_TEMP/notes.md"
+          new="package/release-notes/$TAG.md"
+          if [ -f "$new" ]; then cat "$new"; else echo "Adventure Forever ${TAG#v}."; fi > "$notes"
+          { echo; cat package/release-notes/download.md; echo; echo "**SHA-256**"; echo
+            while read -r sum file; do echo "- \`$file\`: \`$sum\`"; done < downloads/SHA256SUMS.txt
+          } >> "$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" downloads/* --clobber
+          else
+            title="Adventure Forever ${TAG#v}"
+            heading=$(sed -n '1s/^# //p' "$new" 2>/dev/null)
+            [ -n "$heading" ] && title="$title: $heading" && sed -i '1,2d' "$notes"
+            gh release create "$TAG" downloads/* --title "$title" --notes-file "$notes"
+          fi
