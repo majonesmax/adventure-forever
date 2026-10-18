@@ -10,7 +10,7 @@ is calibrated in step 3/4 (drawing boxes over the real frame).
 """
 
 # --- the hero (the "ball" in the disassembly - he is drawn with the TIA's ball graphic) -------------
-ROOM, X, Y = 0x8A, 0x8B, 0x8C          # current room, x, y
+ROOM, HERO_X, HERO_Y = 0x8A, 0x8B, 0x8C  # the hero: current room, x, y
 PREV_ROOM, PREV_X, PREV_Y = 0xE2, 0xE3, 0xE4  # last position that didn't hit a wall (bounce-back target)
 CARRIED = 0x9D                          # object being carried, as object number * 9 (see OBJECTS); $A2 = none
 NOTHING_CARRIED = 0xA2                  # = object $12 ("null") * 9
@@ -62,8 +62,10 @@ NUMBER_ROOM = 0x00     # the game-select screen is "room 0"
 
 def carried_name(ram):
     """ram = the 128-byte array indexed from $80."""
-    v = int(ram[CARRIED - 0x80])
-    return None if v == NOTHING_CARRIED else OBJECTS.get(v // 9, f"?{v:02X}")
+    carried = int(ram[CARRIED - 0x80])
+    if carried == NOTHING_CARRIED:
+        return None
+    return OBJECTS.get(carried // 9, f"?{carried:02X}")
 
 
 def pos(ram, addr):

@@ -1,6 +1,7 @@
 """Which Adventure is this ROM - and will the remasters understand it?
 
-Adventure Forever is made for the NTSC release of Adventure (Atari CX2613, also sold by Sears): every good dump
+Adventure Forever is made for the NTSC release of Adventure (Atari CX2613, also sold by Sears): every good
+dump
 of that cartridge is the same 4096 bytes (MD5 below). Any other ROM still runs - the game is played by the
 emulator either way - but the remasters read the ROM's tables at fixed places and the RAM at fixed addresses
 (rooms.py, objects.py, ram_map.py). A version that moved them would be drawn wrongly, so instead of a
@@ -45,26 +46,39 @@ def problems(rom):
     """What in this ROM's tables doesn't match what the remasters expect ([] = all fine)."""
     out = []
     objects = O.decode_all(rom)
-    hexed = lambda a: f"${a:02X}" if a < 0x100 else f"${a:04X}"
-    moved = [f"{O.NAMES[n]} ({hexed(objects[n]['info'])}, expected {hexed(addr)})"
-             for n, addr in EXPECTED_POSITION.items() if objects[n]["info"] != addr]
+    moved = []
+    for object_number, addr in EXPECTED_POSITION.items():
+        actual = objects[object_number]["info"]
+        if actual != addr:
+            moved.append(f"{O.NAMES[object_number]} ({hexed(actual)}, expected {hexed(addr)})")
     if moved:
+        more = f" and {len(moved) - 3} more" if len(moved) > 3 else ""
         out.append(f"it keeps {len(moved)} of {len(EXPECTED_POSITION)} objects' positions elsewhere: "
-                   + ", ".join(moved[:3]) + (f" and {len(moved) - 3} more" if len(moved) > 3 else ""))
-    moved = [O.NAMES[n] for n, addr in EXPECTED_STATE.items() if objects[n]["state_ptr"] != addr]
+                   + ", ".join(moved[:3]) + more)
+    moved = [O.NAMES[number] for number, addr in EXPECTED_STATE.items()
+             if objects[number]["state_ptr"] != addr]
     if moved:
-        out.append("the state of the " + ", ".join(moved) + (" is" if len(moved) == 1 else " are") + " kept elsewhere")
-    if any(not o["states"] or o["states"][-1][0] != 0xFF for o in objects):
+        verb = "is" if len(moved) == 1 else "are"
+        out.append(f"the state of the {', '.join(moved)} {verb} kept elsewhere")
+    if any(not obj["states"] or obj["states"][-1][0] != 0xFF for obj in objects):
         out.append("its object table doesn't look like Adventure's")
-    bad_rooms = []
-    for n in range(R.N_ROOMS):
-        room = R.decode_room(rom, n)
-        exits = [e for g in (1, 2, 3) for e in room["exits"][g].values()]
-        if room["gfx"] < 0xF000 or any(e >= R.N_ROOMS for e in exits):
-            bad_rooms.append(n)
+    bad_rooms = [number for number in range(R.N_ROOMS) if not room_looks_right(rom, number)]
     if bad_rooms:
-        out.append(f"{len(bad_rooms)} of its {R.N_ROOMS} rooms don't decode as Adventure rooms (walls or exits)")
+        out.append(f"{len(bad_rooms)} of its {R.N_ROOMS} rooms don't decode as Adventure rooms "
+                   "(walls or exits)")
     return out
+
+
+def hexed(addr):
+    """$8B for RAM, $F460 for ROM."""
+    return f"${addr:02X}" if addr < 0x100 else f"${addr:04X}"
+
+
+def room_looks_right(rom, room_number):
+    """Its walls are in the ROM and every exit leads to a real room."""
+    room = R.decode_room(rom, room_number)
+    exits = [to_room for game in (1, 2, 3) for to_room in room["exits"][game].values()]
+    return room["gfx"] >= 0xF000 and all(to_room < R.N_ROOMS for to_room in exits)
 
 
 def report(rom):
@@ -83,7 +97,7 @@ def report(rom):
                  f"MD5 {SUPPORTED}."])
     if found:
         details = ["The remasters will draw things wrongly, because " + found[0] + "."]
-        details += [f"Also, {p}." for p in found[1:]]
+        details += [f"Also, {problem}." for problem in found[1:]]
         details.append("The game itself plays normally: the 2600 view (V) shows it as it is.")
     else:
         details = ["Its tables look like Adventure's, so it should work - if anything is drawn in the wrong "

@@ -63,7 +63,7 @@ run(30, tag="start")
 
 for n in range(1, 0x1F):
     def hold(n=n):
-        for a, v in ((M.ROOM, n), (M.PREV_ROOM, n), (M.X, 0x50), (M.PREV_X, 0x50), (M.Y, 0x36), (M.PREV_Y, 0x36)):
+        for a, v in ((M.ROOM, n), (M.PREV_ROOM, n), (M.HERO_X, 0x50), (M.PREV_X, 0x50), (M.HERO_Y, 0x36), (M.PREV_Y, 0x36)):
             c.ram[a - 0x80] = v
     run(8, tag=f"room {n:02X}", hold=hold)
 
@@ -75,7 +75,7 @@ c.joy = set()
 for _ in range(30):
     c.run()
 for _ in range(120):
-    x, y = int(c.ram[M.X - 0x80]), int(c.ram[M.Y - 0x80])
+    x, y = int(c.ram[M.HERO_X - 0x80]), int(c.ram[M.HERO_Y - 0x80])
     keys = ([h.JOY_LEFT] if x > 0x24 else []) + ([h.JOY_UP] if y < 0x3C else [])
     run(1, keys, tag="walk to key")
 run(40, [h.JOY_RIGHT], tag="carry key")

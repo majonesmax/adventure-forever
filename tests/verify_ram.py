@@ -61,11 +61,11 @@ def main():
         print(f"      {name:12s} room,x,y = {M.pos(c.ram, addr)}  state={ram(addr + M.DRAGON_STATE_OFFSET):02X}")
 
     # hero movement: x/y respond to the stick in the expected direction
-    x0, y0 = ram(M.X), ram(M.Y)
+    x0, y0 = ram(M.HERO_X), ram(M.HERO_Y)
     run(20, [h.JOY_LEFT])
-    check("LEFT decreases $8B", ram(M.X) < x0, f"{x0:02X}->{ram(M.X):02X}")
+    check("LEFT decreases $8B", ram(M.HERO_X) < x0, f"{x0:02X}->{ram(M.HERO_X):02X}")
     run(20, [h.JOY_UP])
-    check("UP increases $8C", ram(M.Y) > y0, f"{y0:02X}->{ram(M.Y):02X}")
+    check("UP increases $8C", ram(M.HERO_Y) > y0, f"{y0:02X}->{ram(M.HERO_Y):02X}")
 
     # walk to the yellow key (same room, $20,$40 in game 1): steer until touching it
     _, kx, ky = M.pos(c.ram, M.YELLOW_KEY)
@@ -73,13 +73,13 @@ def main():
         if M.carried_name(c.ram):
             break
         keys = []
-        if ram(M.X) > kx + 4:
+        if ram(M.HERO_X) > kx + 4:
             keys.append(h.JOY_LEFT)
-        elif ram(M.X) < kx:
+        elif ram(M.HERO_X) < kx:
             keys.append(h.JOY_RIGHT)
-        if ram(M.Y) < ky - 4:
+        if ram(M.HERO_Y) < ky - 4:
             keys.append(h.JOY_UP)
-        elif ram(M.Y) > ky + 4:
+        elif ram(M.HERO_Y) > ky + 4:
             keys.append(h.JOY_DOWN)
         run(1, keys)
     snap("2_key")
@@ -87,12 +87,12 @@ def main():
           f"$9D={ram(M.CARRIED):02X} ({M.carried_name(c.ram)}) after {frame} frames")
 
     # carried items follow the hero
-    k0, h0 = M.pos(c.ram, M.YELLOW_KEY), ram(M.X)
+    k0, h0 = M.pos(c.ram, M.YELLOW_KEY), ram(M.HERO_X)
     run(30, [h.JOY_RIGHT])
-    k1, h1 = M.pos(c.ram, M.YELLOW_KEY), ram(M.X)
+    k1, h1 = M.pos(c.ram, M.YELLOW_KEY), ram(M.HERO_X)
     snap("3_carry")
     dx, dy = ram(M.CARRY_DX), ram(M.CARRY_DY)
-    off = ((k1[1] - h1) & 0xFF, (k1[2] - ram(M.Y)) & 0xFF)
+    off = ((k1[1] - h1) & 0xFF, (k1[2] - ram(M.HERO_Y)) & 0xFF)
     check("carried key = hero + offset ($9E,$9F)", h1 != h0 and min((off[0] - dx) & 0xFF, (dx - off[0]) & 0xFF) <= 3 and off[1] == dy,
           f"hero x {h0:02X}->{h1:02X}, key x {k0[1]:02X}->{k1[1]:02X}, offset now {off[0]:02X},{off[1]:02X}"
           f" stored {dx:02X},{dy:02X}")

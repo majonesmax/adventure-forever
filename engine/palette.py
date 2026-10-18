@@ -23,18 +23,19 @@ OUT = os.path.join(HERE, "palette_ntsc.json")
 
 def load():
     with open(OUT) as f:
-        return {int(k): tuple(v) for k, v in json.load(f).items()}
+        return {int(colour): tuple(rgb) for colour, rgb in json.load(f).items()}
 
 
 def probe(path):
     """Child process: load one patched ROM, print the floor colour."""
-    c = h.Core()
-    c.load(path)
+    core = h.Core()
+    core.load(path)
     for _ in range(60):
-        c.run()
-    f = c.frame.astype(int)
+        core.run()
+    frame = core.frame.astype(int)
     # number room: plain floor in the lower left (clear of the game-number digit in the middle)
-    print(json.dumps([int(v) for v in np.median(f[150:170, 20:50].reshape(-1, 3), axis=0)]))
+    floor = np.median(frame[150:170, 20:50].reshape(-1, 3), axis=0)
+    print(json.dumps([int(channel) for channel in floor]))
 
 
 def main():
@@ -49,7 +50,8 @@ def main():
         rom[0x13D] = colour
         path = os.path.join(scratch, f"palette_probe_{colour:02X}.a26")
         open(path, "wb").write(rom)
-        out = subprocess.run([sys.executable, __file__, "--probe", path], capture_output=True, text=True).stdout
+        probe_run = [sys.executable, __file__, "--probe", path]
+        out = subprocess.run(probe_run, capture_output=True, text=True).stdout
         pal[colour] = json.loads(out.strip().splitlines()[-1])
     with open(OUT, "w") as f:
         json.dump(pal, f, indent=0)

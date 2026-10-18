@@ -10,11 +10,16 @@ import sys
 
 APP_NAME = "Adventure Forever"
 FROZEN = getattr(sys, "frozen", False)
-ROOT = getattr(sys, "_MEIPASS", None) if FROZEN else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if FROZEN:  # a packaged app: everything bundled is unpacked here
+    ROOT = getattr(sys, "_MEIPASS", None)
+else:
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYSTEM = {"darwin": "macos", "win32": "windows"}.get(sys.platform, "linux")
 
 ROM = os.path.join(ROOT, "roms", "adventure.a26")
-CORE_FILE = {"macos": "stella_libretro.dylib", "windows": "stella_libretro.dll", "linux": "stella_libretro.so"}[SYSTEM]
+CORE_FILES = {"macos": "stella_libretro.dylib", "windows": "stella_libretro.dll",
+              "linux": "stella_libretro.so"}
+CORE_FILE = CORE_FILES[SYSTEM]
 CORE = (os.environ.get("ADVENTURE_CORE")  # another core to try, e.g. a newer Stella build
         or os.path.join(ROOT, "cores", CORE_FILE))  # the emulator (tools/get_core.py downloads it)
 PRIVATE = os.path.join(ROOT, "private")      # personal packs and music config - git-ignored, never published
@@ -27,7 +32,8 @@ def _home(*parts):
 
 
 def _user_folder(xdg_name, fallback):
-    """A Linux user folder (Pictures, Videos) as the desktop names it (~/.config/user-dirs.dirs), else ~/fallback."""
+    """A Linux user folder (Pictures, Videos) as the desktop names it (~/.config/user-dirs.dirs), else
+    ~/fallback."""
     try:
         with open(_home(".config", "user-dirs.dirs")) as f:
             for line in f:
@@ -51,6 +57,6 @@ else:
     SCREENSHOTS = os.path.join(_user_folder("PICTURES", "Pictures"), APP_NAME)
     RECORDINGS = os.path.join(_user_folder("VIDEOS", "Videos"), APP_NAME)
 
-# packs the player adds (dropped on the game window, or copied in): beside the remembered ROM in a packaged app,
-# private/packs/ when running from source (git-ignored, like the player's own)
+# packs the player adds (dropped on the game window, or copied in): beside the remembered ROM in a packaged
+# app, private/packs/ when running from source (git-ignored, like the player's own)
 USER_PACKS = os.path.join(USER_DIR, "packs") if FROZEN else os.path.join(PRIVATE, "packs")

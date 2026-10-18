@@ -7,7 +7,8 @@ Object table at $FF44 (the game's "object list" descriptors), 9 bytes per object
   4-5 pointer to the state list: entries of (state, graphic lo, graphic hi); the game uses the FIRST entry
       whose state value is >= the current state (GetObjectState)
   6 colour, 7 B&W colour, 8 size (TIA NUSIZ: low bits 0 = normal, 5 = double width, 7 = quad width)
-Graphic: bytes from the top down, ending at a 0 byte; bit 7 is the leftmost pixel; each byte covers 2 scan lines.
+Graphic: bytes from the top down, ending at a 0 byte; bit 7 is the leftmost pixel; each byte covers 2 scan
+lines.
 
 The RAM byte $9D (carried) and the game's own object loops use object number * 9.
 
@@ -38,38 +39,42 @@ def rd16(rom, addr):
 def read_graphic(rom, addr, limit=256):  # the author's name is 96 bytes
     rows = []
     for i in range(limit):
-        b = rd(rom, addr + i)
-        if b == 0:
+        row = rd(rom, addr + i)
+        if row == 0:  # a 0 byte ends the graphic
             break
-        rows.append(b)
+        rows.append(row)
     return rows
 
 
-def decode_object(rom, n):
-    e = OBJECT_TABLE + 9 * n
-    info, state_ptr, states_ptr = rd16(rom, e), rd16(rom, e + 2), rd16(rom, e + 4)
-    states = []
+def decode_object(rom, object_number):
+    entry = OBJECT_TABLE + 9 * object_number  # 9 bytes an object
+    info, state_ptr, states_ptr = rd16(rom, entry), rd16(rom, entry + 2), rd16(rom, entry + 4)
+    states = []  # (the highest state value this graphic is for, the graphic's address)
     for i in range(16):  # the list is ordered by state value and ends with an $FF entry
-        s, g = rd(rom, states_ptr + 3 * i), rd16(rom, states_ptr + 3 * i + 1)
-        states.append((s, g))
-        if s == 0xFF:
+        up_to_state = rd(rom, states_ptr + 3 * i)
+        graphic_addr = rd16(rom, states_ptr + 3 * i + 1)
+        states.append((up_to_state, graphic_addr))
+        if up_to_state == 0xFF:
             break
-    return {"num": n, "name": NAMES[n], "info": info, "state_ptr": state_ptr, "states": states,
-            "graphics": {g: read_graphic(rom, g) for _, g in states},
-            "colour": rd(rom, e + 6), "bw_colour": rd(rom, e + 7), "size": rd(rom, e + 8),
-            "width": WIDTH_MULT.get(rd(rom, e + 8) & 7, 1)}
+    size = rd(rom, entry + 8)
+    return {"num": object_number, "name": NAMES[object_number], "info": info, "state_ptr": state_ptr,
+            "states": states, "graphics": {addr: read_graphic(rom, addr) for _, addr in states},
+            "colour": rd(rom, entry + 6), "bw_colour": rd(rom, entry + 7), "size": size,
+            "width": WIDTH_MULT.get(size & 7, 1)}
 
 
 def decode_all(rom=None):
     rom = rom or R.load_rom()
-    return [decode_object(rom, n) for n in range(N_OBJECTS)]
+    return [decode_object(rom, object_number) for object_number in range(N_OBJECTS)]
 
 
 def graphic_for_state(obj, state):
-    for s, g in obj["states"]:
-        if state <= s:
-            return obj["graphics"][g]
-    return obj["graphics"][obj["states"][-1][1]]
+    """The object's graphic (rows of bytes) for a state value: the first entry whose limit reaches it."""
+    for up_to_state, graphic_addr in obj["states"]:
+        if state <= up_to_state:
+            return obj["graphics"][graphic_addr]
+    last_graphic = obj["states"][-1][1]
+    return obj["graphics"][last_graphic]
 
 
 class Reader:
@@ -82,30 +87,37 @@ class Reader:
     def byte(self, ram, addr):
         return int(ram[addr - 0x80]) if 0x80 <= addr <= 0xFF else rd(self.rom, addr)
 
-    def where(self, ram, n):
-        o = self.objects[n]
-        return tuple(self.byte(ram, o["info"] + i) for i in range(3))
+    def where(self, ram, object_number):
+        """(room, x, y)"""
+        info = self.objects[object_number]["info"]  # where its three bytes are
+        return tuple(self.byte(ram, info + i) for i in range(3))
 
-    def state(self, ram, n):
-        return self.byte(ram, self.objects[n]["state_ptr"])
+    def state(self, ram, object_number):
+        return self.byte(ram, self.objects[object_number]["state_ptr"])
 
 
 def ascii_graphic(rows, width=1):
-    return ["".join(("#" if (b >> (7 - i)) & 1 else ".") * width for i in range(8)) for b in rows]
+    """A graphic as text: "#" for each set bit, left (bit 7) to right."""
+    lines = []
+    for row in rows:
+        bits = [(row >> (7 - i)) & 1 for i in range(8)]
+        lines.append("".join(("#" if bit else ".") * width for bit in bits))
+    return lines
 
 
 if __name__ == "__main__":
-    for o in decode_all():
-        where = f"${o['info']:04X}" + (" (RAM)" if o["info"] < 0x100 else " (ROM)")
-        print(f"${o['num']:02X} {o['name']:13s} pos {where}  state ${o['state_ptr']:04X}  colour ${o['colour']:02X}"
-              f"  size ${o['size']:02X} (x{o['width']})  states " + " ".join(f"{s:02X}->{g:04X}" for s, g in o["states"]))
-        if o["name"] in ("surround", "game number", "author name", "null"):
+    for obj in decode_all():
+        where = f"${obj['info']:04X}" + (" (RAM)" if obj["info"] < 0x100 else " (ROM)")
+        state_list = " ".join(f"{up_to:02X}->{addr:04X}" for up_to, addr in obj["states"])
+        print(f"${obj['num']:02X} {obj['name']:13s} pos {where}  state ${obj['state_ptr']:04X}  "
+              f"colour ${obj['colour']:02X}  size ${obj['size']:02X} (x{obj['width']})  states {state_list}")
+        if obj["name"] in ("surround", "game number", "author name", "null"):
             continue
         shown = set()
-        for _, g in o["states"]:
-            if g in shown:
+        for _, graphic_addr in obj["states"]:
+            if graphic_addr in shown:
                 continue
-            shown.add(g)
-            print(f"   graphic ${g:04X}:")
-            for line in ascii_graphic(o["graphics"][g]):
+            shown.add(graphic_addr)
+            print(f"   graphic ${graphic_addr:04X}:")
+            for line in ascii_graphic(obj["graphics"][graphic_addr]):
                 print("     " + line)

@@ -110,7 +110,7 @@ def capture_states():
     for room, _ in SCENES:
         x, y = open_spot(ren.rooms[room], *wanted[room])
         for _ in range(4):
-            for a, v in ((M.ROOM, room), (M.PREV_ROOM, room), (M.X, x), (M.PREV_X, x), (M.Y, y), (M.PREV_Y, y)):
+            for a, v in ((M.ROOM, room), (M.PREV_ROOM, room), (M.HERO_X, x), (M.PREV_X, x), (M.HERO_Y, y), (M.PREV_Y, y)):
                 c.ram[a - 0x80] = v
             if room == 0x11:  # carry the yellow key here, so the status bar has something to show
                 c.ram[M.CARRIED - 0x80], c.ram[M.CARRY_DX - 0x80], c.ram[M.CARRY_DY - 0x80] = 0x0B * 9, 8, 0

@@ -52,16 +52,16 @@ def main():
     for room in R.decode_all()[1:]:
         for direction, (x, y) in openings(room).items():
             for _ in range(3):
-                for addr, v in ((M.ROOM, room["room"]), (M.PREV_ROOM, room["room"]), (M.X, x), (M.PREV_X, x),
-                                (M.Y, y), (M.PREV_Y, y)):
+                for addr, v in ((M.ROOM, room["room"]), (M.PREV_ROOM, room["room"]), (M.HERO_X, x), (M.PREV_X, x),
+                                (M.HERO_Y, y), (M.PREV_Y, y)):
                     c.ram[addr - 0x80] = v
                 c.joy = set(); c.run()
             c.joy = {STICK[direction]}
             got = None
             for _ in range(90):
-                prev = (int(c.ram[M.X - 0x80]), int(c.ram[M.Y - 0x80]))
+                prev = (int(c.ram[M.HERO_X - 0x80]), int(c.ram[M.HERO_Y - 0x80]))
                 c.run()
-                cur = (int(c.ram[M.X - 0x80]), int(c.ram[M.Y - 0x80]))
+                cur = (int(c.ram[M.HERO_X - 0x80]), int(c.ram[M.HERO_Y - 0x80]))
                 # a room change, or a jump across the screen (an exit that leads back into the same room)
                 if c.ram[M.ROOM - 0x80] != room["room"] or abs(cur[0] - prev[0]) > 40 or abs(cur[1] - prev[1]) > 40:
                     got = int(c.ram[M.ROOM - 0x80])

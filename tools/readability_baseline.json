@@ -28,12 +28,6 @@
   "PLR0912": 1,
   "PLR0915": 1
  },
- "engine/emulator.py": {
-  "C901": 1,
-  "E501": 3,
-  "N001": 11,
-  "PLR0911": 1
- },
  "engine/fm.py": {
   "C901": 1,
   "E501": 2,
@@ -45,34 +39,6 @@
  "engine/music.py": {
   "E501": 3,
   "N001": 16
- },
- "engine/objects.py": {
-  "E501": 3,
-  "N001": 12
- },
- "engine/palette.py": {
-  "E501": 1,
-  "N001": 3
- },
- "engine/paths.py": {
-  "E501": 4
- },
- "engine/ram_map.py": {
-  "N001": 3
- },
- "engine/rooms.py": {
-  "E501": 5,
-  "N001": 9
- },
- "engine/state.py": {
-  "E501": 2,
-  "E731": 1,
-  "N001": 4
- },
- "engine/versions.py": {
-  "E501": 3,
-  "E731": 1,
-  "N001": 5
  },
  "package/build.py": {
   "C901": 1,
@@ -135,7 +101,7 @@
   "E501": 2
  },
  "tests/verify_exits.py": {
-  "E501": 2,
+  "E501": 3,
   "E702": 4,
   "E731": 1,
   "N001": 5

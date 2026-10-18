@@ -34,40 +34,47 @@ class GameState:
     """
 
     def __init__(self, ram, reader, room_table):
-        r = lambda addr: int(ram[addr - 0x80])
+        def byte(addr):  # the RAM byte at a 2600 address ($80-$FF)
+            return int(ram[addr - 0x80])
         self.ram = ram
         # Right after power-on, before the game has set up its RAM, the bytes are whatever the console
         # powered up with (random, on real hardware and on newer Stella cores): an impossible room or item
         # is read as "still starting up" - the title screen, nothing carried - never as an error.
-        self.room_num = r(M.ROOM) if r(M.ROOM) < len(room_table) else M.NUMBER_ROOM
+        room_num = byte(M.ROOM)
+        self.room_num = room_num if room_num < len(room_table) else M.NUMBER_ROOM
         self.room = room_table[self.room_num]
-        self.hero = (r(M.X), r(M.Y))
-        self.carried = r(M.CARRIED) // 9 if r(M.CARRIED) // 9 < len(reader.objects) else M.NOTHING_CARRIED // 9
-        self.game = min(r(M.LEVEL) // 2, 2) + 1
+        self.hero = (byte(M.HERO_X), byte(M.HERO_Y))
+        carried = byte(M.CARRIED) // 9  # the game keeps the object number times 9
+        self.carried = carried if carried < len(reader.objects) else M.NOTHING_CARRIED // 9
+        self.game = min(byte(M.LEVEL) // 2, 2) + 1
         self.on_title_screen = self.room_num == M.NUMBER_ROOM
-        self.won = not self.on_title_screen and r(M.GAME_ACTIVE) != 0  # only a win sets it (being eaten doesn't)
-        self.eaten_by = next((colour for addr, colour in DRAGON_COLOURS.items()
-                              if r(addr + M.DRAGON_STATE_OFFSET) == 2), None)
-        self.objects = []  # (num, x, y, state)
-        for n in DRAWN_OBJECTS:
-            room, x, y = reader.where(ram, n)
+        # only a win sets the flag (being eaten doesn't)
+        self.won = not self.on_title_screen and byte(M.GAME_ACTIVE) != 0
+        self.eaten_by = None
+        for addr, colour in DRAGON_COLOURS.items():
+            if byte(addr + M.DRAGON_STATE_OFFSET) == 2:  # 2: this dragon has eaten the hero
+                self.eaten_by = colour
+                break
+        self.objects = []  # (object number, x, y, state)
+        for object_number in DRAWN_OBJECTS:
+            room, x, y = reader.where(ram, object_number)
             if room != self.room_num:
                 continue
-            if n == self.carried:  # carried: always exactly hero + offset (the game applies it a step late)
-                x = (self.hero[0] + r(M.CARRY_DX)) & 0xFF
-                y = (self.hero[1] + r(M.CARRY_DY)) & 0xFF
-            self.objects.append((n, x, y, reader.state(ram, n)))
+            if object_number == self.carried:  # exactly hero + offset (the game applies it a step late)
+                x = (self.hero[0] + byte(M.CARRY_DX)) & 0xFF
+                y = (self.hero[1] + byte(M.CARRY_DY)) & 0xFF
+            self.objects.append((object_number, x, y, reader.state(ram, object_number)))
 
     def colour(self, value):
         """The game's ChangeColor ($F2D3): a 2600 colour as the game shows it this frame - odd values flash
         (their colour comes from RAM, usually the frame counter), and attract mode dims everything."""
-        a = value >> 1
+        colour = value >> 1
         if value & 1:
-            a = int(self.ram[a])  # $80 + a, i.e. usually $E5 (the frame counter)
-        e6 = int(self.ram[0xE6 - 0x80])
-        if e6 & 0x80:
-            a = (a ^ e6) & 0xFB
-        return (a << 1) & 0xFF
+            colour = int(self.ram[colour])  # the byte at $80 + colour: usually $E5 (the frame counter)
+        attract = int(self.ram[0xE6 - 0x80])  # the attract-mode (screen saver) byte
+        if attract & 0x80:
+            colour = (colour ^ attract) & 0xFB
+        return (colour << 1) & 0xFF
 
 
 class Game:
