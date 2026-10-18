@@ -179,7 +179,7 @@ class GameWindow:
         if not self.remastered_sound:
             return samples
         for name in started:
-            self.effects.play(name, self.look.platform)
+            self.effects.play(name, self.look.platform, self.look.cast.voices)
         return np.zeros_like(samples)
 
     def check_rom(self, rom):

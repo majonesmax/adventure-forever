@@ -158,6 +158,7 @@ Every field is optional; `{}` is a valid pack.json.
 | `win_lines` | three short lines (up to 18 characters each) for the win |
 | `title_cast` | which pictures stand in front of the castle on the SNES title screen |
 | `messenger_every` | frames each messenger picture shows before the next |
+| `voices` | how each dragon sounds, by its colour: `growl` (the default), `squawk` (a bird) or `gurgle` (something from a swamp) - e.g. `{"yellow": "squawk"}`. Every look plays them in its own style |
 | `foot_gap` | empty rows under the hero's feet in the hero pictures (the feet stand on the bottom of the game's hit-box) |
 | `scale` | the pictures are drawn this many times bigger than the room's pixels |
 

@@ -10,10 +10,11 @@ import numpy as np
 from engine.chiptune import RATE, midi_hz
 
 
-Voice = namedtuple("Voice", "pitch length")   # a dragon's: x its pitch, x how long it roars
-DRAGON_VOICES = {"red": Voice(1.35, 0.75),      # Rhindle, the fastest and fiercest: high and quick
-                 "yellow": Voice(1.0, 1.0),     # Yorgle
-                 "green": Voice(0.7, 1.3)}      # Grundle: deep and slow
+Voice = namedtuple("Voice", "kind pitch length")   # a dragon's: growl / squawk / gurgle, x pitch, x length
+KINDS = ("growl", "squawk", "gurgle")          # what a cast can choose for each dragon (content/cast.py)
+DRAGON_VOICES = {"red": (1.35, 0.75),          # Rhindle, the fastest and fiercest: high and quick
+                 "yellow": (1.0, 1.0),         # Yorgle
+                 "green": (0.7, 1.3)}          # Grundle: deep and slow
 GATE_OPEN, GATE_CLOSE = 0.5, 1.3                # seconds: the portcullis flies up, and comes down slowly
 
 
@@ -89,3 +90,38 @@ def clicks(click, every, length_seconds, getting=1.0):
     count = int(length_seconds / every)
     parts = [(index * every, click(index) * getting ** index) for index in range(count)]
     return place(parts, length_seconds + 0.2)
+
+
+def fm_tone(pitch, ratio=1.0, index=2.0):
+    """A two-operator FM tone following a pitch that may change from sample to sample."""
+    phase = 2 * np.pi * np.cumsum(pitch) / RATE
+    return np.sin(phase + index * np.sin(phase * ratio))
+
+
+def cluck(tone, voice):
+    """A hen: "bawk - bawk - BAWK", each syllable jumping up and falling, the last one long. tone(pitch,
+    length) is the look's voice."""
+    base = 520 * voice.pitch
+    syllables = [(0.07, 1.0), (0.07, 1.05), (0.22, 1.2)]
+    parts, start = [], 0.0
+    for length_seconds, lift in syllables:
+        length = seconds(length_seconds * voice.length)
+        rise = sweep(base * lift, base * lift * 1.6, length // 3)
+        fall = sweep(base * lift * 1.6, base * lift * 0.8, length - length // 3)
+        loudness = np.sin(np.pi * np.linspace(0, 1, length)) ** 0.5
+        parts.append((start, tone(np.concatenate([rise, fall]), length) * loudness))
+        start += length_seconds * voice.length + 0.06
+    return place(parts, start + 0.1)
+
+
+def burble(tone, voice, seed=1):
+    """Something in a swamp: bubbles rising through mud - quick upward blips, at random, low and wet."""
+    rng = np.random.default_rng(seed)
+    total = 0.9 * voice.length
+    parts = []
+    for _bubble in range(int(14 * voice.length)):
+        length = seconds(rng.uniform(0.04, 0.08))
+        low = rng.uniform(110, 230) * voice.pitch
+        bubble = tone(sweep(low, low * 2.4, length), length) * decay(length, 0.025)
+        parts.append((rng.uniform(0, total - 0.08), bubble * rng.uniform(0.5, 1.0)))
+    return place(parts, total + 0.1)

@@ -36,6 +36,8 @@ pack.json "cast" (every field optional):
                          ["hero_down_0", "messenger"]
     messenger_every  frames each messenger frame is shown                 16
     foot_gap         empty rows under the hero's feet in hero_*.png        0 or 1
+    voices           how each dragon sounds - "growl", "squawk" or "gurgle" (engine/effects/): its roar
+                     and its death, in every look's own style            {"yellow": "squawk"}; default growl
     scale            the pictures are drawn this many times bigger than the room's pixels; the look shrinks
                      them. The rooms are 240x192: a hero about 16x26, dragons about 26x36, items about 16x8
 
@@ -70,6 +72,7 @@ class Cast:
         self.title_names = info.get("title_cast", ["hero_down_0"])
         self.messenger_every = info.get("messenger_every", 16)
         self.foot_gap = info.get("foot_gap", 0)
+        self.voices = info.get("voices", {})   # dragon colour -> "growl" / "squawk" / "gurgle"
         self.pictures = PIC.load_folder(folder, info.get("scale", 1))
         if "hero_down_0" not in self.pictures:
             raise ValueError(f"{folder}: a cast needs at least hero_down_0.png")

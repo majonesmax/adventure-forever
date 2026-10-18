@@ -2,8 +2,14 @@
 triangle and noise (engine/chiptune.py, the same as the music).
 """
 
-from engine.chiptune import envelope, midi_hz, pulse, triangle
-from engine.effects.tools import GATE_CLOSE, GATE_OPEN, chip_noise, clicks, decay, place, run, seconds, sweep
+from engine.chiptune import RATE, envelope, midi_hz, pulse, triangle
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, chip_noise, clicks, cluck, decay, place, run,
+                                  seconds, sweep)
+
+
+def chip_tone(pitch, length):
+    """A pulse wave following a pitch (the squawks' and gurgles' voice)."""
+    return pulse(pitch, length, 0.25)
 
 
 def blip(pitch, length):
@@ -21,7 +27,7 @@ def drop():
     return triangle(sweep(320, 110, length), length) * decay(length, 0.05)
 
 
-def roar(voice):
+def growl_roar(voice):
     """A dragon roars: a thin, growling pulse sliding down over a rumble."""
     length = seconds(0.6 * voice.length)
     growl = pulse(sweep(240 * voice.pitch, 100 * voice.pitch, length), length, 0.125, vibrato=0.06)
@@ -39,7 +45,7 @@ def eaten():
     return place([(0, fall * 0.7), (0.45, crunch)], 0.8)
 
 
-def dragon_dies(voice):
+def growl_dies(voice):
     """The sword strikes home: a burst of noise, and a long falling tone."""
     burst_length = seconds(0.2)
     burst = chip_noise(burst_length, pitch=0.5, seed=3) * decay(burst_length, 0.06)
@@ -47,6 +53,25 @@ def dragon_dies(voice):
     fall = triangle(sweep(420 * voice.pitch, 55, fall_length), fall_length)
     fall = fall * envelope(fall_length, decay=0.5, sustain=0.2)
     return place([(0, burst), (0.05, fall)], 0.1 + 0.8 * voice.length)
+
+
+def roar(voice):
+    """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
+    if voice.kind == "squawk":
+        return cluck(chip_tone, voice)
+    if voice.kind == "gurgle":
+        bubbles = burble(chip_tone, voice)
+        return bubbles + 0.06 * chip_noise(len(bubbles), pitch=0.05, seed=7)
+    return growl_roar(voice)
+
+
+def dragon_dies(voice):
+    """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
+    if voice.kind == "growl":
+        return growl_dies(voice)
+    last_cry = roar(voice._replace(pitch=voice.pitch * 0.75, length=voice.length * 1.5))
+    burst = chip_noise(seconds(0.2), pitch=0.5, seed=3) * decay(seconds(0.2), 0.06)
+    return place([(0, burst), (0.1, last_cry)], 0.1 + len(last_cry) / RATE)
 
 
 def link(index):

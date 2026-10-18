@@ -3,7 +3,8 @@
   "cast": {
     "win_lines": ["WOOF! WOOF! PBJ!", "THE STORYBOOK", "IS HOME!"],
     "title_cast": ["hero_down_0", "messenger"],
-    "foot_gap": 1
+    "foot_gap": 1,
+    "voices": {"red": "growl", "yellow": "squawk", "green": "gurgle"}
   },
   "world": {
     "name": "THE SWEET KINGDOMS",

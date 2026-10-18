@@ -5,9 +5,14 @@ echo the Super NES's sound chip put on nearly everything.
 import numpy as np
 
 from engine.chiptune import RATE
-from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, clicks, decay, echo, place, run, seconds, sine,
-                                  soft_noise, sweep, times)
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, clicks, cluck, decay, echo, fm_tone, place,
+                                  run, seconds, sine, soft_noise, sweep, times)
 from engine.fm import bell, env, epiano
+
+
+def soft_tone(pitch, length):
+    """A round FM voice following a pitch (the squawks' and gurgles')."""
+    return fm_tone(pitch, ratio=1.5, index=2.0)
 
 
 def pickup():
@@ -33,7 +38,7 @@ def growl(start_hz, end_hz, length_seconds, seed):
     return (0.8 * rough + 0.2 * breath) * env(length, attack=0.08, decay=0.5, sustain=0.5, release=0.2)
 
 
-def roar(voice):
+def growl_roar(voice):
     """A dragon roars."""
     return echo(growl(150 * voice.pitch, 85 * voice.pitch, 0.9 * voice.length, seed=2), feedback=0.3)
 
@@ -46,12 +51,31 @@ def eaten():
     return echo(place([(0, gulp), (0.25, fall * 0.7)], 1.4))
 
 
-def dragon_dies(voice):
+def growl_dies(voice):
     """The sword strikes home: a growl falling away under a low, dark bell."""
     dying = growl(170 * voice.pitch, 55, 1.1 * voice.length, seed=3)
     toll_length = seconds(1.5)
     toll = bell(110.0, toll_length) * 0.5
     return echo(place([(0, dying), (0.15, toll)], 0.6 + 1.1 * voice.length), feedback=0.35)
+
+
+def roar(voice):
+    """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
+    if voice.kind == "squawk":
+        return echo(cluck(soft_tone, voice), feedback=0.3)
+    if voice.kind == "gurgle":
+        bubbles = burble(soft_tone, voice)
+        return echo(bubbles + 0.4 * soft_noise(len(bubbles), 60, 400, seed=7), feedback=0.3)
+    return growl_roar(voice)
+
+
+def dragon_dies(voice):
+    """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
+    if voice.kind == "growl":
+        return growl_dies(voice)
+    last_cry = roar(voice._replace(pitch=voice.pitch * 0.75, length=voice.length * 1.5))
+    return echo(place([(0, last_cry), (0.3, bell(110.0, seconds(1.5)) * 0.4)], len(last_cry) / RATE + 1.0),
+                feedback=0.35)
 
 
 def link(index):

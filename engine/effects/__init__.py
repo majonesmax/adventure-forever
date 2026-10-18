@@ -20,7 +20,7 @@ import numpy as np
 from engine import ram_map as M
 from engine.chiptune import RATE
 from engine.effects import nes, paper, snes, vga
-from engine.effects.tools import DRAGON_VOICES
+from engine.effects.tools import DRAGON_VOICES, KINDS, Voice
 
 SETS = {"nes": nes.EFFECTS, "snes": snes.EFFECTS, "vga": vga.EFFECTS, "paper": paper.EFFECTS}
 GAME_SOUNDS = {0: "win", 1: "roar", 2: "eaten", 3: "dragon_dies", 4: "drop", 5: "pickup"}   # SOUND_TYPE
@@ -76,11 +76,12 @@ def to_pcm(track, name):
 
 
 def made(effects):
-    """(name, sound) for each of a look's effects - the dragons' once for each dragon's voice."""
+    """(name, sound) for each of a look's effects - the dragons' in every kind of voice, for each dragon."""
     for name, make in effects.items():
         if name in DRAGON_SOUNDS:
-            for colour, voice in DRAGON_VOICES.items():
-                yield f"{name}_{colour}", to_pcm(make(voice), name)
+            for kind in KINDS:
+                for colour, (pitch, length) in DRAGON_VOICES.items():
+                    yield f"{name}_{kind}_{colour}", to_pcm(make(Voice(kind, pitch, length)), name)
         else:
             yield name, to_pcm(make(), name)
 
@@ -99,11 +100,15 @@ class Effects:
         for look, effects in SETS.items():
             self.sets[look] = dict(made(effects))
 
-    def play(self, name, look):
-        """Start one of the game's sounds, as `look` (a look's platform: nes, snes...) plays it."""
+    def play(self, name, look, voices):
+        """Start one of the game's sounds, as `look` (a look's platform: nes, snes...) plays it. voices: the
+        cast's kind of voice for each dragon colour (a roar_red becomes roar_squawk_red, say)."""
         effects = self.sets.get(look if look in SETS else FALLBACK)
         if effects is None:
             return
+        sound, _, colour = name.rpartition("_")
+        if sound in DRAGON_SOUNDS:
+            name = f"{sound}_{voices.get(colour, 'growl')}_{colour}"
         with self.lock:
             self.voices.append([effects[name], 0])
 

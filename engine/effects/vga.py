@@ -5,14 +5,19 @@ little buzzy, with no echo (engine/fm.py's voice, played harder).
 import numpy as np
 
 from engine.chiptune import RATE, midi_hz
-from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, chip_noise, clicks, decay, place, run, seconds,
-                                  sweep, times)
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, chip_noise, clicks, cluck, decay, fm_tone,
+                                  place, run, seconds, sweep, times)
 from engine.fm import env, fm
 
 
 def beep(pitch, length):
     """The FM chip's plain tone: bright at the start, mellowing."""
     return fm(pitch, length, ratio=2.0, index=2.5, index_decay=0.08) * env(length, decay=0.12, sustain=0.3)
+
+
+def bright_tone(pitch, length):
+    """The FM chip's buzzy voice following a pitch (the squawks' and gurgles')."""
+    return fm_tone(pitch, ratio=2.0, index=3.0)
 
 
 def gliding(start_hz, end_hz, length_seconds, ratio, index):
@@ -34,7 +39,7 @@ def drop():
     return sound * decay(len(sound), 0.05)
 
 
-def roar(voice):
+def growl_roar(voice):
     """A dragon roars: a growling FM tone with a deep wobble."""
     sound = gliding(150 * voice.pitch, 70 * voice.pitch, 0.7 * voice.length, ratio=0.5, index=5.0)
     wobble = 1 + 0.25 * np.sin(2 * np.pi * 18 * times(len(sound)))
@@ -50,13 +55,32 @@ def eaten():
     return place([(0, fall * 0.7), (0.55, crunch)], 0.8)
 
 
-def dragon_dies(voice):
+def growl_dies(voice):
     """The sword strikes home: a noisy blast and a falling, buzzing tone."""
     blast_length = seconds(0.3)
     blast = chip_noise(blast_length, pitch=0.3, seed=5) * decay(blast_length, 0.1)
     fall = gliding(500 * voice.pitch, 40, 0.9 * voice.length, ratio=1.5, index=3.0)
     fall = fall * env(len(fall), decay=0.5, sustain=0.3, release=0.15)
     return place([(0, blast * 0.8), (0.05, fall * 0.7)], 0.1 + 0.9 * voice.length)
+
+
+def roar(voice):
+    """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
+    if voice.kind == "squawk":
+        return cluck(bright_tone, voice)
+    if voice.kind == "gurgle":
+        bubbles = burble(bright_tone, voice)
+        return bubbles + 0.06 * chip_noise(len(bubbles), pitch=0.05, seed=7)
+    return growl_roar(voice)
+
+
+def dragon_dies(voice):
+    """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
+    if voice.kind == "growl":
+        return growl_dies(voice)
+    last_cry = roar(voice._replace(pitch=voice.pitch * 0.75, length=voice.length * 1.5))
+    blast = chip_noise(seconds(0.3), pitch=0.3, seed=5) * decay(seconds(0.3), 0.1)
+    return place([(0, blast), (0.1, last_cry)], 0.1 + len(last_cry) / RATE)
 
 
 def link(index):

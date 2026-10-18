@@ -5,8 +5,8 @@ dragons - and the rustle of the sketchbook's paper.
 import numpy as np
 
 from engine.chiptune import RATE
-from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, clicks, decay, place, run, seconds, sine, soft_noise,
-                                  sweep, times)
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, clicks, cluck, decay, place, run, seconds,
+                                  sine, soft_noise, sweep, times)
 from engine.nature import fade_in_out
 
 
@@ -15,6 +15,11 @@ def xylophone(pitch, length):
     bar = sine(pitch, length) * decay(length, 0.25)
     knock = sine(pitch * 4, length) * decay(length, 0.03) * 0.4
     return bar + knock
+
+
+def squeaker(pitch, length):
+    """A squeaky toy: a thin, bright whistle following a pitch (two octaves up from a real hen)."""
+    return sine(pitch * 2, length) + 0.3 * sine(pitch * 4, length)
 
 
 def rustle(length_seconds, seed):
@@ -44,7 +49,7 @@ def drop():
     return run([60], 0.0, xylophone, ring=0.4) * 0.8
 
 
-def roar(voice):
+def growl_roar(voice):
     """A dragon roars - as a child would: a kazoo, rising and falling."""
     low, high = 180 * voice.pitch, 260 * voice.pitch
     rise = kazoo(low, high, 0.25 * voice.length)
@@ -59,11 +64,29 @@ def eaten():
     return slide
 
 
-def dragon_dies(voice):
+def growl_dies(voice):
     """The sword strikes home: a falling kazoo, and three bars going down."""
     sigh = kazoo(240 * voice.pitch, 110 * voice.pitch, 0.7 * voice.length)
     bars = run([67, 64, 60], 0.18, xylophone, ring=0.5)
     return place([(0, sigh), (0.7 * voice.length - 0.15, bars)], 0.9 + 0.7 * voice.length)
+
+
+def roar(voice):
+    """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
+    if voice.kind == "squawk":
+        return cluck(squeaker, voice)
+    if voice.kind == "gurgle":
+        return burble(lambda pitch, length: sine(pitch, length), voice)
+    return growl_roar(voice)
+
+
+def dragon_dies(voice):
+    """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
+    if voice.kind == "growl":
+        return growl_dies(voice)
+    last_cry = roar(voice._replace(pitch=voice.pitch * 0.75, length=voice.length * 1.5))
+    return place([(0, last_cry), (len(last_cry) / RATE - 0.1, run([67, 64, 60], 0.18, xylophone, ring=0.5))],
+                 len(last_cry) / RATE + 0.8)
 
 
 def tick(index):
