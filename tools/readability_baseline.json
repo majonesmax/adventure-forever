@@ -94,33 +94,6 @@
   "E731": 1,
   "N001": 5
  },
- "looks/__init__.py": {
-  "E501": 2,
-  "N001": 1
- },
- "looks/nes/look.py": {
-  "E501": 1,
-  "N001": 9
- },
- "looks/paper/look.py": {
-  "E501": 3,
-  "N001": 16
- },
- "looks/snes/look.py": {
-  "E501": 4,
-  "N001": 7
- },
- "looks/snes/outline.py": {
-  "E501": 1,
-  "N001": 6
- },
- "looks/template_look.py": {
-  "N001": 3
- },
- "looks/vga/look.py": {
-  "E501": 3,
-  "N001": 11
- },
  "package/build.py": {
   "C901": 1,
   "E501": 3,

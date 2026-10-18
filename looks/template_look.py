@@ -46,20 +46,20 @@ class TemplateLook(RoomLook):
         """The same for the world's rooms and gates."""
         return picture
 
-    def draw_hud(self, screen, st, frame_no):
+    def draw_hud(self, screen, state, frame_no):
         """The status bar above the room: the look's name and which game (1-3) is being played."""
         screen[:L.HUD_H] = BAR
         HUD.draw_text(screen, "TEMPLATE LOOK", 8, 12, TEXT)
-        HUD.draw_text(screen, f"GAME {st.game}", 8, 28, TEXT)
+        HUD.draw_text(screen, f"GAME {state.game}", 8, 28, TEXT)
 
-    def title_screen(self, st, frame_no):
+    def title_screen(self, state, frame_no):
         """The game-select screen (before Enter is pressed). Return a whole new screen."""
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
         HUD.draw_text(screen, "ADVENTURE", 92, 100, TEXT)
-        HUD.draw_text(screen, f"GAME {st.game} - PRESS ENTER", 52, 130, TEXT)
+        HUD.draw_text(screen, f"GAME {state.game} - PRESS ENTER", 52, 130, TEXT)
         return screen
 
-    def win_banner(self, screen, st, frame_no):
+    def win_banner(self, screen, state, frame_no):
         """Painted over the room once the chalice is home - with the cast's first line ("YOU WIN!")."""
         text = self.cast.win_lines[0]
         HUD.draw_text(screen, text, (L.SCREEN_W - HUD.text_width(text)) // 2, 120, GOLD)

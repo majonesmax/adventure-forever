@@ -1,7 +1,7 @@
 """Every look - the one place that lists them.
 
-A LOOK is the console (NES, SNES, VGA, paper): how the game is drawn. What's drawn - a CAST (who) in a WORLD (where) -
-comes from packs, found by content/. Any look shows any cast in any world.
+A LOOK is the console (NES, SNES, VGA, paper): how the game is drawn. What's drawn - a CAST (who) in a WORLD
+(where) - comes from packs, found by content/. Any look shows any cast in any world.
 
     LOOKS              {key: look class} in the order L cycles them
     TEMPLATE_LOOKS     the template look: reachable with `play.py --look template`, not in the L cycle
@@ -55,8 +55,12 @@ def listing(public=False):
     for key, folder in content.packs(public).items():
         try:
             pack = content.load(key)
-            parts = [f"cast {pack.cast.name}" if pack.cast else "", f"world {pack.world.name}" if pack.world else ""]
-            what = ", ".join(p for p in parts if p)
+            parts = []
+            if pack.cast:
+                parts.append(f"cast {pack.cast.name}")
+            if pack.world:
+                parts.append(f"world {pack.world.name}")
+            what = ", ".join(parts)
         except Exception as err:  # a broken pack is listed, with what's wrong
             what = f"NOT LOADED: {err}"
         where = "" if paths.FROZEN else os.path.relpath(folder, paths.ROOT)

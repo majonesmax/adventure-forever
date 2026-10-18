@@ -49,7 +49,7 @@ class NesLook(RoomLook):
         """NES colours only, for rooms and gates too."""
         return nes_colours(picture)
 
-    def win_splash(self, st, frame_no):
+    def win_splash(self, state, frame_no):
         """Full-screen victory (classic 8-bit ending style): the knight holding the chalice up, sparkles,
         flashing CONGRATULATIONS."""
         screen = np.zeros((SCREEN_H, SCREEN_W, 3), np.uint8)
@@ -62,23 +62,31 @@ class NesLook(RoomLook):
         knight = hero.repeat(k, axis=0).repeat(k, axis=1)
         k = max(1, 42 // chalice.shape[0])  # the 14 px chalice x3
         chalice = chalice.repeat(k, axis=0).repeat(k, axis=1)
-        cx, ky = SCREEN_W // 2, 150
-        blit(screen, chalice, cx - chalice.shape[1] / 2, ky - knight.shape[0] - chalice.shape[0] + 6)
-        blit(screen, knight, cx - knight.shape[1] / 2, ky - knight.shape[0])
-        rng = np.random.default_rng(frame_no // 8)  # sparkles around the chalice, re-scattered every 8 frames
-        for _ in range(14):
-            a, d = rng.uniform(0, 2 * np.pi), rng.uniform(26, 58)
-            x, y = int(cx + np.cos(a) * d), int(ky - knight.shape[0] - 18 + np.sin(a) * d * 0.8)
-            c = NES[(0x30, 0x38, 0x28)[rng.integers(3)]]
-            screen[y, x - 2:x + 3] = c
-            screen[y - 2:y + 3, x] = c
-        game = st.game
-        for text, y, c in (("THE CHALICE IS HOME", 166, NES[0x30]), (f"GAME {game} COMPLETE", 182, NES[0x28]),
-                           ("PRESS ENTER TO PLAY AGAIN" if (frame_no // 30) % 2 == 0 else "", 212, NES[0x10])):
-            HUD.draw_text(screen, text, (SCREEN_W - HUD.text_width(text)) // 2, y, c)
+        centre_x, feet_y = SCREEN_W // 2, 150
+        chalice_top = feet_y - knight.shape[0] - chalice.shape[0] + 6  # held up over his head
+        blit(screen, chalice, centre_x - chalice.shape[1] / 2, chalice_top)
+        blit(screen, knight, centre_x - knight.shape[1] / 2, feet_y - knight.shape[0])
+        self.sparkles(screen, frame_no, centre_x, feet_y - knight.shape[0] - 18)
+        blink_on = (frame_no // 30) % 2 == 0
+        lines = (("THE CHALICE IS HOME", 166, NES[0x30]), (f"GAME {state.game} COMPLETE", 182, NES[0x28]),
+                 ("PRESS ENTER TO PLAY AGAIN" if blink_on else "", 212, NES[0x10]))
+        for text, y, colour in lines:
+            HUD.draw_text(screen, text, (SCREEN_W - HUD.text_width(text)) // 2, y, colour)
         return screen
 
-    def win_banner(self, screen, st, frame_no):
+    @staticmethod
+    def sparkles(screen, frame_no, centre_x, centre_y):
+        """Little crosses scattered round the chalice, re-scattered every 8 frames."""
+        rng = np.random.default_rng(frame_no // 8)
+        for _ in range(14):
+            angle, distance = rng.uniform(0, 2 * np.pi), rng.uniform(26, 58)
+            x = int(centre_x + np.cos(angle) * distance)
+            y = int(centre_y + np.sin(angle) * distance * 0.8)
+            colour = NES[(0x30, 0x38, 0x28)[rng.integers(3)]]
+            screen[y, x - 2:x + 3] = colour
+            screen[y - 2:y + 3, x] = colour
+
+    def win_banner(self, screen, state, frame_no):
         y0, y1 = 96, 144
         screen[y0:y1, 16:240] = 0
         HUD.frame_box(screen, 16, y0, 239, y1 - 1, NES[0x30])
@@ -88,7 +96,7 @@ class NesLook(RoomLook):
         msg = "PRESS ENTER TO PLAY AGAIN"
         HUD.draw_text(screen, msg, (SCREEN_W - HUD.text_width(msg)) // 2, y0 + 28, NES[0x10])
 
-    def title_screen(self, st, frame_no):
+    def title_screen(self, state, frame_no):
         screen = np.zeros((SCREEN_H, SCREEN_W, 3), np.uint8)
         title = "ADVENTURE"
         HUD.draw_text(screen, title, (SCREEN_W - HUD.text_width(title, 3)) // 2, 20, NES[0x28], scale=3,
@@ -106,7 +114,7 @@ class NesLook(RoomLook):
             mini[mask] = NES[0x28]
         x0, y0 = (SCREEN_W - mini.shape[1]) // 2, 62
         screen[y0:y0 + mini.shape[0], x0:x0 + mini.shape[1]] = mini
-        game = st.game
+        game = state.game
         line = f"SELECT GAME  < {game} >"
         HUD.draw_text(screen, line, (SCREEN_W - HUD.text_width(line)) // 2, 152, NES[0x30])
         if (frame_no // 30) % 2 == 0:
@@ -118,15 +126,15 @@ class NesLook(RoomLook):
         HUD.draw_text(screen, line, (SCREEN_W - HUD.text_width(line)) // 2, 220, NES[0x00])
         return screen
 
-    def draw_hud(self, screen, st, frame_no):
+    def draw_hud(self, screen, state, frame_no):
         """Status bar: the carried item in a box (left), the title and game number (centre)."""
         screen[:HUD_H] = 0
         HUD.draw_text(screen, "ITEM", 12, 5, NES[0x10])
         HUD.frame_box(screen, 8, 15, 43, 43, NES[0x30])
         title = "ADVENTURE"
         HUD.draw_text(screen, title, (SCREEN_W - HUD.text_width(title)) // 2, 12, NES[0x28])
-        game = f"GAME {st.game}"
+        game = f"GAME {state.game}"
         HUD.draw_text(screen, game, (SCREEN_W - HUD.text_width(game)) // 2, 28, NES[0x30])
-        if st.carried != 0x12:
-            spr = self.held_icon(st.carried, frame_no)
+        if state.carried != 0x12:
+            spr = self.held_icon(state.carried, frame_no)
             blit(screen, spr, 26 - spr.shape[1] / 2, 29 - spr.shape[0] / 2)
