@@ -24,22 +24,27 @@ CHORDS = {"": (0, 4, 7), "m": (0, 3, 7), "7": (0, 4, 7, 10), "dim": (0, 3, 6)}
 SONGS = {
     "title": dict(bpm=112, style="anthem", loop=True, drums="k.h.s.h.k.k.s.h.",
                   chords="C G Am F C G F G",
-                  melody="""E5 - G5 - C6 - B5 A5 | G5 - - D5 G5 - F5 E5 | E5 - A5 - C6 - B5 A5 | A5 - G5 F5 E5 - D5 - |
-                            E5 - G5 - C6 - D6 E6 | D6 - B5 - G5 - A5 B5 | C6 - A5 - F5 - G5 A5 | G5 - - - B4 C5 D5 -"""),
+                  melody="""E5 - G5 - C6 - B5 A5 | G5 - - D5 G5 - F5 E5 | E5 - A5 - C6 - B5 A5 |
+                            A5 - G5 F5 E5 - D5 - | E5 - G5 - C6 - D6 E6 | D6 - B5 - G5 - A5 B5 |
+                            C6 - A5 - F5 - G5 A5 | G5 - - - B4 C5 D5 -"""),
     "overworld": dict(bpm=138, style="march", loop=True, drums="k.h.s.h.k.h.s.hh",
                       chords="G G C G G D Em D C G C D G D G G",
-                      melody="""D5 - G5 - G5 A5 B5 G5 | D6 - - B5 G5 - D5 - | E5 - G5 - C6 - B5 A5 | B5 - - - G5 - - - |
-                                D5 - G5 - G5 A5 B5 C6 | D6 - - C6 B5 - A5 - | G5 - E5 - B5 - G5 - | A5 - - - F#5 - - - |
-                                G5 - E5 - C6 - E6 - | D6 - B5 - G5 - B5 - | C6 - E6 - G6 - E6 C6 | D6 - - - A5 - F#5 - |
-                                G5 - B5 - D6 - B5 G5 | A5 - F#5 - D5 - F#5 A5 | G5 - D5 - B4 - D5 - | G5 - - - . . . ."""),
+                      melody="""D5 - G5 - G5 A5 B5 G5 | D6 - - B5 G5 - D5 - | E5 - G5 - C6 - B5 A5 |
+                                B5 - - - G5 - - - | D5 - G5 - G5 A5 B5 C6 | D6 - - C6 B5 - A5 - |
+                                G5 - E5 - B5 - G5 - | A5 - - - F#5 - - - | G5 - E5 - C6 - E6 - |
+                                D6 - B5 - G5 - B5 - | C6 - E6 - G6 - E6 C6 | D6 - - - A5 - F#5 - |
+                                G5 - B5 - D6 - B5 G5 | A5 - F#5 - D5 - F#5 A5 | G5 - D5 - B4 - D5 - |
+                                G5 - - - . . . ."""),
     "dungeon": dict(bpm=96, style="creep", loop=True, drums="k.......k...h...",
                     chords="Am Am F E Am Am Dm E",
-                    melody=""". . E5 - - - C5 - | B4 - - - A4 - . . | . . F5 - - - E5 - | D5 - - - G#4 - . . |
-                              . . A5 - - - G5 - | E5 - - - C5 - . . | D5 - F5 - A5 - G5 F5 | E5 - - - G#4 - B4 -"""),
+                    melody=""". . E5 - - - C5 - | B4 - - - A4 - . . | . . F5 - - - E5 - |
+                              D5 - - - G#4 - . . | . . A5 - - - G5 - | E5 - - - C5 - . . |
+                              D5 - F5 - A5 - G5 F5 | E5 - - - G#4 - B4 -"""),
     "final": dict(bpm=150, style="drive", loop=True, drums="k.hks.hhk.hks.hk",
                   chords="Dm Bb Gm A Dm Bb Gm A",
-                  melody="""D5 - F5 - A5 - D6 - | C6 - Bb5 - A5 - F5 - | G5 - Bb5 - D6 - C6 Bb5 | A5 - - - C#6 - E6 - |
-                            F6 - E6 D6 C6 - A5 - | Bb5 - A5 G5 F5 - D5 - | G5 - A5 - Bb5 - C6 D6 | C#6 - - - A5 - - -"""),
+                  melody="""D5 - F5 - A5 - D6 - | C6 - Bb5 - A5 - F5 - | G5 - Bb5 - D6 - C6 Bb5 |
+                            A5 - - - C#6 - E6 - | F6 - E6 D6 C6 - A5 - | Bb5 - A5 G5 F5 - D5 - |
+                            G5 - A5 - Bb5 - C6 D6 | C#6 - - - A5 - - -"""),
     "win": dict(bpm=150, style="fanfare", loop=False, drums="k...s...k.s.k...",
                 chords="C C C", melody="G5 C6 E6 G6 - - E6 G6 | C7 - - - - - - - | - - - - . . . ."),
 }
@@ -59,51 +64,56 @@ def note_hz(name):
 def chord_notes(sym):
     """'Am' -> (root midi in octave 3, intervals); 'Bb' / 'F#m' work too."""
     root = sym[0]
-    acc = sym[1] if len(sym) > 1 and sym[1] in "#b" else ""
-    quality = sym[1 + len(acc):]
-    semi = NOTE[root] + (1 if acc == "#" else -1 if acc == "b" else 0)
-    return 48 + semi, CHORDS[quality]
+    accidental = sym[1] if len(sym) > 1 and sym[1] in "#b" else ""
+    quality = sym[1 + len(accidental):]
+    semitone = NOTE[root] + {"#": 1, "b": -1, "": 0}[accidental]
+    return 48 + semitone, CHORDS[quality]
 
 
-def midi_hz(m):
-    return 440.0 * 2 ** ((m - 69) / 12)
+def midi_hz(midi):
+    """A MIDI note number (69 = A4) -> Hz."""
+    return 440.0 * 2 ** ((midi - 69) / 12)
 
 
-def pulse(freq, n, duty, t0=0.0, vibrato=0.0):
-    t = np.arange(n) / RATE
-    f = freq * (1 + vibrato * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.15) / 0.2, 0, 1))
-    phase = (np.cumsum(f) / RATE + t0) % 1.0
+def pulse(freq, length, duty, start_phase=0.0, vibrato=0.0):
+    """A square-ish wave, high for `duty` of each cycle; vibrato fades in after 0.15 s."""
+    seconds = np.arange(length) / RATE
+    wobble = vibrato * np.sin(2 * np.pi * 5.5 * seconds) * np.clip((seconds - 0.15) / 0.2, 0, 1)
+    freqs = freq * (1 + wobble)
+    phase = (np.cumsum(freqs) / RATE + start_phase) % 1.0
     return np.where(phase < duty, 1.0, -1.0)
 
 
-def triangle(freq, n):
+def triangle(freq, length):
     if np.ndim(freq) == 0:
-        freq = np.full(n, freq)
+        freq = np.full(length, freq)
     phase = (np.cumsum(freq) / RATE) % 1.0
     tri = 1 - 4 * np.abs(phase - 0.5)                   # -1..1
     return np.round((tri + 1) * 7.5) / 7.5 - 1           # 16 steps, like the NES triangle
 
 
-def envelope(n, attack=0.004, decay=0.18, sustain=0.55, release=0.03):
-    t = np.arange(n) / RATE
-    env = np.where(t < attack, t / attack, sustain + (1 - sustain) * np.exp(-(t - attack) / decay))
-    rel = int(release * RATE)
-    if n > rel:
-        env[-rel:] *= np.linspace(1, 0, rel)
+def envelope(length, attack=0.004, decay=0.18, sustain=0.55, release=0.03):
+    """A note's loudness over time: a quick rise, a fall to `sustain`, a short fade at the end."""
+    seconds = np.arange(length) / RATE
+    after_attack = sustain + (1 - sustain) * np.exp(-(seconds - attack) / decay)
+    env = np.where(seconds < attack, seconds / attack, after_attack)
+    release_n = int(release * RATE)
+    if length > release_n:
+        env[-release_n:] *= np.linspace(1, 0, release_n)
     return env
 
 
-def drum(kind, n, rng):
-    t = np.arange(n) / RATE
+def drum(kind, length, rng):
+    seconds = np.arange(length) / RATE
     if kind == "k":  # triangle pitch drop
-        f = 55 + 120 * np.exp(-t / 0.03)
-        return triangle(f, n) * np.exp(-t / 0.09) * 1.1
-    noise = rng.choice([-1.0, 1.0], n)
+        freqs = 55 + 120 * np.exp(-seconds / 0.03)
+        return triangle(freqs, length) * np.exp(-seconds / 0.09) * 1.1
+    noise = rng.choice([-1.0, 1.0], length)
     if kind == "s":
-        return noise * np.exp(-t / 0.07) * 0.7
+        return noise * np.exp(-seconds / 0.07) * 0.7
     if kind == "h":
-        return noise * np.exp(-t / 0.018) * 0.35
-    return np.zeros(n)
+        return noise * np.exp(-seconds / 0.018) * 0.35
+    return np.zeros(length)
 
 
 def parse_melody(text):
@@ -111,78 +121,112 @@ def parse_melody(text):
 
 
 def render(name):
-    """-> int16 stereo PCM of one pass of the song (loops cleanly when played back to back). name: one of SONGS,
-    or a song dict in the same form (a world's own, from its music.json)."""
-    s = SONGS[name] if isinstance(name, str) else name
-    step = 60.0 / s["bpm"] / 4                        # a sixteenth note, in seconds
-    chords = s["chords"].split()
-    bars = len(chords)
-    bar_n = int(round(16 * step * RATE))
-    total = bars * bar_n
-    tail = int(1.5 * RATE) if not s["loop"] else 0
-    lead, harm, bass, drums = (np.zeros(total + tail) for _ in range(4))
+    """-> int16 stereo PCM of one pass of the song (loops cleanly when played back to back). name: one of
+    SONGS, or a song dict in the same form (a world's own, from its music.json)."""
+    song = SONGS[name] if isinstance(name, str) else name
+    timing = Timing(song)
+    chords = song["chords"].split()
+    total = len(chords) * timing.bar_n
+    tail = int(1.5 * RATE) if not song["loop"] else 0  # a jingle rings on after its last bar
+    lead, harmony, bass, drums = (np.zeros(total + tail) for _ in range(4))
     rng = np.random.default_rng(7)
-    sx = lambda k: int(round(k * step * RATE))       # sixteenth index -> sample
+    add_melody(lead, parse_melody(song["melody"]), timing, total + tail)
+    for bar, symbol in enumerate(chords):
+        root, intervals = chord_notes(symbol)
+        start = bar * timing.bar_n
+        tones = [root + interval for interval in intervals]
+        add_bass(bass, song["style"], root, start, timing)
+        add_harmony(harmony, song["style"], tones, start, timing)
+        last_bar_of_fanfare = song["style"] == "fanfare" and bar == len(chords) - 1
+        if not last_bar_of_fanfare:
+            add_drums(drums, song["drums"], start, timing, rng)
+    return mix_down(lead, harmony, bass, drums, song["loop"])
 
-    # melody: eighth-note tokens, "-" extends the note
-    toks = parse_melody(s["melody"])
+
+class Timing:
+    """A song's tempo in samples: a sixteenth note, a bar."""
+
+    def __init__(self, song):
+        self.step = 60.0 / song["bpm"] / 4  # a sixteenth note, in seconds
+        self.bar_n = int(round(16 * self.step * RATE))
+
+    def at(self, sixteenth):
+        """A sixteenth-note index -> the sample it starts on."""
+        return int(round(sixteenth * self.step * RATE))
+
+
+def add_melody(lead, tokens, timing, length):
+    """Pulse 1: eighth-note tokens; "-" holds the note before it, "." rests."""
     i = 0
-    while i < len(toks):
-        tok = toks[i]
+    while i < len(tokens):
+        token = tokens[i]
         j = i + 1
-        while j < len(toks) and toks[j] == "-":
+        while j < len(tokens) and tokens[j] == "-":
             j += 1
-        if tok not in ("-", "."):
-            a, b = sx(2 * i), min(sx(2 * j), total + tail)
-            lead[a:b] += pulse(note_hz(tok), b - a, 0.25, vibrato=0.004) * envelope(b - a, sustain=0.6)
+        if token not in ("-", "."):
+            start, end = timing.at(2 * i), min(timing.at(2 * j), length)
+            note = pulse(note_hz(token), end - start, 0.25, vibrato=0.004)
+            lead[start:end] += note * envelope(end - start, sustain=0.6)
         i = j
 
-    for bar, sym in enumerate(chords):
-        root, ivs = chord_notes(sym)
-        base = bar * bar_n
-        tones = [root + iv for iv in ivs]
-        # bass (triangle)
-        if s["style"] in ("march", "anthem", "fanfare"):
-            pattern = [(0, root - 12), (4, root - 5), (8, root - 12), (12, root - 5)]
-        elif s["style"] == "drive":
-            pattern = [(k, root - 12 if k % 4 == 0 else root) for k in range(0, 16, 2)]
-        else:  # creep: long low root, a step up near the end
-            pattern = [(0, root - 12), (12, root - 10)]
-        for idx, (k, m) in enumerate(pattern):
-            end = pattern[idx + 1][0] if idx + 1 < len(pattern) else 16
-            a, b = base + sx(k), base + sx(end) - int(0.01 * RATE)
-            bass[a:b] += triangle(midi_hz(m), b - a) * envelope(b - a, decay=0.5, sustain=0.85, release=0.01)
-        # harmony (pulse 2)
-        if s["style"] in ("anthem", "drive", "fanfare"):   # sixteenth-note arpeggio, up an octave
-            seq = (tones + [tones[0] + 12, tones[1] + 12])
-            for k in range(16):
-                m = seq[k % len(seq)] + 12
-                a, b = base + sx(k), base + sx(k + 1)
-                harm[a:b] += pulse(midi_hz(m), b - a, 0.125) * envelope(b - a, decay=0.05, sustain=0.3, release=0.005)
-        elif s["style"] == "march":                        # off-beat chord stabs
-            for k in (2, 6, 10, 14):
-                a, b = base + sx(k), base + sx(k + 1)
-                for m in tones:
-                    harm[a:b] += pulse(midi_hz(m + 12), b - a, 0.125) * envelope(b - a, decay=0.04, sustain=0.2,
-                                                                               release=0.005) * 0.5
-        else:                                              # creep: slow broken chord in eighths
-            for k in range(0, 16, 2):
-                m = tones[(k // 2) % len(tones)] + 12
-                a, b = base + sx(k), base + sx(k + 2)
-                harm[a:b] += pulse(midi_hz(m), b - a, 0.125) * envelope(b - a, decay=0.12, sustain=0.25)
-        # drums
-        if not (s["style"] == "fanfare" and bar == bars - 1):
-            for k, ch in enumerate(s["drums"]):
-                if ch != ".":
-                    a = base + sx(k)
-                    n = min(int(0.2 * RATE), len(drums) - a)
-                    drums[a:a + n] += drum(ch, n, rng)
 
-    mixl = 0.24 * lead + 0.10 * harm * 0.9 + 0.30 * bass + 0.16 * drums
-    mixr = 0.24 * lead + 0.10 * harm * 1.1 + 0.30 * bass + 0.16 * drums  # pulse 2 a touch to the right
-    pcm = np.stack([mixl, mixr], axis=1)
-    pcm *= 12000 / max(1e-9, np.abs(pcm).max())          # a typical NES-music level under the 2600 SFX
-    if s["loop"]:  # no click where the loop wraps: 8 ms out at the end, 2 ms in at the start
+def add_bass(bass, style, root, bar_start, timing):
+    """The triangle: the chord's root an octave down, in the style's pattern."""
+    if style in ("march", "anthem", "fanfare"):
+        pattern = [(0, root - 12), (4, root - 5), (8, root - 12), (12, root - 5)]
+    elif style == "drive":
+        pattern = [(k, root - 12 if k % 4 == 0 else root) for k in range(0, 16, 2)]
+    else:  # creep: long low root, a step up near the end
+        pattern = [(0, root - 12), (12, root - 10)]
+    for index, (sixteenth, midi) in enumerate(pattern):
+        until = pattern[index + 1][0] if index + 1 < len(pattern) else 16
+        start = bar_start + timing.at(sixteenth)
+        end = bar_start + timing.at(until) - int(0.01 * RATE)  # a tiny gap between notes
+        note = triangle(midi_hz(midi), end - start)
+        bass[start:end] += note * envelope(end - start, decay=0.5, sustain=0.85, release=0.01)
+
+
+def add_harmony(harmony, style, tones, bar_start, timing):
+    """Pulse 2: an arpeggio, chord stabs or a broken chord, by style."""
+    if style in ("anthem", "drive", "fanfare"):  # sixteenth-note arpeggio, up an octave
+        sequence = (tones + [tones[0] + 12, tones[1] + 12])
+        for sixteenth in range(16):
+            midi = sequence[sixteenth % len(sequence)] + 12
+            start, end = bar_start + timing.at(sixteenth), bar_start + timing.at(sixteenth + 1)
+            note = pulse(midi_hz(midi), end - start, 0.125)
+            harmony[start:end] += note * envelope(end - start, decay=0.05, sustain=0.3, release=0.005)
+    elif style == "march":  # off-beat chord stabs
+        for sixteenth in (2, 6, 10, 14):
+            start, end = bar_start + timing.at(sixteenth), bar_start + timing.at(sixteenth + 1)
+            for midi in tones:
+                note = pulse(midi_hz(midi + 12), end - start, 0.125)
+                stab = envelope(end - start, decay=0.04, sustain=0.2, release=0.005)
+                harmony[start:end] += note * stab * 0.5
+    else:  # creep: slow broken chord in eighths
+        for sixteenth in range(0, 16, 2):
+            midi = tones[(sixteenth // 2) % len(tones)] + 12
+            start, end = bar_start + timing.at(sixteenth), bar_start + timing.at(sixteenth + 2)
+            note = pulse(midi_hz(midi), end - start, 0.125)
+            harmony[start:end] += note * envelope(end - start, decay=0.12, sustain=0.25)
+
+
+def add_drums(drums, pattern, bar_start, timing, rng):
+    """One bar of the drum pattern (16 steps: k kick, s snare, h hi-hat, . nothing)."""
+    for sixteenth, kind in enumerate(pattern):
+        if kind == ".":
+            continue
+        start = bar_start + timing.at(sixteenth)
+        length = min(int(0.2 * RATE), len(drums) - start)
+        drums[start:start + length] += drum(kind, length, rng)
+
+
+def mix_down(lead, harmony, bass, drums, loop):
+    """The four voices -> int16 stereo, pulse 2 a touch to the right; faded so it loops (or ends) cleanly."""
+    left = 0.24 * lead + 0.10 * harmony * 0.9 + 0.30 * bass + 0.16 * drums
+    right = 0.24 * lead + 0.10 * harmony * 1.1 + 0.30 * bass + 0.16 * drums
+    pcm = np.stack([left, right], axis=1)
+    pcm *= 12000 / max(1e-9, np.abs(pcm).max())  # a typical NES-music level under the 2600 SFX
+    if loop:  # no click where the loop wraps: 8 ms out at the end, 2 ms in at the start
         pcm[-int(0.008 * RATE):] *= np.linspace(1, 0, int(0.008 * RATE))[:, None]
         pcm[:int(0.002 * RATE)] *= np.linspace(0, 1, int(0.002 * RATE))[:, None]
     else:  # the jingle rings out, then fades to silence instead of stopping dead

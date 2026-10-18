@@ -7,8 +7,9 @@ content/world.py), then (first file found wins):
                                           "win": {"file": "music/win.wav"},              a WAV file
                                           "dungeon": {"song": "dungeon"}, ...}           a built-in song
   otherwise                               the built-in original chiptune songs (chiptune.py) - no files needed
-NSF tracks are played by game-music-emu (libgme: macOS `brew install game-music-emu`, Linux your package manager) through ctypes, opened at the
-emulator's sample rate (31440 Hz) so samples add straight onto the 2600's.
+NSF tracks are played by game-music-emu (libgme: macOS `brew install game-music-emu`, Linux your package
+manager) through ctypes, opened at the emulator's sample rate (31440 Hz) so samples add straight onto the
+2600's.
 
 Usage: python music.py --survey FILE.nsf          # length + loudness of every track
        python music.py --play FILE.nsf N [secs]   # listen to track N (1-based)
@@ -33,7 +34,7 @@ RATE = 31440
 
 
 def _lib():
-    found = [p for p in LIB_PATHS if os.path.exists(p)] or [ctypes.util.find_library("gme")]
+    found = [path for path in LIB_PATHS if os.path.exists(path)] or [ctypes.util.find_library("gme")]
     if not found[0]:
         raise OSError("libgme not found - install game-music-emu (macOS: brew install game-music-emu; "
                       "Linux: your package manager's libgme)")
@@ -88,26 +89,27 @@ class Music:
 
 def survey(path, seconds=90):
     """Per NSF track: how long until it goes silent for good (music loops, jingles/SFX stop), and loudness."""
-    m = Music(path)
-    print(f"{m.tracks} tracks")
-    for t in range(1, m.tracks + 1):
-        m.start(t)
-        audio = m.render(RATE * seconds).astype(float)
+    music = Music(path)
+    print(f"{music.tracks} tracks")
+    for track in range(1, music.tracks + 1):
+        music.start(track)
+        audio = music.render(RATE * seconds).astype(float)
         env = np.abs(audio).mean(axis=1)
         block = RATE // 10
         levels = env[:len(env) // block * block].reshape(-1, block).mean(axis=1)
         active = np.nonzero(levels > 30)[0]
         length = (active.max() + 1) / 10 if active.size else 0.0
         loud = 20 * np.log10(np.sqrt((audio ** 2).mean()) + 1e-9)
-        kind = "music (still playing at %ds)" % seconds if length >= seconds - 1 else f"{length:.1f}s then silent"
-        print(f"  track {t:2d}: {kind:32s} level {loud:5.1f} dB")
+        still_playing = length >= seconds - 1
+        kind = f"music (still playing at {seconds}s)" if still_playing else f"{length:.1f}s then silent"
+        print(f"  track {track:2d}: {kind:32s} level {loud:5.1f} dB")
 
 
 def play(path, track, secs=20):
     import sounddevice as sd
-    m = Music(path)
-    m.start(track)
-    sd.play(m.render(RATE * secs), RATE, blocking=True)
+    music = Music(path)
+    music.start(track)
+    sd.play(music.render(RATE * secs), RATE, blocking=True)
 
 
 CONFIGS = [os.path.join(HERE, "private", "music.json"), os.path.join(HERE, "music", "music.json")]
@@ -125,8 +127,8 @@ def load_configs():
     for path in CONFIGS:
         if os.path.exists(path):
             with open(path) as f:
-                found.append((os.path.relpath(path, HERE), {k: v for k, v in json.load(f).items()
-                                                             if not k.startswith("_")}))
+                config = {area: source for area, source in json.load(f).items() if not area.startswith("_")}
+                found.append((os.path.relpath(path, HERE), config))
     return found + [("built-in songs", BUILT_IN)]
 
 
@@ -144,9 +146,9 @@ class Pcm:
                 if not self.loop:
                     break
                 self.pos = 0
-            n = min(frames - done, len(self.pcm) - self.pos)
-            out[done:done + n] = self.pcm[self.pos:self.pos + n]
-            done, self.pos = done + n, self.pos + n
+            count = min(frames - done, len(self.pcm) - self.pos)
+            out[done:done + count] = self.pcm[self.pos:self.pos + count]
+            done, self.pos = done + count, self.pos + count
         return out
 
 
@@ -154,27 +156,28 @@ def read_wav(path, rate):
     """16-bit WAV -> int16 stereo at `rate` (linear resampling if needed)."""
     import wave
     with wave.open(path) as w:
-        ch, sr = w.getnchannels(), w.getframerate()
-        a = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, ch)
-    a = a[:, :2] if ch >= 2 else np.repeat(a, 2, axis=1)
-    if sr != rate:
-        t = np.arange(int(len(a) * rate / sr)) * sr / rate
-        a = np.stack([np.interp(t, np.arange(len(a)), a[:, c]) for c in range(2)], axis=1).astype(np.int16)
-    return a
+        channels, file_rate = w.getnchannels(), w.getframerate()
+        samples = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, channels)
+    samples = samples[:, :2] if channels >= 2 else np.repeat(samples, 2, axis=1)  # mono -> both sides
+    if file_rate != rate:
+        positions = np.arange(int(len(samples) * rate / file_rate)) * file_rate / rate
+        resampled = [np.interp(positions, np.arange(len(samples)), samples[:, side]) for side in range(2)]
+        samples = np.stack(resampled, axis=1).astype(np.int16)
+    return samples
 
 
 DARK, RED = 0x08, 0x36  # room colours: the dark rooms, and the red maze + castle interiors
 
 
-def area_for(st):
+def area_for(state):
     """Which music area this moment belongs to: title / overworld / dungeon / final / win."""
-    if st.won:
+    if state.won:
         return "win"
-    if st.on_title_screen:
+    if state.on_title_screen:
         return "title"
-    if st.room_num in FINAL_ROOMS:
+    if state.room_num in FINAL_ROOMS:
         return "final"
-    if st.room["colour"] in (DARK, RED):  # catacombs and black maze (dark), red maze, castle interiors
+    if state.room["colour"] in (DARK, RED):  # catacombs and black maze (dark), red maze, castle interiors
         return "dungeon"
     return "overworld"
 
@@ -183,18 +186,19 @@ def mix(sfx, mus, gain=1.0):
     """2600 sound effects + NES music, both at their original levels (music scaled only by the user's
     volume). Added in float; a soft knee above 28000 rounds off the rare peaks where both are loud at once
     instead of hard-clipping (the effects alone peak at ~22000, the music at ~13000)."""
-    n = min(len(sfx), len(mus))
-    x = sfx[:n].astype(np.float32) + gain * mus[:n].astype(np.float32)
+    count = min(len(sfx), len(mus))
+    mixed = sfx[:count].astype(np.float32) + gain * mus[:count].astype(np.float32)
     knee, top = 28000.0, 32767.0
-    over = np.abs(x) > knee
+    over = np.abs(mixed) > knee
     if over.any():
-        a = np.abs(x[over]) - knee
-        x[over] = np.sign(x[over]) * (knee + (top - knee) * np.tanh(a / (top - knee)))
-    return x.astype(np.int16)
+        above = np.abs(mixed[over]) - knee
+        mixed[over] = np.sign(mixed[over]) * (knee + (top - knee) * np.tanh(above / (top - knee)))
+    return mixed.astype(np.int16)
 
 
 class MusicPlayer:
-    """The music side of the mix, run from the sound card's callback (engine/emulator.py: AudioOut(mixer=...)).
+    """The music side of the mix, run from the sound card's callback (engine/emulator.py:
+    AudioOut(mixer=...)).
     The game loop only says WHICH AREA to play (start/stop/on/gain/paused); the callback decides how much."""
 
     def __init__(self, rate=RATE, public=False):
@@ -277,17 +281,17 @@ class MusicPlayer:
 
 def audition(path, tracks, secs=10):
     import sounddevice as sd
-    m = Music(path)
-    for t in tracks:
-        print(f"track {t} ...", flush=True)
-        m.start(t)
-        sd.play(m.render(RATE * secs), RATE, blocking=True)
+    music = Music(path)
+    for track in tracks:
+        print(f"track {track} ...", flush=True)
+        music.start(track)
+        sd.play(music.render(RATE * secs), RATE, blocking=True)
 
 
 if __name__ == "__main__":  # tools for picking tracks from an NSF of your own
     if sys.argv[1:2] == ["--survey"]:
         survey(sys.argv[2])
     elif sys.argv[1:2] == ["--audition"]:
-        audition(sys.argv[2], [int(a) for a in sys.argv[3:]])
+        audition(sys.argv[2], [int(track) for track in sys.argv[3:]])
     elif sys.argv[1:2] == ["--play"]:
         play(sys.argv[2], int(sys.argv[3]), int(sys.argv[4]) if len(sys.argv) > 4 else 20)
