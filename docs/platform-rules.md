@@ -8,7 +8,7 @@ each console reduces it ("author rich, platforms reduce").
 
 | | NES (`nes`) | SNES (`snes`) | VGA (`vga`) | Paper (`paper`) | Template (`template`) |
 |---|---|---|---|---|---|
-| **Colours** (cast, rooms, gates) | snapped to the nearest of the NES palette's colours (`shared/palettes.py`) | 15-bit: 32 levels per channel | a 252-colour palette (a 6×7×6 cube): rooms ordered-dithered, sprites and gates the nearest colour | a box of 17 crayons: the nearest crayon; near-paper colours are bare paper. Rooms and gates are waxy (the paper's grain shows through) and a room's biggest colour is coloured in lightly | as drawn |
+| **Colours** (cast, rooms, gates) | snapped to the nearest of the NES palette's colours (`shared/palettes.py`) | 15-bit: 32 levels per channel | VGA's: 256 colours, each from 262,144 (64 levels per channel), picked for the cast and world (`looks/vga/palette.py`); everything the nearest of them, and every screen in those 256 only | a box of 17 crayons: the nearest crayon; near-paper colours are bare paper. Rooms and gates are waxy (the paper's grain shows through) and a room's biggest colour is coloured in lightly | as drawn |
 | **Colours per sprite** | not limited (a real NES sprite has 3 + transparent; the classic cast keeps to that) | at most 15 (a SNES sprite palette): more are merged | not limited | not limited | not limited |
 | **Sprite outlines** | as drawn | dark edge pixels become a dark shade of the colour beside them: a softer, cartoon-style line | as drawn | as drawn | as drawn |
 | **Transparency** | solid or clear (every look: alpha under 128 is clear) | solid or clear | solid or clear | solid or clear | solid or clear |
@@ -31,6 +31,19 @@ each console reduces it ("author rich, platforms reduce").
 
 Anything a cast or world leaves out is drawn as the **original 2600 graphic**, so every combination is
 playable.
+
+## How true to the real machine is each look?
+
+Each look keeps its platform's **colour rules**. None of them keeps its **hardware limits** - how many sprites
+fit on a line, which tiles share a palette - because packs are drawn freely and every look shows every pack.
+The rest is the era's style, chosen by eye.
+
+| | What the real machine did | What the look enforces | What is style, not a rule |
+|---|---|---|---|
+| **NES** | 64 colours (the 2C02's palette); 4 palettes of 3 colours for sprites and 4 for the background, about 25 colours on screen; one background palette per 16×16 square; 8×8 tiles; 8 sprites a line; 256×240 | the 64 colours, and the 256×240 screen | 3 colours a sprite is a habit of the classic cast, not a rule; the palette, tile and sprite-count limits aren't enforced |
+| **SNES** | 32,768 colours (15-bit); 256 on screen; sprites of 15 colours + clear, from 8 palettes; 32 sprites a line; usually 256×224 | 15-bit colour and 15 colours a sprite | the soft outlines; the screen is 256×240; the 256-on-screen and palette-count limits aren't enforced |
+| **VGA** (mode 13h) | 256 colours on screen, each from 262,144 (64 levels a channel), chosen by the game - often anew for each scene; 320×200, stretched to a 4:3 monitor so pixels were a little taller than wide | 64 levels a channel; 256 colours on screen, picked for the cast and world by median cut (the era's paint tools did the same), 16 of them the card's standard colours for menus and text; every screen in those 256 only | one palette for the whole world, not one per room; the 256×240 screen with square pixels (every look shares the game's room layout); the menu strip, message boxes and DOS prompt |
+| **Paper** | no machine: crayons on paper | a box of 17 crayons | all of it |
 
 ## The same in every look
 

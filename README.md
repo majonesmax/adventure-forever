@@ -10,7 +10,7 @@ redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 
 - **NES**: an 8-bit remaster.
 - **SNES**: a 16-bit remaster.
-- **VGA**: an early-90s PC adventure: 256 colours, dithered light, a grey menu strip and message boxes.
+- **VGA**: an early-90s PC adventure: 256 colours picked for each world, a grey menu strip and message boxes.
 - **Paper**: drawn in crayon in a spiral-bound sketchbook: a box of crayons, the paper's grain through the wax,
   handwriting, and messages on index cards.
 

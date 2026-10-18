@@ -1,11 +1,11 @@
 """The VGA look: Adventure redrawn as an early-90s PC adventure game (the Sierra / LucasArts era) - 256
-colours, dithered light, a grey menu strip, message boxes.
+colours chosen for the pictures, a grey menu strip, message boxes.
 
 A RoomLook (looks/base.py): the shared machinery shows the world's rooms and places the cast; this module is
 the VGA platform:
-  rules     one 252-colour palette, a 6 x 7 x 6 colour cube (how many DOS games laid out VGA's 256 colours):
-            the world's rooms are reduced to it with ORDERED DITHERING - the cross-hatched gradients of the
-            era - while the cast's sprites and the gates snap to its nearest colours, as drawn sprites were
+  rules     VGA's: 256 colours on screen, each one of 262,144 (64 levels a channel). Like the era's games,
+            the 256 are picked for what's shown - one palette per cast and world (palette.py) - and every
+            screen is drawn in them alone
   screens   a status bar with a grey menu strip, the place's name and what you carry; a DOS prompt before the
             title; the win in a message box
 Its own pack is "classic"; it was made for moody, liminal worlds.
@@ -19,28 +19,26 @@ from looks.base import RoomLook
 from shared import hud as HUD
 from shared import layout as L
 from shared.pixelart import blit
+from looks.vga.palette import palette_for
 
-LEVELS = (np.linspace(0, 255, 6), np.linspace(0, 255, 7), np.linspace(0, 255, 6))  # R, G, B: 6 x 7 x 6 = 252
-BAYER = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], float) / 16 - 0.5 + 1 / 32
 GREY, LIGHT, DARK, INK, PAPER = (170, 170, 170), (255, 255, 255), (85, 85, 85), (0, 0, 0), (232, 232, 220)
 BAR_BG, BLUE = (16, 16, 24), (0, 0, 170)
+GOLD_CASTLE = 0x11  # the room the title screen shows
+TITLE_GLOOM = 0.55  # how lit the title's castle is once it has faded up
 
 
-def to_palette(rgb, dither):
-    """RGB (h, w, 3) -> the 6x7x6 cube; with ordered dithering if `dither`."""
-    out = np.empty_like(rgb)
-    h, w = rgb.shape[:2]
-    noise = np.tile(BAYER, (h // 4 + 1, w // 4 + 1))[:h, :w] if dither else 0
-    for channel, levels in enumerate(LEVELS):
-        step = levels[1] - levels[0]
-        value = rgb[..., channel].astype(float) + noise * step
-        nearest_level = np.clip(np.round(value / step), 0, len(levels) - 1).astype(int)
-        out[..., channel] = levels[nearest_level]
-    return out
+def title_room(world, light):
+    """The gold castle's room as the title shows it: dimmed to `light`, its corners darker still."""
+    room = world.room(R.decode_room(R.load_rom(), GOLD_CASTLE)).astype(float)
+    yy, xx = np.mgrid[0:L.ROOM_H, 0:L.ROOM_W]
+    from_centre = np.hypot((xx - L.ROOM_W / 2) / (L.ROOM_W / 2), (yy - L.ROOM_H / 2) / (L.ROOM_H / 2))
+    vignette = 1 - 0.55 * np.clip(from_centre - 0.35, 0, 1)
+    return (room * light * vignette[..., None]).astype(np.uint8)
 
 
 def bevel(img, x0, y0, x1, y1, raised=True):
-    """A Windows-3.1 style bevel: light top-left, dark bottom-right (or the other way round, sunken)."""
+    """A 3-D bevel, like the era's buttons and icon bars: light top-left, dark bottom-right (or the other way
+    round, sunken)."""
     lit, shadowed = (LIGHT, DARK) if raised else (DARK, LIGHT)
     img[y0, x0:x1 + 1] = lit
     img[y0:y1 + 1, x0] = lit
@@ -53,22 +51,31 @@ class VgaLook(RoomLook):
     platform_name = "VGA REMASTER"
     own_pack = "classic"
 
+    def __init__(self, reader, cast, world):
+        title = title_room(world, TITLE_GLOOM)  # the title is a scene of its own: its colours count too
+        self.vga = palette_for(cast, world, own_colours=(PAPER, BAR_BG), scenes=[title])  # before adapting
+        self.scenery = {}  # this look's own rooms: the palette depends on the cast too, not just the world
+        super().__init__(reader, cast, world)
+
     # ---- the platform (the RoomLook methods) ----
 
     def adapt(self, sprite):
-        """Sprites: the nearest palette colours, no dither (the flashing marker is left for the flash)."""
+        """Sprites: the palette's nearest colours (the flashing marker is left for the flash)."""
         out = sprite.copy()
         keep = np.all(out[..., :3] == FLASH, axis=2)
-        out[..., :3] = to_palette(out[..., :3], dither=False)
+        out[..., :3] = self.vga.show(out[..., :3])
         out[keep, :3] = FLASH
         return out
 
     def adapt_scenery(self, picture):
-        """Rooms: the palette, ordered-dithered (smooth light becomes cross-hatching). Gates (RGBA, small and
-        hard-edged): the nearest palette colours, like sprites."""
+        """Rooms and gates: the palette's nearest colours."""
         out = picture.copy()
-        out[..., :3] = to_palette(picture[..., :3], dither=picture.shape[2] == 3)
+        out[..., :3] = self.vga.show(picture[..., :3])
         return out
+
+    def draw(self, state, frame_no, actors=True):
+        """The screen, in the palette's 256 colours only - the torchlight and the status bar too."""
+        return self.vga.show(super().draw(state, frame_no, actors))
 
     def menu_strip(self, screen):
         """The grey strip along the top, with menu words - a PC program's window, not a console's."""
@@ -133,14 +140,10 @@ class VgaLook(RoomLook):
             cursor = "_" if (frame_no // 15) % 2 == 0 else " "
             HUD.draw_text(screen, f"C:\\GAMES>{typed}{cursor}", 8, 8, GREY, shadow=None)
             return screen
-        light = round(min(1.0, (frame_no - 90) / 60) * 0.55, 2)  # fades up over a second, to a gloom
+        light = round(min(1.0, (frame_no - 90) / 60) * TITLE_GLOOM, 2)  # fades up over a second
         key = ("title", self.world.key, light)
         if key not in self.sprite_cache:
-            room = self.world.room(R.decode_room(R.load_rom(), 0x11)).astype(float)
-            yy, xx = np.mgrid[0:L.ROOM_H, 0:L.ROOM_W]
-            from_centre = np.hypot((xx - L.ROOM_W / 2) / (L.ROOM_W / 2), (yy - L.ROOM_H / 2) / (L.ROOM_H / 2))
-            vignette = 1 - 0.55 * np.clip(from_centre - 0.35, 0, 1)  # the corners darker
-            self.sprite_cache[key] = self.adapt_scenery((room * light * vignette[..., None]).astype(np.uint8))
+            self.sprite_cache[key] = self.adapt_scenery(title_room(self.world, light))
         room = self.sprite_cache[key].copy()
         cast = [self.adapt(figure) for figure in self.cast.title_cast()]
         width = sum(figure.shape[1] for figure in cast) + 8 * (len(cast) - 1)
