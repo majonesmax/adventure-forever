@@ -241,11 +241,12 @@ def step(surface, seed):
 
 
 def stomp(seed):
-    """A dragon's heavy foot coming down: a deep thump and the ground shaking under it."""
+    """A dragon's heavy foot coming down: a deep thump, and the crunch of the ground under it - the crunch
+    is what a laptop's small speakers play, so it carries most of it."""
     rng = np.random.default_rng(seed)
     count = seconds(0.3)
-    ground = filtered(noise(count, seed)[:, :1], 80, 600, tilt=0.5)[:, 0] * decay(count, 0.05)
-    return thud(rng.uniform(70, 90), count, 0.07) + 0.5 * ground
+    crunch = filtered(noise(count, seed)[:, :1], 180, 1500, tilt=0.4)[:, 0] * decay(count, 0.035)
+    return 0.6 * thud(rng.uniform(70, 90), count, 0.07) + crunch
 
 
 def wingbeat(seed):

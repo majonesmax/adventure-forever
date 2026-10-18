@@ -5,7 +5,8 @@ little buzzy, with no echo (engine/fm.py's voice, played harder).
 import numpy as np
 
 from engine.chiptune import RATE, midi_hz
-from engine.effects.tools import chip_noise, decay, place, run, seconds, sweep, times
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, chip_noise, clicks, decay, place, run, seconds,
+                                  sweep, times)
 from engine.fm import env, fm
 
 
@@ -33,9 +34,9 @@ def drop():
     return sound * decay(len(sound), 0.05)
 
 
-def roar():
+def roar(voice):
     """A dragon roars: a growling FM tone with a deep wobble."""
-    sound = gliding(150, 70, 0.7, ratio=0.5, index=5.0)
+    sound = gliding(150 * voice.pitch, 70 * voice.pitch, 0.7 * voice.length, ratio=0.5, index=5.0)
     wobble = 1 + 0.25 * np.sin(2 * np.pi * 18 * times(len(sound)))
     return sound * wobble * env(len(sound), attack=0.02, decay=0.4, sustain=0.5, release=0.1) * 0.8
 
@@ -49,13 +50,37 @@ def eaten():
     return place([(0, fall * 0.7), (0.55, crunch)], 0.8)
 
 
-def dragon_dies():
+def dragon_dies(voice):
     """The sword strikes home: a noisy blast and a falling, buzzing tone."""
     blast_length = seconds(0.3)
     blast = chip_noise(blast_length, pitch=0.3, seed=5) * decay(blast_length, 0.1)
-    fall = gliding(500, 40, 0.9, ratio=1.5, index=3.0)
+    fall = gliding(500 * voice.pitch, 40, 0.9 * voice.length, ratio=1.5, index=3.0)
     fall = fall * env(len(fall), decay=0.5, sustain=0.3, release=0.15)
-    return place([(0, blast * 0.8), (0.05, fall * 0.7)], 1.0)
+    return place([(0, blast * 0.8), (0.05, fall * 0.7)], 0.1 + 0.9 * voice.length)
+
+
+def link(index):
+    """A ratchet's click on the FM chip: a tiny, sharp blip."""
+    length = seconds(0.025)
+    return fm(2000 + 300 * (index % 2), length, ratio=3.5, index=4.0) * decay(length, 0.006)
+
+
+def clunk():
+    """The gate at the end of its run: a low, buzzing thunk."""
+    sound = gliding(160, 60, 0.3, ratio=0.5, index=3.0)
+    return sound * decay(len(sound), 0.08)
+
+
+def gate_open():
+    """A fast ratchet as the gate flies up, and a clunk."""
+    ratchet = clicks(link, 0.03, GATE_OPEN - 0.1) * 0.5
+    return place([(0, ratchet), (GATE_OPEN - 0.1, clunk())], GATE_OPEN + 0.3)
+
+
+def gate_close():
+    """A slow ratchet as the gate comes down, and a clunk as it lands."""
+    return place([(0, clicks(link, 0.075, GATE_CLOSE - 0.1) * 0.5), (GATE_CLOSE - 0.1, clunk())],
+                 GATE_CLOSE + 0.3)
 
 
 def win():
@@ -70,4 +95,4 @@ def win():
 
 
 EFFECTS = {"pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
-           "win": win}
+           "win": win, "gate_open": gate_open, "gate_close": gate_close}

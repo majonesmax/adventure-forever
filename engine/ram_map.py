@@ -41,6 +41,7 @@ YELLOW_KEY = 0xBF
 WHITE_KEY = 0xC2
 BLACK_KEY = 0xC5
 PORTCULLIS = (0xC8, 0xC9, 0xCA)  # gate state: gold castle (room $11), white ($0F), black ($10)
+GATE_SHUT, GATE_UP = 0x1C, 0x01  # a gate's state when closed, and fully open (it counts between them)
 BAT = 0xCB             # (room, x, y, movement, state)
 BAT_CARRYING, BAT_FED_UP = 0xD0, 0xD1
 

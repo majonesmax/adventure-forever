@@ -174,12 +174,12 @@ class GameWindow:
         look's version of any sound the game just started."""
         samples = self.core.take_audio()
         ram = bytes(self.core.ram)
-        started = FX.heard(self.sound_ram, ram) if self.sound_ram else None
+        started = FX.heard(self.sound_ram, ram) if self.sound_ram else []
         self.sound_ram = ram
         if not self.remastered_sound:
             return samples
-        if started:
-            self.effects.play(started, self.look.platform)
+        for name in started:
+            self.effects.play(name, self.look.platform)
         return np.zeros_like(samples)
 
     def check_rom(self, rom):
@@ -358,8 +358,8 @@ class GameWindow:
         waiting = self.paused or self.help.open
         sound = self.look.world.sound(state.room_num)
         self.ambience.follow(sound, quiet=not music_playing and not waiting)
-        if self.ambience.quiet and self.remastered_sound:
-            self.footsteps.follow(state, sound)
+        if self.remastered_sound:
+            self.footsteps.follow(state, sound, quiet=self.ambience.quiet)
 
     def record_frame(self):
         """One frame of every stream, and the log line (the RAM panel is rebuilt from RAM at edit time)."""

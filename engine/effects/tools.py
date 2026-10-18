@@ -3,9 +3,18 @@ a way to lay sounds out along a track. Every effect is a mono float track; engin
 its loudness.
 """
 
+from collections import namedtuple
+
 import numpy as np
 
 from engine.chiptune import RATE, midi_hz
+
+
+Voice = namedtuple("Voice", "pitch length")   # a dragon's: x its pitch, x how long it roars
+DRAGON_VOICES = {"red": Voice(1.35, 0.75),      # Rhindle, the fastest and fiercest: high and quick
+                 "yellow": Voice(1.0, 1.0),     # Yorgle
+                 "green": Voice(0.7, 1.3)}      # Grundle: deep and slow
+GATE_OPEN, GATE_CLOSE = 0.5, 1.3                # seconds: the portcullis flies up, and comes down slowly
 
 
 def seconds(count):
@@ -72,3 +81,11 @@ def echo(track, delay=0.18, feedback=0.4, repeats=4):
     for repeat in range(1, repeats + 1):
         out[step * repeat:step * repeat + len(track)] += track * feedback ** repeat
     return out
+
+
+def clicks(click, every, length_seconds, getting=1.0):
+    """A ratchet or a chain: `click()` (a short sound) every `every` seconds, each `getting` x as loud as
+    the one before."""
+    count = int(length_seconds / every)
+    parts = [(index * every, click(index) * getting ** index) for index in range(count)]
+    return place(parts, length_seconds + 0.2)

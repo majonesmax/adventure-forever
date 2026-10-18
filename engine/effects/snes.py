@@ -5,7 +5,8 @@ echo the Super NES's sound chip put on nearly everything.
 import numpy as np
 
 from engine.chiptune import RATE
-from engine.effects.tools import decay, echo, place, run, seconds, sine, soft_noise, sweep, times
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, clicks, decay, echo, place, run, seconds, sine,
+                                  soft_noise, sweep, times)
 from engine.fm import bell, env, epiano
 
 
@@ -32,9 +33,9 @@ def growl(start_hz, end_hz, length_seconds, seed):
     return (0.8 * rough + 0.2 * breath) * env(length, attack=0.08, decay=0.5, sustain=0.5, release=0.2)
 
 
-def roar():
+def roar(voice):
     """A dragon roars."""
-    return echo(growl(150, 85, 0.9, seed=2), feedback=0.3)
+    return echo(growl(150 * voice.pitch, 85 * voice.pitch, 0.9 * voice.length, seed=2), feedback=0.3)
 
 
 def eaten():
@@ -45,12 +46,37 @@ def eaten():
     return echo(place([(0, gulp), (0.25, fall * 0.7)], 1.4))
 
 
-def dragon_dies():
+def dragon_dies(voice):
     """The sword strikes home: a growl falling away under a low, dark bell."""
-    voice = growl(170, 55, 1.1, seed=3)
+    dying = growl(170 * voice.pitch, 55, 1.1 * voice.length, seed=3)
     toll_length = seconds(1.5)
     toll = bell(110.0, toll_length) * 0.5
-    return echo(place([(0, voice), (0.15, toll)], 1.7), feedback=0.35)
+    return echo(place([(0, dying), (0.15, toll)], 0.6 + 1.1 * voice.length), feedback=0.35)
+
+
+def link(index):
+    """A chain link: a small, bright metallic ring."""
+    length = seconds(0.08)
+    return bell(1800 + 150 * (index % 3), length) * decay(length, 0.02)
+
+
+def clank():
+    """The portcullis reaching the end: iron on stone, ringing."""
+    length = seconds(0.6)
+    hit = soft_noise(length, 200, 3000, seed=6) * decay(length, 0.03)
+    return hit + 0.6 * bell(140.0, length)
+
+
+def gate_open():
+    """The chain running fast as the gate flies up, and a clank, echoing."""
+    rattle = clicks(link, 0.035, GATE_OPEN - 0.1) * 0.5
+    return echo(place([(0, rattle), (GATE_OPEN - 0.1, clank())], GATE_OPEN + 0.6), feedback=0.3)
+
+
+def gate_close():
+    """The chain paying out link by link as the gate comes down, and a clank as it lands."""
+    rattle = clicks(link, 0.08, GATE_CLOSE - 0.1) * 0.5
+    return echo(place([(0, rattle), (GATE_CLOSE - 0.1, clank())], GATE_CLOSE + 0.6), feedback=0.3)
 
 
 def win():
@@ -62,4 +88,4 @@ def win():
 
 
 EFFECTS = {"pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
-           "win": win}
+           "win": win, "gate_open": gate_open, "gate_close": gate_close}

@@ -1,7 +1,7 @@
-"""The characters heard moving, while the music is off: the hero's footsteps (on grass, stone or snow - the
-ground of the place, from its ambience), a dragon's heavy stomps, the bat's wings. Only what's in the hero's
-room, each heard from where it is, left or right. engine/nature.py makes the sounds; engine/ambience.py plays
-them with the rest of the world's sounds.
+"""The characters heard moving: a dragon's heavy stomps (always - you should hear one coming), and with the
+music off, the hero's footsteps too (on grass, stone or snow - the ground of the place, from its ambience)
+and the bat's wings. Only what's in the hero's room, each heard from where it is, left or right.
+engine/nature.py makes the sounds; engine/ambience.py plays them with the rest of the world's sounds.
 """
 
 import threading
@@ -14,7 +14,7 @@ from engine.ambience import call_samples
 DRAGONS, BAT = (0x06, 0x07, 0x08), 0x0E      # object numbers (engine/objects.py)
 GROUND = {"summer": "grass", "woods": "grass", "frost": "snow"}   # an ambience -> its ground; else stone
 STEP_EVERY = {"hero": 14, "dragon": 20, "bat": 8}        # frames of moving between one sound and the next
-LOUDNESS = {"hero": 0.55, "dragon": 1.1, "bat": 0.4}     # x the ambience's CALL_LEVEL
+LOUDNESS = {"hero": 0.55, "dragon": 1.6, "bat": 0.4}     # x the ambience's CALL_LEVEL
 STOPPED = 8                                  # frames without moving that make a stop
 VARIANTS = 6
 ROOM_MIDDLE, HALF_WIDTH = 80, 100            # the game's x across a room -> left and right
@@ -43,18 +43,19 @@ class Footsteps:
         self.sounds["dragon"] = made(N.stomp, "dragon")
         self.sounds["bat"] = made(N.wingbeat, "bat")
 
-    def follow(self, state, ambience_name):
-        """Who moved since the last frame, and a sound for each who's moved long enough."""
-        if state.on_title_screen or ambience_name is None:
+    def follow(self, state, ambience_name, quiet):
+        """Who moved since the last frame, and a sound for each who's moved long enough. quiet: no music
+        playing, so the hero and the bat are heard too."""
+        if state.on_title_screen:
             self.last_seen = {}
             return
-        movers = {"hero": ("hero", state.hero)}
+        movers = {"hero": ("hero", state.hero)} if quiet else {}
         for number, x, y, _state in state.objects:
             if number == state.carried:
                 continue
             if number in DRAGONS:
                 movers[number] = ("dragon", (x, y))
-            elif number == BAT:
+            elif number == BAT and quiet:
                 movers[number] = ("bat", (x, y))
         for key, (who, place) in movers.items():
             self.watch(key, who, place, GROUND.get(ambience_name, "stone"))

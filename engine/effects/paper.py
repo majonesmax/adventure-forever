@@ -5,7 +5,8 @@ dragons - and the rustle of the sketchbook's paper.
 import numpy as np
 
 from engine.chiptune import RATE
-from engine.effects.tools import decay, place, run, seconds, sine, soft_noise, sweep, times
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, clicks, decay, place, run, seconds, sine, soft_noise,
+                                  sweep, times)
 from engine.nature import fade_in_out
 
 
@@ -43,11 +44,12 @@ def drop():
     return run([60], 0.0, xylophone, ring=0.4) * 0.8
 
 
-def roar():
+def roar(voice):
     """A dragon roars - as a child would: a kazoo, rising and falling."""
-    rise = kazoo(180, 260, 0.25)
-    fall = kazoo(260, 150, 0.5)
-    return place([(0, rise), (0.25, fall)], 0.8)
+    low, high = 180 * voice.pitch, 260 * voice.pitch
+    rise = kazoo(low, high, 0.25 * voice.length)
+    fall = kazoo(high, 150 * voice.pitch, 0.5 * voice.length)
+    return place([(0, rise), (0.25 * voice.length, fall)], 0.8 * voice.length)
 
 
 def eaten():
@@ -57,11 +59,29 @@ def eaten():
     return slide
 
 
-def dragon_dies():
+def dragon_dies(voice):
     """The sword strikes home: a falling kazoo, and three bars going down."""
-    sigh = kazoo(240, 110, 0.7)
+    sigh = kazoo(240 * voice.pitch, 110 * voice.pitch, 0.7 * voice.length)
     bars = run([67, 64, 60], 0.18, xylophone, ring=0.5)
-    return place([(0, sigh), (0.55, bars)], 1.6)
+    return place([(0, sigh), (0.7 * voice.length - 0.15, bars)], 0.9 + 0.7 * voice.length)
+
+
+def tick(index):
+    """A toy ratchet's click: a tiny wooden tap."""
+    length = seconds(0.03)
+    return xylophone(1400 + 200 * (index % 2), length) * decay(length, 0.008)
+
+
+def gate_open():
+    """A wind-up toy's ratchet, quick, and a bar struck at the top."""
+    bar = xylophone(784.0, seconds(0.5))
+    return place([(0, clicks(tick, 0.035, GATE_OPEN - 0.1) * 0.6), (GATE_OPEN - 0.1, bar)], GATE_OPEN + 0.5)
+
+
+def gate_close():
+    """The ratchet clicking slowly down, and a low bar as the gate lands."""
+    bar = xylophone(261.6, seconds(0.6))
+    return place([(0, clicks(tick, 0.08, GATE_CLOSE - 0.1) * 0.6), (GATE_CLOSE - 0.1, bar)], GATE_CLOSE + 0.6)
 
 
 def win():
@@ -72,4 +92,4 @@ def win():
 
 
 EFFECTS = {"pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
-           "win": win}
+           "win": win, "gate_open": gate_open, "gate_close": gate_close}
