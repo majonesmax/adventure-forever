@@ -339,9 +339,11 @@ class GameWindow:
             self.scrolls = {}
 
     def follow_music(self, state):
-        """Switch tracks when the music area changes (title / overworld / dungeon / final / win)."""
+        """Switch tracks when the music area changes (title / overworld / dungeon / final / win), and play
+        them on the look's own band."""
         if self.music is None:
             return
+        self.music.use_look(self.look.platform)
         area = MU.area_for(state)
         if area == self.music_area:
             return

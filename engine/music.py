@@ -6,7 +6,10 @@ content/world.py), then (first file found wins):
   private/music.json, music/music.json   {"title": {"nsf": "music/x.nsf", "track": 1},   an NSF via libgme
                                           "win": {"file": "music/win.wav"},              a WAV file
                                           "dungeon": {"song": "dungeon"}, ...}           a built-in song
-  otherwise                               the built-in original chiptune songs (chiptune.py) - no files needed
+  otherwise                               the built-in original songs (chiptune.py) - no files needed
+The built-in songs are played by the look's own band (BANDS): the NES's chip, the SNES's orchestra, the VGA's
+PC sound card, paper's toy box - switching looks keeps the place in the song. A world's own soundtrack keeps
+the synth it names. Each song is made in the background the first time it's needed.
 NSF tracks are played by game-music-emu (libgme: macOS `brew install game-music-emu`, Linux your package
 manager) through ctypes, opened at the emulator's sample rate (31440 Hz) so samples add straight onto the
 2600's.
@@ -196,6 +199,12 @@ def mix(sfx, mus, gain=1.0):
     return mixed.astype(np.int16)
 
 
+def bands():
+    """Each look's band: look platform -> render(song dict) -> int16 stereo."""
+    from engine import chiptune, orchestra, soundcard, toybox
+    return {"nes": chiptune.render, "snes": orchestra.render, "vga": soundcard.render, "paper": toybox.render}
+
+
 class MusicPlayer:
     """The music side of the mix, run from the sound card's callback (engine/emulator.py:
     AudioOut(mixer=...)).
@@ -210,6 +219,8 @@ class MusicPlayer:
         self.configs, self.world = list(self.base), None
         self.which = 0
         self.current, self.nsf, self.cache = None, {}, {}
+        self.area, self.playing_area, self.look = None, None, "nes"
+        self.bands, self.making = bands(), set()
 
     @property
     def config(self):
@@ -238,38 +249,85 @@ class MusicPlayer:
     def has(self, area):
         return area in self.config
 
-    def _source(self, area):
-        spec = self.config[area]
-        if "world_song" in spec:  # a world's own song, rendered by its synth
+    def use_look(self, look):
+        """The look on screen (its platform: nes, snes...): its band plays the built-in songs from now on."""
+        if look == self.look:
+            return
+        self.look = look
+        if self.area is not None:
+            self.start(self.area)
+
+    def made_song(self, spec):
+        """(cache key, render) for a song this player makes itself, or None for a file or an NSF."""
+        if "world_song" in spec:   # a world's own song, on the synth it names
             from engine import chiptune, fm
-            key = (spec["synth"], id(spec["world_song"]))
-            if key not in self.cache:
-                self.cache[key] = (fm if spec["synth"] == "fm" else chiptune).render(spec["world_song"])
-            return Pcm(self.cache[key], spec["world_song"].get("loop", True))
+            synth = fm.render if spec["synth"] == "fm" else chiptune.render
+            return (spec["synth"], id(spec["world_song"])), lambda: synth(spec["world_song"])
         if "song" in spec:
             from engine import chiptune
-            if spec["song"] not in self.cache:
-                self.cache[spec["song"]] = chiptune.render(spec["song"])
-            return Pcm(self.cache[spec["song"]], chiptune.SONGS[spec["song"]]["loop"])
+            band = self.bands.get(self.look, self.bands["nes"])
+            return (self.look, spec["song"]), lambda: band(chiptune.SONGS[spec["song"]])
+        return None
+
+    def loops(self, spec, area):
+        if "world_song" in spec:
+            return spec["world_song"].get("loop", True)
+        if "song" in spec:
+            from engine import chiptune
+            return chiptune.SONGS[spec["song"]]["loop"]
+        return area != "win"
+
+    def _source(self, area):
+        """A file or an NSF track, ready to play."""
+        spec = self.config[area]
         if "file" in spec:
             path = os.path.join(HERE, spec["file"])
             if path not in self.cache:
                 self.cache[path] = read_wav(path, self.rate)
             return Pcm(self.cache[path], area != "win")
-        path = os.path.join(HERE, spec["nsf"])  # an NSF track
+        path = os.path.join(HERE, spec["nsf"])
         if path not in self.nsf:
             self.nsf[path] = Music(path, self.rate)
         self.nsf[path].start(spec["track"])
         return self.nsf[path]
 
     def start(self, area):
-        source = self._source(area)
+        """Play an area's music: now if it's made, else once it is (made in the background meanwhile)."""
+        import threading
+        self.area = area
+        spec = self.config[area]
+        made = self.made_song(spec)
+        if made is None:
+            self.play(area, self._source(area))
+            return
+        key, render = made
+        if key in self.cache:
+            self.play(area, Pcm(self.cache[key], self.loops(spec, area)))
+            return
+        if key in self.making:
+            return
+        self.making.add(key)
+
+        def work():
+            self.cache[key] = render()
+            self.making.discard(key)
+            still_wanted = self.made_song(self.config.get(area, {})) if self.area == area else None
+            if still_wanted and still_wanted[0] == key:
+                self.start(area)
+        threading.Thread(target=work, daemon=True).start()
+
+    def play(self, area, source):
+        """Switch to a source; the same area on another band keeps its place in the song."""
         with self.lock:
-            self.current = source
+            both_made = isinstance(self.current, Pcm) and isinstance(source, Pcm)
+            if both_made and area == self.playing_area:
+                source.pos = self.current.pos % len(source.pcm)
+            self.current, self.playing_area = source, area
 
     def stop(self):
+        self.area = None
         with self.lock:
-            self.current = None
+            self.current, self.playing_area = None, None
 
     def mixer(self, sfx):
         if not self.on or self.paused or self.current is None:

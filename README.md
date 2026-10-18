@@ -23,12 +23,14 @@ Who's in the game and where it happens come in **packs**. Two ship with it, and 
 
 You can mix them: the knight in the candy kingdom, PBJ in the brick castles, either on either console.
 
-Each look also **sounds** like its console: the game's six sounds (picking up, dropping, a dragon's roar, being
-eaten, a dragon dying, the win), and the castle gates rattling open and shut, as NES chip blips, soft SNES
-bells and growls with echo, PC FM beeps, or a toy xylophone, kazoo and slide whistle on paper. Each dragon has
-its own voice - Rhindle high and quick, Grundle deep and slow; in the pbj pack the hen squawks and the Bog
-gurgles - and you hear them stomping towards you. The
-2600-only view plays the original's sounds. Turn the music off (**M**) and you hear the world instead - a
+Each look also **sounds** like its console. The music is played by the look's own band - the NES's chip, a
+small SNES orchestra in a hall (brass, flute, harp, strings, timpani), a PC sound card's FM, or a music box
+and a toy glockenspiel on paper - and switching looks keeps your place in the song. The game's six sounds
+(picking up, dropping, a dragon's roar, being eaten, a dragon dying, the win) and the castle gates rattling
+open and shut come the same way: NES chip blips, soft SNES bells and growls with echo, PC FM beeps, or a toy
+xylophone, kazoo and slide whistle on paper. Each dragon has its own voice - Rhindle high and quick, Grundle
+deep and slow; in the pbj pack the hen squawks and the Bog gurgles - and you hear them stomping towards you.
+The 2600-only view plays the original's sounds. Turn the music off (**M**) and you hear the world instead - a
 summer day in the meadow, birds in the woods, drips in the catacombs - with your footsteps and the bat's wings.
 
 The original 2600 picture can run alongside, and a four-way grid shows your game, a comparison (by default
