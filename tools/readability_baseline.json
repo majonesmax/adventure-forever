@@ -125,20 +125,6 @@
   "E501": 5,
   "N001": 1
  },
- "shared/hud.py": {
-  "N001": 10,
-  "PLR1702": 1
- },
- "shared/layout.py": {
-  "E501": 1,
-  "N001": 7
- },
- "shared/palettes.py": {
-  "E501": 6
- },
- "shared/pixelart.py": {
-  "N001": 6
- },
  "tests/golden.py": {
   "E501": 6,
   "E731": 1,

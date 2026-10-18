@@ -21,18 +21,18 @@ def from_ascii(art, colours, strict=False):
     isn't in `colours` is transparent too, or an error with strict=True (catches typos in hand-drawn art).
     Rows must all be the same width - a ragged row is reported with its number."""
     rows = art.strip("\n").split("\n")
-    bad = [(i, len(r)) for i, r in enumerate(rows) if len(r) != len(rows[0])]
+    bad = [(i, len(row)) for i, row in enumerate(rows) if len(row) != len(rows[0])]
     if bad:
         raise ValueError(f"ragged sprite rows (row, width): {bad} - expected {len(rows[0])}")
     img = np.zeros((len(rows), len(rows[0]), 4), np.uint8)
     for y, row in enumerate(rows):
-        for x, ch in enumerate(row):
-            if ch == ".":
+        for x, char in enumerate(row):
+            if char == ".":
                 continue
-            if ch in colours and colours[ch] is not None:
-                img[y, x] = (*colours[ch], 255)
+            if char in colours and colours[char] is not None:
+                img[y, x] = (*colours[char], 255)
             elif strict:
-                raise KeyError(f"no colour for {ch!r} (row {y}, column {x})")
+                raise KeyError(f"no colour for {char!r} (row {y}, column {x})")
     return img
 
 
@@ -56,11 +56,11 @@ def edited(art, edits):
     """A copy of text art with parts of some rows replaced: {row: [(column, "text"), ...]}.
     Handy for poses: an attack pose is the normal pose with the arms redrawn."""
     rows = art.strip("\n").split("\n")
-    for r, changes in edits.items():
-        row = list(rows[r])
-        for col, text in changes:
-            row[col:col + len(text)] = list(text)
-        rows[r] = "".join(row)
+    for row_number, changes in edits.items():
+        row = list(rows[row_number])
+        for column, text in changes:
+            row[column:column + len(text)] = list(text)
+        rows[row_number] = "".join(row)
     return "\n" + "\n".join(rows)
 
 
@@ -72,17 +72,17 @@ def blit(dst, src, x, y):
     x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + w, dst.shape[1]), min(y + h, dst.shape[0])
     if x0 >= x1 or y0 >= y1:
         return
-    s = src[y0 - y:y1 - y, x0 - x:x1 - x]
-    solid = s[..., 3:4] > 0
-    dst[y0:y1, x0:x1] = np.where(solid, s[..., :3], dst[y0:y1, x0:x1])
+    visible = src[y0 - y:y1 - y, x0 - x:x1 - x]  # the part of src inside dst
+    solid = visible[..., 3:4] > 0
+    dst[y0:y1, x0:x1] = np.where(solid, visible[..., :3], dst[y0:y1, x0:x1])
 
 
 def snes_rgb(rgb):
     """Snap colours to the SNES's 15-bit range (5 bits per channel), expanded back to 8 bits."""
-    a = np.asarray(rgb, np.uint8) >> 3
-    return (a << 3) | (a >> 2)
+    five_bits = np.asarray(rgb, np.uint8) >> 3
+    return (five_bits << 3) | (five_bits >> 2)  # the top bits repeated in the bottom, so 31 -> 255
 
 
 def shade(rgb, factor):
     """An (r, g, b) colour made lighter (factor > 1) or darker (< 1), capped at 255."""
-    return tuple(int(min(255, c * factor)) for c in rgb)
+    return tuple(int(min(255, channel * factor)) for channel in rgb)

@@ -20,25 +20,29 @@ SCREEN_W, SCREEN_H = 256, 240
 HUD_H, ROOM_X, ROOM_H, COL_W = 48, 8, 192, 6
 ROOM_W = R.COLS * COL_W  # 240
 ROOM_RECT = (ROOM_X, HUD_H, ROOM_W, ROOM_H)  # x, y, w, h on the screen
+ROOM_FIRST_LINE, ROOM_LINES = 13, 193  # the 2600 draws a room on TV scan lines 13-205
+ROW_HEIGHTS = [16, 32, 32, 32, 32, 32, 16]  # the room's 7 rows of wall, in our pixels: half, 5 full, half
 
 
-def to_room(fx, line, col_w=COL_W):
-    """2600 frame coordinates (160 px wide, scan lines 13-205) -> room-space pixels."""
-    return fx * col_w / 4, (line - 13) * ROOM_H / 193
+def to_room(frame_x, line, col_w=COL_W):
+    """2600 frame coordinates (160 px wide, scan lines 13-205) -> room-space pixels. Across, 4 of the 2600's
+    pixels make one wall column (col_w of ours); down, the room's 193 scan lines squeeze into ROOM_H."""
+    return frame_x * col_w / 4, (line - ROOM_FIRST_LINE) * ROOM_H / ROOM_LINES
 
 
 def wall_mask(room, col_w=COL_W):
-    """Where the room's walls are, at layout resolution: True = wall. Columns -> col_w px, half-rows -> 16 px."""
-    m = np.zeros((ROOM_H, R.COLS * col_w), bool)
-    heights = [16, 32, 32, 32, 32, 32, 16]  # 7 ROM rows = half, 5 full, half
-    y = 0
-    for r, hh in enumerate(heights):
-        for c, b in enumerate(room["grid"][r]):
-            if b:
-                m[y:y + hh, c * col_w:(c + 1) * col_w] = True
-        y += hh
-    for flag, (x0, _) in (("thin_wall_left", R.THIN_WALL_LEFT_X), ("thin_wall_right", R.THIN_WALL_RIGHT_X)):
+    """Where the room's walls are, at layout resolution: True = wall. Each wall column -> col_w px; each of
+    the 7 rows -> ROW_HEIGHTS."""
+    walls = np.zeros((ROOM_H, R.COLS * col_w), bool)
+    top = 0
+    for row, height in enumerate(ROW_HEIGHTS):
+        for column, is_wall in enumerate(room["grid"][row]):
+            if is_wall:
+                walls[top:top + height, column * col_w:(column + 1) * col_w] = True
+        top += height
+    thin_walls = (("thin_wall_left", R.THIN_WALL_LEFT_X), ("thin_wall_right", R.THIN_WALL_RIGHT_X))
+    for flag, (frame_x, _) in thin_walls:  # the narrow walls some mazes have, between the columns
         if room[flag]:
-            fx = int(round(x0 * col_w / 4))
-            m[:, fx:fx + max(4, col_w * 2 // 3)] = True  # 4 px: outline both sides + 2 px of wall texture
-    return m
+            left = int(round(frame_x * col_w / 4))
+            walls[:, left:left + max(4, col_w * 2 // 3)] = True  # 4 px: outline both sides + 2 px of wall
+    return walls

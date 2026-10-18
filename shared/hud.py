@@ -56,7 +56,7 @@ Z ##### ....# ...#. ..#.. .#... #.... #####
 GLYPHS = {" ": "." * 35}
 for _line in _FONT.strip().split("\n"):
     _ch, *_rows = _line.split(" ")
-    assert len(_rows) == 7 and all(len(r) == 5 for r in _rows), _line
+    assert len(_rows) == 7 and all(len(row) == 5 for row in _rows), _line
     GLYPHS[_ch] = "".join(_rows)
 GLYPHS.update({  # a few more, for DOS prompts and paths (a backslash can't sit in the table above)
     "\\": "#...." "#...." ".#..." "..#.." "...#." "....#" "....#",
@@ -70,17 +70,23 @@ def text_width(text, scale=1):
 
 def draw_text(img, text, x, y, colour, scale=1, shadow=(0, 0, 0)):
     """Draw text on an HxWx3 uint8 image (NES-style: 5x7 glyphs in 8x8 cells, 1 px drop shadow)."""
-    for layer, (dx, dy, col) in enumerate(((1, 1, shadow), (0, 0, colour))):
-        if col is None:
+    for offset, layer_colour in ((1, shadow), (0, colour)):  # the shadow first, 1 px down and right
+        if layer_colour is None:
             continue
-        for i, ch in enumerate(text.upper()):
-            g = GLYPHS.get(ch, GLYPHS["?"])
-            for gy in range(7):
-                for gx in range(5):
-                    if g[gy * 5 + gx] == "#":
-                        px = x + (i * 8 + gx) * scale + dx * scale
-                        py = y + gy * scale + dy * scale
-                        img[max(py, 0):max(py + scale, 0), max(px, 0):max(px + scale, 0)] = col
+        for i, letter in enumerate(text.upper()):
+            glyph = GLYPHS.get(letter, GLYPHS["?"])
+            left = x + (i * 8 + offset) * scale
+            draw_glyph(img, glyph, left, y + offset * scale, scale, layer_colour)
+
+
+def draw_glyph(img, glyph, left, top, scale, colour):
+    """One 5x7 glyph ("#" = ink, row by row) with its top-left at (left, top), each dot scale x scale."""
+    for row in range(7):
+        for column in range(5):
+            if glyph[row * 5 + column] != "#":
+                continue
+            dot_x, dot_y = left + column * scale, top + row * scale
+            img[max(dot_y, 0):max(dot_y + scale, 0), max(dot_x, 0):max(dot_x + scale, 0)] = colour
 
 
 def frame_box(img, x0, y0, x1, y1, colour):
@@ -96,10 +102,10 @@ def mini_room(room, wall_rgb, floor_rgb, cell_w=2, half_row=4):
     heights = [half_row, 2 * half_row, 2 * half_row, 2 * half_row, 2 * half_row, 2 * half_row, half_row]
     out = np.zeros((sum(heights), R.COLS * cell_w, 3), np.uint8)
     out[:] = floor_rgb
-    y = 0
-    for r, hh in enumerate(heights):
-        for c, b in enumerate(room["grid"][r]):
-            if b:
-                out[y:y + hh, c * cell_w:(c + 1) * cell_w] = wall_rgb
-        y += hh
+    top = 0
+    for row, height in enumerate(heights):
+        for column, is_wall in enumerate(room["grid"][row]):
+            if is_wall:
+                out[top:top + height, column * cell_w:(column + 1) * cell_w] = wall_rgb
+        top += height
     return out
