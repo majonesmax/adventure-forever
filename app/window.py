@@ -34,6 +34,7 @@ from app.help_panel import HelpPanel
 from app.now_showing import NowShowing
 from app import recorder as REC
 from app import transitions as TR
+from engine import ambience as AMB
 from engine import emulator as h
 from engine import music as MU
 from engine import objects as O
@@ -139,8 +140,9 @@ class GameWindow:
               f"{', '.join(self.world_keys)} - starting in {self.look.key}", flush=True)
 
     def start_sound(self, rate):
-        """The sound card, with the background music (engine/music.py) mixed in its callback. The game runs
-        without music if it can't start."""
+        """The sound card, with the background music (engine/music.py) and the world's ambience
+        (engine/ambience.py) mixed in its callback. The game runs without music if it can't start."""
+        self.ambience = AMB.Ambience()
         try:
             self.music = MU.MusicPlayer(rate=rate, public=self.public)
             self.music.use_world(self.look.world)
@@ -148,8 +150,12 @@ class GameWindow:
         except Exception as err:
             print(f"no music: {err}", flush=True)
             self.music = None
-        mixer = self.music.mixer if self.music else None
-        self.audio = h.AudioOut(rate, mixer=mixer)
+        self.audio = h.AudioOut(rate, mixer=self.mix_sound)
+
+    def mix_sound(self, block):
+        """The sound card's callback: the 2600's sound with the ambience under it, then the music."""
+        block = MU.mix(block, self.ambience.render(len(block)))
+        return self.music.mixer(block) if self.music else block
 
     def check_rom(self, rom):
         """A ROM that isn't the version this is made for: say so, and what it means (engine/versions.py)."""
@@ -289,6 +295,7 @@ class GameWindow:
             print(f"WIN detected (game {state.game}, frame {self.frame_no})", flush=True)
         self.prev_state = state
         self.follow_music(state)
+        self.follow_ambience(state)
 
     def continue_scrolls(self, needed):
         """The next frame of every look's room scroll. They all move the same distance at the same speed,
@@ -318,6 +325,13 @@ class GameWindow:
             self.music.start(area)
         else:
             self.music.stop()
+
+    def follow_ambience(self, state):
+        """The world's sound for this room, heard while no music plays (M off, or a moment without a
+        song) and the game isn't paused."""
+        music_playing = self.music is not None and self.music.on and self.music.current is not None
+        waiting = self.paused or self.help.open
+        self.ambience.follow(self.look.world.sound(state.room_num), quiet=not music_playing and not waiting)
 
     def record_frame(self):
         """One frame of every stream, and the log line (the RAM panel is rebuilt from RAM at edit time)."""

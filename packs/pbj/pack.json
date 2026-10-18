@@ -23,6 +23,20 @@
       "red_maze":            {"theme": "dungeon",  "name": "DUNGEON"},
       "purple_room":         {"theme": "crystal",  "name": "CRYSTAL CAVE"},
       "credit_room":         {"theme": "secret",   "name": "CRYSTAL CAVE"}
+    },
+    "ambience": {
+      "default": "summer",
+      "labyrinth": "woods",
+      "catacombs": "cave",
+      "white_castle": "frost",
+      "gold_castle_inside": "hall",
+      "white_castle_inside": "hall",
+      "black_castle": "embers",
+      "black_castle_inside": "embers",
+      "black_maze": "embers",
+      "red_maze": "cave",
+      "purple_room": "cave",
+      "credit_room": "cave"
     }
   }
 }

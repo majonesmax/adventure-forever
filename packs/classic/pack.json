@@ -25,6 +25,18 @@
       "red_maze":            {"wall": "wall_red",    "floor": "floor_flag"},
       "purple_room":         {"wall": "wall_purple"},
       "credit_room":         {"wall": "wall_purple"}
+    },
+    "ambience": {
+      "default": "summer",
+      "labyrinth": "woods",
+      "catacombs": "cave",
+      "black_maze": "cave",
+      "gold_castle_inside": "hall",
+      "white_castle_inside": "hall",
+      "black_castle_inside": "hall",
+      "red_maze": "hall",
+      "purple_room": "hall",
+      "credit_room": "hall"
     }
   }
 }

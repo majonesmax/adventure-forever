@@ -169,6 +169,7 @@ Every field is optional; `{}` is a valid pack.json.
 | `outline` | a line around the walls, `[r, g, b]` |
 | `shadow` | how dark the walls' shadow on the floor is (0-1) |
 | `areas` | per place (or `default`): its `wall` and `floor` tiles (picture names), its `name` in the status bar, its `colour` for screens to frame it with |
+| `ambience` | per place (or `default`): what you hear with the music off - `summer` (a breeze, leaves, birds, a bee), `woods` (more birds, a woodpecker), `hall` (still air, birds outside), `cave` (drips), `embers` (a fire's crackle), `frost` (a colder wind). Leave it out for silence |
 | `extends` | another pack's world to start from: its scenery, with your names (e.g. `"extends": "pbj"` and your own `areas` names) |
 | `scale` | the tiles are drawn this many times bigger than the room's pixels |
 

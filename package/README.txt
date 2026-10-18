@@ -37,7 +37,7 @@ KEYS (in the game, H shows them all)
                    L/C/W change only your game)
   F                fullscreen on/off (or resize the window: the picture keeps its shape)
   T                room-scroll transitions on/off
-  M, - / =         music on/off, music volume
+  M, - / =         music on/off (off: the world's own sounds), music volume
   N                next music source (your own music.json, if any -> the built-in songs)
   S                screenshot (saved to your Pictures folder, in "Adventure Forever")
   R                record gameplay on/off (saved to your Movies / Videos folder, in "Adventure

@@ -142,7 +142,7 @@ In the game, **H** shows all of these.
 | `F` | fullscreen on / off |
 | `T` | room scrolls on / off |
 | **Sound** | |
-| `M` | music on / off |
+| `M` | music on / off (off: the world's own sounds - birds and a breeze, drips in the catacombs) |
 | `- / =` | music quieter / louder |
 | `N` | next music source |
 | **More** | |

@@ -24,6 +24,9 @@ pack.json "world" (every field optional):
                  {"red_maze": {"wall": "wall_red", "floor": "floor_flag", "name": "RED MAZE",
                                "colour": [r, g, b]},
                   "default": {...the same, for every place not listed}}
+    ambience     per place, what you hear with the music off (engine/ambience.py: summer, woods, hall,
+                 cave, embers, frost); "default" for every place not listed; none: silence
+                 {"meadow": "summer", "catacombs": "cave", "default": "summer"}
     extends      another pack's world to start from: its scenery, with this world's names
     scale        the tiles are drawn this many times bigger than the room's pixels
 
@@ -113,6 +116,7 @@ class World:
         self.outline = tuple(info["outline"]) if info.get("outline") else None
         self.shadow = info.get("shadow")
         self.areas = info.get("areas", {})
+        self.ambience = info.get("ambience", {})
         self.pictures = PIC.load_folder(folder, info.get("scale", 1))
         self.music = None  # the soundtrack, if the world has one (music.json)
         if os.path.exists(os.path.join(folder, "music.json")):
@@ -128,6 +132,7 @@ class World:
         out.name = info.get("name", key.upper())
         out.title_small = info.get("title_small", self.title_small)
         out.footer = info.get("footer", self.footer)
+        out.ambience = {**self.ambience, **info.get("ambience", {})}
         its_areas = info.get("areas", {})
         out.areas = {}
         for place in {*self.areas, *its_areas}:  # this world's settings over the original's, place by place
@@ -194,6 +199,10 @@ class World:
         """How lit a room is this frame, 0-1: 1 = as painted (the default, always). A world with flickering
         lights returns less now and then; the look shows the room dimmed (kept to its own colour rules)."""
         return 1.0
+
+    def sound(self, room_num):
+        """What you hear in a room with the music off (one of engine/ambience.py's SOUNDS), or None."""
+        return self.ambience.get(area(room_num), self.ambience.get("default"))
 
     def wall_tile(self, room_num):
         """The wall tile of a room's place (for screens that draw a miniature castle), or None."""

@@ -23,7 +23,7 @@ SECTIONS = [
         ("T", "room scrolls on / off", ["t"]),
     ]),
     ("SOUND", [
-        ("M", "music on / off", ["m"]),
+        ("M", "music on / off (off: hear the world)", ["m"]),
         ("- / =", "music quieter / louder", ["-", "="]),
         ("N", "next music source", ["n"]),
     ]),
