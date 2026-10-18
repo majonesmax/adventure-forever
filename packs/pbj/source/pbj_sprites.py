@@ -18,7 +18,8 @@ import sys
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from engine import paths
 from content.cast import ITEMS
 from content.pictures import save_folder
@@ -114,18 +115,21 @@ _PBJ_SIDE_LEGS = ["""
 
 def pbj_frames():
     """view -> [stand, stride] RGBA 16x26 (left = mirrored right)."""
-    c = PBJ_COLOURS
-    front = [from_ascii(_PBJ_HAT + _PBJ_FACE + _PBJ_BODY + legs, c) for legs in _PBJ_LEGS]
+    colours = PBJ_COLOURS
+    front = [from_ascii(_PBJ_HAT + _PBJ_FACE + _PBJ_BODY + legs, colours) for legs in _PBJ_LEGS]
     back_hat = _PBJ_HAT.replace("E", "H")  # no inner ears from behind
-    back = [from_ascii(back_hat + _PBJ_HAIR_BACK + _PBJ_BODY.replace("S", "M") + legs, c) for legs in _PBJ_LEGS]
-    side = [from_ascii(_PBJ_SIDE + legs, c) for legs in _PBJ_SIDE_LEGS]
-    return {"down": front, "up": back, "right": side, "left": [x[:, ::-1] for x in side]}
+    back_body = back_hat + _PBJ_HAIR_BACK + _PBJ_BODY.replace("S", "M")
+    back = [from_ascii(back_body + legs, colours) for legs in _PBJ_LEGS]
+    side = [from_ascii(_PBJ_SIDE + legs, colours) for legs in _PBJ_SIDE_LEGS]
+    return {"down": front, "up": back, "right": side, "left": [frame[:, ::-1] for frame in side]}
 
 
 # ---- Alice, the Scottie long-dog bridge ----
 ALICE_COLOURS = {
-    "black": {"K": (16, 16, 24), "B": (56, 56, 68), "h": (104, 104, 120), "W": (248, 248, 248), "R": (208, 40, 56)},
-    "brown": {"K": (48, 28, 16), "B": (128, 84, 52), "h": (176, 128, 88), "W": (248, 248, 248), "R": (208, 40, 56)},
+    "black": {"K": (16, 16, 24), "B": (56, 56, 68), "h": (104, 104, 120), "W": (248, 248, 248),
+              "R": (208, 40, 56)},
+    "brown": {"K": (48, 28, 16), "B": (128, 84, 52), "h": (176, 128, 88), "W": (248, 248, 248),
+              "R": (208, 40, 56)},
 }
 _ALICE_HEAD = mirrored("""
 .KK.........
@@ -170,10 +174,11 @@ KBBK.KBBBBBB
 
 def alice_bridge(height, width=None, coat="black"):
     """Alice stretched to `height`: head, front legs, a long wiry back, hind legs and tail (24 wide)."""
-    c = ALICE_COLOURS[coat]
-    head, front, mid, tail = (from_ascii(a, c) for a in (_ALICE_HEAD, _ALICE_FRONT_LEGS, _ALICE_STRETCH, _ALICE_TAIL))
-    n = max(1, height - head.shape[0] - front.shape[0] - tail.shape[0])
-    out = np.concatenate([head, front, np.repeat(mid, n, axis=0), tail])
+    colours = ALICE_COLOURS[coat]
+    parts = (_ALICE_HEAD, _ALICE_FRONT_LEGS, _ALICE_STRETCH, _ALICE_TAIL)
+    head, front, mid, tail = (from_ascii(art, colours) for art in parts)
+    back_rows = max(1, height - head.shape[0] - front.shape[0] - tail.shape[0])  # her back stretches
+    out = np.concatenate([head, front, np.repeat(mid, back_rows, axis=0), tail])
     if width and width > out.shape[1]:
         pad = width - out.shape[1]
         out = np.pad(out, ((0, 0), (pad // 2, pad - pad // 2), (0, 0)))
@@ -227,7 +232,8 @@ YETI_ROAR = edited(YETI, {10: [(7, "BBKKKKKKKKBB")], 11: [(7, "BKMMMMMMMMKB")], 
                         21: [(0, "....."), (21, ".....")], 22: [(0, "......."), (19, ".......")],
                         3: [(0, "KBKBK"), (21, "KBKBK")], 4: [(0, "KBBBBK"), (20, "KBBBBK")],
                         5: [(1, "KFFK"), (21, "KFFK")], 6: [(1, "KFFK"), (21, "KFFK")],
-                        7: [(1, "KFFK"), (21, "KFFK")], 8: [(2, "KFK"), (21, "KFK")], 9: [(2, "KFK"), (21, "KFK")]})
+                        7: [(1, "KFFK"), (21, "KFFK")], 8: [(2, "KFK"), (21, "KFK")],
+                        9: [(2, "KFK"), (21, "KFK")]})
 
 CHICKEN_COLOURS = {"K": (56, 40, 32), "Y": (248, 244, 232), "y": (200, 192, 176), "O": (248, 168, 40),
                    "R": (216, 40, 48), "W": (255, 255, 255), "M": (96, 24, 16)}
@@ -383,15 +389,16 @@ MAGNET_COLOURS = {"K": (40, 16, 24), "R": (224, 56, 64), "W": (248, 200, 200), "
 
 
 def villain_frames():
-    """(pose, 2600 dragon colour) -> RGBA: red = the Yeti, yellow = the giant chicken (the coward), green = the Bog."""
+    """(pose, 2600 dragon colour) -> RGBA: red = the Yeti, yellow = the giant chicken (the coward), green =
+    the Bog."""
+    villains = {"red": (YETI, YETI_ROAR, YETI_COLOURS), "yellow": (CHICKEN, CHICKEN_ROAR, CHICKEN_COLOURS),
+                "green": (BOG, BOG_ROAR, BOG_COLOURS)}
     out = {}
-    for way, (normal, roar, cols) in {"red": (YETI, YETI_ROAR, YETI_COLOURS),
-                                       "yellow": (CHICKEN, CHICKEN_ROAR, CHICKEN_COLOURS),
-                                       "green": (BOG, BOG_ROAR, BOG_COLOURS)}.items():
-        n = from_ascii(normal, cols)
-        out[("normal", way)] = n
-        out[("roar", way)] = from_ascii(roar, cols)
-        out[("dead", way)] = n[::-1]
+    for which, (normal, roar, colours) in villains.items():
+        standing = from_ascii(normal, colours)
+        out[("normal", which)] = standing
+        out[("roar", which)] = from_ascii(roar, colours)
+        out[("dead", which)] = standing[::-1]  # upside down, as the 2600 does
     return out
 
 
@@ -402,31 +409,33 @@ def magpie_frames():
 def item_frames():
     out = {0x09: from_ascii(SWORD, SWORD_COLOURS), 0x11: from_ascii(MAGNET, MAGNET_COLOURS),
            0x10: from_ascii(BOOK, BOOK_COLOURS)}
-    for n, cols in KEY_COLOURS.items():
-        out[n] = from_ascii(KEY, {"K": tuple(int(v * 0.3) for v in cols["C"]), **cols})
+    for object_number, colours in KEY_COLOURS.items():
+        outline = tuple(int(channel * 0.3) for channel in colours["C"])  # a dark shade of the key's colour
+        out[object_number] = from_ascii(KEY, {"K": outline, **colours})
     return out
 
 
 def cast_sheet(path=None):
     sprites = []
-    for v in ("down", "up", "right", "left"):
-        sprites += pbj_frames()[v]
-    vf = villain_frames()
-    for way in ("red", "yellow", "green"):
-        sprites += [vf[(p, way)] for p in ("normal", "roar", "dead")]
+    for view in ("down", "up", "right", "left"):
+        sprites += pbj_frames()[view]
+    villains = villain_frames()
+    for which in ("red", "yellow", "green"):
+        sprites += [villains[(pose, which)] for pose in ("normal", "roar", "dead")]
     sprites += list(magpie_frames().values()) + list(item_frames().values())
     sprites += [alice_bridge(56, coat="black"), alice_bridge(56, coat="brown"),
                 alice_portrait("black"), alice_portrait("brown")]
     cells = []
-    for spr in sprites:
-        h, w = spr.shape[:2]
-        bg = np.zeros((max(h, 60) + 4, w + 4, 3), np.uint8)
-        bg[:] = (120, 200, 90)
-        a = spr[..., 3:4] > 0
-        bg[2:2 + h, 2:2 + w] = np.where(a, spr[..., :3], bg[2:2 + h, 2:2 + w])
-        cells.append(bg)
-    hmax = max(c.shape[0] for c in cells)
-    row = np.concatenate([np.pad(c, ((0, hmax - c.shape[0]), (0, 2), (0, 0))) for c in cells], axis=1)
+    for sprite in sprites:
+        h, w = sprite.shape[:2]
+        cell = np.zeros((max(h, 60) + 4, w + 4, 3), np.uint8)
+        cell[:] = (120, 200, 90)  # on grass
+        solid = sprite[..., 3:4] > 0
+        cell[2:2 + h, 2:2 + w] = np.where(solid, sprite[..., :3], cell[2:2 + h, 2:2 + w])
+        cells.append(cell)
+    tallest = max(cell.shape[0] for cell in cells)
+    padded = [np.pad(cell, ((0, tallest - cell.shape[0]), (0, 2), (0, 0))) for cell in cells]
+    row = np.concatenate(padded, axis=1)
     half = row.shape[1] // 2
     cut = next(x for x in range(half, row.shape[1]) if (row[:, x] == 0).all())
     right = row[:, cut:]
@@ -449,13 +458,15 @@ def pictures(coat="black"):
         if pose != "dead":
             out[f"dragon_{pose}_{colour}"] = sprite
     out["bat_up"], out["bat_down"] = magpie_frames()["up"], magpie_frames()["down"]
-    names = {n: name for name, n in ITEMS.items()}
-    for n, sprite in item_frames().items():
-        out[f"item_{names[n]}"] = sprite
-    c = ALICE_COLOURS[coat]  # Alice the bridge: head and front legs, her back (stretched), hind legs and tail
-    out["bridge_top"] = np.concatenate([from_ascii(_ALICE_HEAD, c), from_ascii(_ALICE_FRONT_LEGS, c)])
-    out["bridge_middle"] = from_ascii(_ALICE_STRETCH, c)
-    out["bridge_bottom"] = from_ascii(_ALICE_TAIL, c)
+    names = {object_number: name for name, object_number in ITEMS.items()}
+    for object_number, sprite in item_frames().items():
+        out[f"item_{names[object_number]}"] = sprite
+    # Alice the bridge: head and front legs, her back (stretched), hind legs and tail
+    colours = ALICE_COLOURS[coat]
+    head_and_legs = [from_ascii(_ALICE_HEAD, colours), from_ascii(_ALICE_FRONT_LEGS, colours)]
+    out["bridge_top"] = np.concatenate(head_and_legs)
+    out["bridge_middle"] = from_ascii(_ALICE_STRETCH, colours)
+    out["bridge_bottom"] = from_ascii(_ALICE_TAIL, colours)
     out["messenger"] = alice_portrait(coat)
     return out
 

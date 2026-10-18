@@ -26,12 +26,12 @@ class CustomWorld(World):
         return self.setting(area(room_num), "theme") or "grass"
 
     def room(self, room):
-        n = room["room"]
-        if n not in self.rooms:
-            t = self.theme(n)
-            grass = grass_tile() if t in ("grass", "candy") else None
-            self.rooms[n] = SC.paint_room(room, t, floor_tile=grass, seed=n)
-        return self.rooms[n]
+        room_number = room["room"]
+        if room_number not in self.rooms:
+            theme = self.theme(room_number)
+            grass = grass_tile() if theme in ("grass", "candy") else None
+            self.rooms[room_number] = SC.paint_room(room, theme, floor_tile=grass, seed=room_number)
+        return self.rooms[room_number]
 
     def colour(self, room_num):
         return SC.THEMES[self.theme(room_num)]["title"]

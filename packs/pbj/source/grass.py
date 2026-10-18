@@ -9,7 +9,8 @@ Usage: python packs/pbj/source/grass.py   -> packs/pbj/world/grass.png
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.pixelart import from_ascii
 

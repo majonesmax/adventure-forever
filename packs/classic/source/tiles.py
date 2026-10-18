@@ -10,7 +10,8 @@ Usage: python packs/classic/source/tiles.py   -> packs/classic/world/<tile>.png
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import NES
 from shared.pixelart import from_ascii
@@ -383,8 +384,11 @@ MMDDMMMMMMMMMMMMMMDDMMMMMMMMMMMM"""),
 
 
 def pictures():
-    return {name: from_ascii(art, {ch: NES[i] for ch, i in colours.items()})[..., :3]
-            for name, (colours, art) in TILES.items()}
+    out = {}
+    for name, (colours, art) in TILES.items():
+        rgb = {char: NES[index] for char, index in colours.items()}
+        out[name] = from_ascii(art, rgb)[..., :3]  # tiles are solid: RGB
+    return out
 
 
 if __name__ == "__main__":

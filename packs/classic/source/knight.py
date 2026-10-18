@@ -10,7 +10,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import NES
 
@@ -79,12 +80,12 @@ SPRITES = {
 
 def to_rgba(art):
     rows = art.strip("\n").split("\n")
-    assert len(rows) == 16 and all(len(r) == 16 for r in rows), [len(r) for r in rows]
+    assert len(rows) == 16 and all(len(row) == 16 for row in rows), [len(row) for row in rows]
     out = np.zeros((16, 16, 4), np.uint8)
-    for y, r in enumerate(rows):
-        for x, ch in enumerate(r):
-            if ch in COLOURS:
-                out[y, x] = (*NES[COLOURS[ch]], 255)
+    for y, row in enumerate(rows):
+        for x, char in enumerate(row):
+            if char in COLOURS:
+                out[y, x] = (*NES[COLOURS[char]], 255)
     return out
 
 

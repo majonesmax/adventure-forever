@@ -11,12 +11,13 @@ Usage: python packs/classic/source/dragons.py   -> packs/classic/cast/dragon_<po
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import BLACK, NES
 from shared.pixelart import from_ascii
 
-COLOURS = {"red": (0x16, 0x26), "yellow": (0x28, 0x38), "green": (0x1A, 0x2A)}  # body, highlight (NES palette)
+COLOURS = {"red": (0x16, 0x26), "yellow": (0x28, 0x38), "green": (0x1A, 0x2A)}  # body, highlight (NES)
 
 NORMAL = """
 ................

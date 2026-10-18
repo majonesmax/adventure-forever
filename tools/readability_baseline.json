@@ -6,50 +6,6 @@
   "PLR0912": 1,
   "PLR0915": 1
  },
- "packs/classic/cast/cast.py": {
-  "N001": 5
- },
- "packs/classic/source/dragons.py": {
-  "E501": 2
- },
- "packs/classic/source/items.py": {
-  "E501": 2,
-  "N001": 3
- },
- "packs/classic/source/knight.py": {
-  "E501": 1,
-  "N001": 2
- },
- "packs/classic/source/tiles.py": {
-  "E501": 1,
-  "N001": 1
- },
- "packs/classic/world/world.py": {
-  "N001": 2
- },
- "packs/pbj/source/grass.py": {
-  "E501": 1
- },
- "packs/pbj/source/pbj_sprites.py": {
-  "E501": 7,
-  "N001": 15
- },
- "packs/pbj/world/scenery.py": {
-  "C901": 1,
-  "E501": 18,
-  "N001": 32,
-  "PLR0915": 1
- },
- "packs/pbj/world/world.py": {
-  "N001": 2
- },
- "packs/template/source/template_sprites.py": {
-  "E501": 1
- },
- "play.py": {
-  "E501": 5,
-  "N001": 1
- },
  "tests/golden.py": {
   "E501": 6,
   "E731": 1,

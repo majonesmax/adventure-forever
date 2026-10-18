@@ -15,7 +15,8 @@ The full list of pictures a pack can have, and what pack.json can say: content/c
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))  # the repo root
+REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.pixelart import edited, from_ascii
 
