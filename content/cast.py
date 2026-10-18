@@ -13,9 +13,11 @@ THE PICTURES - PNGs with transparency, all optional except one hero picture:
                                           (a missing _1 stride frame -> the _0 picture)
     dragon_<pose>_<colour>.png            pose normal / roar / dead, colour red / yellow / green
     dragon_<pose>.png                     one design for all three colours
-                                          (a missing dead pose -> the normal one upside down, as the 2600 does)
+                                          (a missing dead pose -> the normal one upside down, as the 2600
+                                          does)
     bat_up.png  bat_down.png              the thief, flapping (missing down -> up)
-    item_sword.png  item_magnet.png  item_chalice.png  item_key_gold.png  item_key_white.png  item_key_black.png
+    item_sword.png  item_magnet.png  item_chalice.png
+    item_key_gold.png  item_key_white.png  item_key_black.png
     bridge_top.png  bridge_middle.png  bridge_bottom.png
                                           the bridge, stretched to fit: top, then the middle repeated, then
                                           the bottom (the middle is usually one row)
@@ -28,8 +30,10 @@ flash through the game's colours, as the chalice does.
 
 pack.json "cast" (every field optional):
     name             shown in --list and the grid view                    "PBJ AND FRIENDS"
-    win_lines        three short lines (up to 18 characters) for the win  ["YOU WIN!", "THE CHALICE", "IS HOME!"]
-    title_cast       pictures (file names without .png) in front of the title castle   ["hero_down_0", "messenger"]
+    win_lines        three short lines (up to 18 characters) for the win
+                         ["YOU WIN!", "THE CHALICE", "IS HOME!"]
+    title_cast       pictures (file names without .png) in front of the title castle
+                         ["hero_down_0", "messenger"]
     messenger_every  frames each messenger frame is shown                 16
     foot_gap         empty rows under the hero's feet in hero_*.png        0 or 1
     scale            the pictures are drawn this many times bigger than the room's pixels; the look shrinks
@@ -47,7 +51,8 @@ from content import pictures as PIC
 
 POSES = ("normal", "roar", "dead")
 COLOURS = ("red", "yellow", "green")
-ITEMS = {"sword": 0x09, "key_gold": 0x0B, "key_white": 0x0C, "key_black": 0x0D, "chalice": 0x10, "magnet": 0x11}
+ITEMS = {"sword": 0x09, "key_gold": 0x0B, "key_white": 0x0C, "key_black": 0x0D, "chalice": 0x10,
+         "magnet": 0x11}  # picture name -> the game's object number
 
 
 class Cast:
@@ -76,38 +81,44 @@ class Cast:
 
     def hero(self):
         """{"down": [stand, stride], "up": [...], "right": [...], "left": [...]}."""
-        p = self.pictures
+        pictures = self.pictures
 
         def frames(view, otherwise):
-            if f"hero_{view}_0" not in p:
+            if f"hero_{view}_0" not in pictures:
                 return list(otherwise)
-            stand = p[f"hero_{view}_0"]
-            return [stand, p.get(f"hero_{view}_1", stand)]
+            stand = pictures[f"hero_{view}_0"]
+            return [stand, pictures.get(f"hero_{view}_1", stand)]
         down = frames("down", None)
         right = frames("right", down)
-        return {"down": down, "up": frames("up", down), "right": right,
-                "left": frames("left", [f[:, ::-1] for f in right])}
+        mirrored = [frame[:, ::-1] for frame in right]
+        return {"down": down, "up": frames("up", down), "right": right, "left": frames("left", mirrored)}
 
     def villains(self):
         """{(pose, colour): sprite} for the three dragons; missing ones are drawn as the original."""
-        p, out = self.pictures, {}
+        pictures, out = self.pictures, {}
         for colour in COLOURS:
             for pose in POSES:
-                spr = p.get(f"dragon_{pose}_{colour}", p.get(f"dragon_{pose}"))
-                if spr is None and pose == "dead" and ("normal", colour) in out:
-                    spr = out[("normal", colour)][::-1]  # upside down, as the 2600 does
-                if spr is not None:
-                    out[(pose, colour)] = spr
+                sprite = pictures.get(f"dragon_{pose}_{colour}", pictures.get(f"dragon_{pose}"))
+                if sprite is None and pose == "dead" and ("normal", colour) in out:
+                    sprite = out[("normal", colour)][::-1]  # upside down, as the 2600 does
+                if sprite is not None:
+                    out[(pose, colour)] = sprite
         return out
 
     def bat(self):
         """{"up": sprite, "down": sprite} - or {} for the original bat."""
-        up = self.pictures.get("bat_up")
-        return {} if up is None else {"up": up, "down": self.pictures.get("bat_down", up)}
+        wings_up = self.pictures.get("bat_up")
+        if wings_up is None:
+            return {}
+        return {"up": wings_up, "down": self.pictures.get("bat_down", wings_up)}
 
     def items(self):
         """{object number: sprite} for whichever of ITEMS the cast draws."""
-        return {n: self.pictures[f"item_{name}"] for name, n in ITEMS.items() if f"item_{name}" in self.pictures}
+        out = {}
+        for name, object_number in ITEMS.items():
+            if f"item_{name}" in self.pictures:
+                out[object_number] = self.pictures[f"item_{name}"]
+        return out
 
     def bridge(self, height, width=None):
         """The bridge `height` pixels long, centred in `width` if given; None = the original bridge."""
@@ -116,8 +127,9 @@ class Cast:
             return None
         top = mid[:0] if top is None else top
         bottom = mid[:0] if bottom is None else bottom
-        n = max(1, (height - top.shape[0] - bottom.shape[0] + mid.shape[0] - 1) // mid.shape[0])
-        out = np.concatenate([top, np.tile(mid, (n, 1, 1)), bottom])
+        middle_rows = height - top.shape[0] - bottom.shape[0]
+        repeats = max(1, (middle_rows + mid.shape[0] - 1) // mid.shape[0])  # rounded up: never short
+        out = np.concatenate([top, np.tile(mid, (repeats, 1, 1)), bottom])
         if width and width > out.shape[1]:
             pad = width - out.shape[1]
             out = np.pad(out, ((0, 0), (pad // 2, pad - pad // 2), (0, 0)))
@@ -125,11 +137,11 @@ class Cast:
 
     def messenger(self, frame_no):
         """Who announces the win (beside the speech bubble), this frame; None = nobody."""
-        frames = [self.pictures[k] for k in sorted(self.pictures) if k.startswith("messenger_")]
+        frames = [self.pictures[name] for name in sorted(self.pictures) if name.startswith("messenger_")]
         if not frames:
             return self.pictures.get("messenger")
         return frames[(frame_no // self.messenger_every) % len(frames)]
 
     def title_cast(self):
         """The pictures standing in front of the castle on a title screen."""
-        return [self.pictures[n] for n in self.title_names if n in self.pictures]
+        return [self.pictures[name] for name in self.title_names if name in self.pictures]

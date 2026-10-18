@@ -19,6 +19,7 @@ select = [
     "PLR0913",  # too many arguments
     "PLR0915",  # too many statements
     "PLR1702",  # blocks nested too deep
+    "F821",     # a name that doesn't exist (a rename that missed a spot)
 ]
 
 [lint.mccabe]

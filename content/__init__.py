@@ -1,9 +1,9 @@
 """What's IN the game: casts (who) and worlds (where), which come in packs (folders) - the one place that
 finds them. How the game is DRAWN is looks/ (the platforms); every look shows every cast in every world.
 
-    packs(public)    {key: folder}: packs/ (classic, pbj first, then A-Z), then - unless public - the folders in
-                     ADVENTURE_PACKS (packs from elsewhere, e.g. another repository), the packs the player added
-                     (paths.USER_PACKS), then private/packs/
+    packs(public)    {key: folder}: packs/ (classic, pbj first, then A-Z), then - unless public - the
+                     folders in ADVENTURE_PACKS (packs from elsewhere, e.g. another repository), the packs the
+                     player added (paths.USER_PACKS), then private/packs/
     install(path)    add the packs in a folder or .zip (a pack, a repository, a GitHub download) to USER_PACKS
     load(key)        a pack, loaded once (content/pack.py): .cast, .world
     casts(public)    keys of the packs with a cast, in the order C cycles them
@@ -21,7 +21,8 @@ from engine import paths
 
 PUBLIC_PACKS = os.path.join(paths.ROOT, "packs")
 PRIVATE_PACKS = os.path.join(paths.PRIVATE, "packs")  # git-ignored: personal packs never get published
-EXTRA_PACKS = [os.path.abspath(p) for p in os.environ.get("ADVENTURE_PACKS", "").split(os.pathsep) if p]
+EXTRA_PACKS = [os.path.abspath(folder) for folder in os.environ.get("ADVENTURE_PACKS", "").split(os.pathsep)
+               if folder]
 FIRST = ("classic", "pbj")  # the built-in packs lead the cycles
 EXAMPLES = ("template",)  # reachable by name, left out of the cycles
 
@@ -30,20 +31,30 @@ _loaded = {}
 
 def packs(public=False, examples=True):
     """{key: folder} - the public packs (built-in first), then the private ones unless public."""
+    roots = [PUBLIC_PACKS]
+    if not public:
+        roots += [*EXTRA_PACKS, paths.USER_PACKS, PRIVATE_PACKS]
     found = {}
-    for root in [PUBLIC_PACKS] if public else [PUBLIC_PACKS, *EXTRA_PACKS, paths.USER_PACKS, PRIVATE_PACKS]:
+    for root in roots:
         if not os.path.isdir(root):
             continue
-        names = [d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "pack.json"))]
-        for d in sorted(names, key=lambda d: (d not in FIRST, FIRST.index(d) if d in FIRST else 0, d)):
-            if examples or d not in EXAMPLES:
-                found.setdefault(d, os.path.join(root, d))
+        names = [name for name in os.listdir(root) if os.path.exists(os.path.join(root, name, "pack.json"))]
+        for name in sorted(names, key=cycle_order):
+            if examples or name not in EXAMPLES:
+                found.setdefault(name, os.path.join(root, name))  # the first root to have a key wins
     return found
 
 
+def cycle_order(name):
+    """The built-in packs first (classic, pbj), then A-Z."""
+    if name in FIRST:
+        return (0, FIRST.index(name), name)
+    return (1, 0, name)
+
+
 def is_private(key):
-    """A pack that isn't the repository's own (private/packs/, or ADVENTURE_PACKS): kept out of --public builds
-    and tests/golden_hashes.json."""
+    """A pack that isn't the repository's own (private/packs/, or ADVENTURE_PACKS): kept out of --public
+    builds and tests/golden_hashes.json."""
     return os.path.dirname(packs().get(key, "")) != PUBLIC_PACKS
 
 
@@ -90,19 +101,16 @@ def find_packs(folder, depth=3):
 
 
 def install(path):
-    """Copy the packs in `path` - a pack folder, a folder holding packs (e.g. a cloned repository), or a .zip of
-    either (e.g. GitHub's "Download ZIP") - into the player's packs folder, replacing older copies. -> their keys.
-    A pack can hold code (cast.py / world.py) that runs when it's shown: only add packs you trust."""
+    """Copy the packs in `path` - a pack folder, a folder holding packs (e.g. a cloned repository), or a .zip
+    of either (e.g. GitHub's "Download ZIP") - into the player's packs folder, replacing older copies.
+    -> their keys. A pack can hold code (cast.py / world.py) that runs when it's shown: only add packs you
+    trust."""
     import shutil
     import tempfile
     import zipfile
     with tempfile.TemporaryDirectory() as tmp:
         if os.path.isfile(path) and zipfile.is_zipfile(path):
-            with zipfile.ZipFile(path) as z:
-                for member in z.namelist():  # nothing may land outside the folder it's unpacked into
-                    if os.path.isabs(member) or ".." in member.replace("\\", "/").split("/"):
-                        raise ValueError(f"unsafe path in the zip: {member}")
-                z.extractall(tmp)
+            unzip_safely(path, tmp)
             path = tmp
         keys = []
         for pack in find_packs(path):
@@ -114,3 +122,14 @@ def install(path):
             _loaded.pop(key, None)
             keys.append(key)
         return keys
+
+
+def unzip_safely(zip_path, folder):
+    """Unpack a .zip into `folder` - refusing it if any file would land outside the folder."""
+    import zipfile
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.namelist():
+            parts = member.replace("\\", "/").split("/")
+            if os.path.isabs(member) or ".." in parts:
+                raise ValueError(f"unsafe path in the zip: {member}")
+        archive.extractall(folder)

@@ -21,7 +21,8 @@ pack.json "world" (every field optional):
     outline      a line around the walls, [r, g, b]                 [0, 0, 0]
     shadow       how dark the walls' shadow on the floor is, 0-1    0.6
     areas        per place: its tiles (picture names), its name in the status bar, its colour on screens
-                 {"red_maze": {"wall": "wall_red", "floor": "floor_flag", "name": "RED MAZE", "colour": [r, g, b]},
+                 {"red_maze": {"wall": "wall_red", "floor": "floor_flag", "name": "RED MAZE",
+                               "colour": [r, g, b]},
                   "default": {...the same, for every place not listed}}
     extends      another pack's world to start from: its scenery, with this world's names
     scale        the tiles are drawn this many times bigger than the room's pixels
@@ -66,6 +67,7 @@ DEFAULT_NAMES = {
     "black_castle_inside": "BLACK CASTLE HALL", "black_maze": "BLACK MAZE", "red_maze": "RED MAZE",
     "purple_room": "PURPLE ROOM", "credit_room": "PURPLE ROOM"}  # the hidden credit: no spoiler
 FLOOR = (170, 170, 170)  # the 2600's own grey
+BRIGHTNESS = [0.299, 0.587, 0.114]  # how bright red, green and blue look
 
 
 def area(room_num):
@@ -79,20 +81,22 @@ def paint_tiles(room, wall=None, floor=None, outline=None, shadow=None, wall_col
     the room's top-left), an `outline` colour around the walls, the floor under each wall darkened to
     `shadow` (0-1) for two rows. No wall tile: `wall_colour`. No floor tile: grey. col_w: pixels per wall
     column (the room layout's 6)."""
-    m = L.wall_mask(room, col_w)
-    h, w = m.shape
+    walls = L.wall_mask(room, col_w)
+    h, w = walls.shape
     yy, xx = np.mgrid[0:h, 0:w]
     img = np.zeros((h, w, 3), np.uint8)
     img[:] = FLOOR if floor is None else floor[yy % floor.shape[0], xx % floor.shape[1]]
     if wall is None:
-        img[m] = wall_colour
+        img[walls] = wall_colour
     else:
-        img[m] = wall[yy % wall.shape[0], xx % wall.shape[1]][m]
+        img[walls] = wall[yy % wall.shape[0], xx % wall.shape[1]][walls]
     if outline is not None:
-        edge = m & ~(np.roll(m, 1, 0) & np.roll(m, -1, 0) & np.roll(m, 1, 1) & np.roll(m, -1, 1))
+        above_below = np.roll(walls, 1, 0) & np.roll(walls, -1, 0)
+        either_side = np.roll(walls, 1, 1) & np.roll(walls, -1, 1)
+        edge = walls & ~(above_below & either_side)  # wall pixels next to floor
         img[edge] = outline
     if shadow is not None:
-        under = ~m & (np.roll(m, 1, 0) | np.roll(m, 2, 0))
+        under = ~walls & (np.roll(walls, 1, 0) | np.roll(walls, 2, 0))  # the two rows of floor below a wall
         img[under] = (np.array(img[under], int) * shadow).astype(np.uint8)
     return img
 
@@ -124,8 +128,10 @@ class World:
         out.name = info.get("name", key.upper())
         out.title_small = info.get("title_small", self.title_small)
         out.footer = info.get("footer", self.footer)
-        out.areas = {a: {**self.areas.get(a, {}), **info.get("areas", {}).get(a, {})}
-                     for a in {*self.areas, *info.get("areas", {})}}
+        its_areas = info.get("areas", {})
+        out.areas = {}
+        for place in {*self.areas, *its_areas}:  # this world's settings over the original's, place by place
+            out.areas[place] = {**self.areas.get(place, {}), **its_areas.get(place, {})}
         return out
 
     def setting(self, place, what):
@@ -144,12 +150,13 @@ class World:
 
     def room(self, room):
         """The room's walls and floor: a 240x192 RGB picture (room: engine/rooms.py's decoded room)."""
-        n = room["room"]
-        if n not in self.rooms:
-            place = area(n)
-            self.rooms[n] = paint_tiles(room, self.tile(place, "wall"), self.tile(place, "floor"), self.outline,
-                                        self.shadow, self.palette_2600[room["colour"] & 0xFE])
-        return self.rooms[n]
+        room_number = room["room"]
+        if room_number not in self.rooms:
+            place = area(room_number)
+            original_colour = self.palette_2600[room["colour"] & 0xFE]
+            self.rooms[room_number] = paint_tiles(room, self.tile(place, "wall"), self.tile(place, "floor"),
+                                                  self.outline, self.shadow, original_colour)
+        return self.rooms[room_number]
 
     def area_name(self, room_num):
         """What the status bar calls this room's place."""
@@ -160,19 +167,19 @@ class World:
         """The place's colour, for screens to frame it with (on a dark bar, so never too dark): pack.json's,
         else the brightest of its wall tile's three commonest colours."""
         place = area(room_num)
-        c = self.setting(place, "colour")
-        if c:
-            return tuple(c)
+        chosen = self.setting(place, "colour")
+        if chosen:
+            return tuple(chosen)
         wall = self.tile(place, "wall")
         if wall is None:
             return (200, 200, 200)
-        cols, counts = np.unique(wall.reshape(-1, 3).astype(int), axis=0, return_counts=True)
-        top = cols[np.argsort(-counts)[:3]]
-        c = top[np.argmax(top @ [0.299, 0.587, 0.114])]
-        lum = c @ [0.299, 0.587, 0.114]
-        if lum < 120:  # lift a dark colour towards white until it reads
-            c = c + (255 - c) * (120 - lum) / (255 - lum)
-        return tuple(int(v) for v in c)
+        colours, counts = np.unique(wall.reshape(-1, 3).astype(int), axis=0, return_counts=True)
+        commonest = colours[np.argsort(-counts)[:3]]
+        colour = commonest[np.argmax(commonest @ BRIGHTNESS)]
+        brightness = colour @ BRIGHTNESS
+        if brightness < 120:  # lift a dark colour towards white until it reads
+            colour = colour + (255 - colour) * (120 - brightness) / (255 - brightness)
+        return tuple(int(channel) for channel in colour)
 
     def gate(self, castle, w, h):
         """A castle's gate ("gold" / "white" / "black"), w x h, RGBA - the bottom of the gate picture,

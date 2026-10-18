@@ -20,26 +20,6 @@
   "E501": 1,
   "N001": 11
  },
- "content/__init__.py": {
-  "E501": 5,
-  "N001": 2,
-  "PLR1702": 1
- },
- "content/cast.py": {
-  "E501": 6,
-  "N001": 6
- },
- "content/pack.py": {
-  "E501": 1
- },
- "content/pictures.py": {
-  "E501": 2,
-  "N001": 2
- },
- "content/world.py": {
-  "E501": 2,
-  "N001": 5
- },
  "engine/chiptune.py": {
   "C901": 1,
   "E501": 12,

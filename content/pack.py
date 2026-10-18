@@ -27,8 +27,8 @@ def custom(folder, filename, base):
         return base
     if folder not in sys.path:
         sys.path.insert(0, folder)
-    spec = importlib.util.spec_from_file_location(f"{os.path.basename(os.path.dirname(folder))}_{filename[:-3]}",
-                                                  path)
+    module_name = f"{os.path.basename(os.path.dirname(folder))}_{filename[:-3]}"  # e.g. pbj_world
+    spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return getattr(module, "Custom" + base.__name__)
