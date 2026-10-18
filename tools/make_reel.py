@@ -170,7 +170,7 @@ class Reel:
             values = {0xE2: values[0x8A], 0xE3: values[0x8B], 0xE4: values[0x8C], **values}
         for addr, v in values.items():
             ram[addr - 0x80] = v
-        self.win.prev_st = None
+        self.win.prev_state = None
         # the 2600 sees walls by hardware collision with the picture it last drew - still the old room's
         # for a frame - so stand still while the new room is drawn
         self.play(2)

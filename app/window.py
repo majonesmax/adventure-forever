@@ -7,15 +7,15 @@ One frame (GameWindow.run):
     4. extras     music follows the area, the recorder saves every look, the RAM panel logs events
     5. show       the current view: a look beside the 2600 original, a look alone, the 2600 alone, or the
                   grid (what you're playing over a comparison left, the 2600 over its live RAM right)
+    6. pace       vsync on a ~60 Hz display, else a timer at the game's frame rate
 
 What's on screen is a look (the console: NES, SNES, VGA, paper) showing a cast (who) in a world (where), both
-from packs/. L changes the look, C the cast, W the world, and a moment's overlay says what's showing (now_showing.py; I
-brings it up without changing anything). The grid shows what you're playing (top) over a comparison (bottom):
-by default the next look with the same cast and world. In the grid L / C / W change only yours, and
-Shift+L / C / W only the comparison.
+from packs/. L changes the look, C the cast, W the world, and a moment's overlay says what's showing
+(now_showing.py; I brings it up without changing anything). The grid shows what you're playing (top) over a
+comparison (bottom): by default the next look with the same cast and world. In the grid L / C / W change only
+yours, and Shift+L / C / W only the comparison.
 Until C or W is pressed each look shows its own pack's cast and world; after, every look shows the chosen
 one, so the grid compares consoles.
-    6. pace       vsync on a ~60 Hz display, else a timer at the game's frame rate
 """
 
 import collections
@@ -67,50 +67,25 @@ SOLO_SCALE = 3     # the 2600 picture alone: 160x228 -> 960x684
 QUAD = (512, 480)  # grid: each quadrant is a 256x240 screen at x2 -> a 1024x960 window
 BACKGROUND = (16, 16, 24)
 FIT = 0.9  # a new window takes at most this share of the screen's width and height
+NOTHING_CARRIED = 0x12  # the game's "null" object
+DEFAULT_SAMPLE_RATE = 31440
 
 
 class GameWindow:
-    def __init__(self, rom, look_key=None, cast_key=None, world_key=None, grid=False, public=False, record=False):
+    def __init__(self, rom, look_key=None, cast_key=None, world_key=None, grid=False, public=False,
+                 record=False):
         self.core = h.Core()
         self.core.load(rom)
-        av = self.core.av_info()
-        self.fps, rate = av.timing.fps, int(av.timing.sample_rate) or 31440
+        av_info = self.core.av_info()
+        self.fps = av_info.timing.fps
+        rate = int(av_info.timing.sample_rate) or DEFAULT_SAMPLE_RATE
         R.ROM_PATH = rom  # the looks read walls and graphics from the ROM too
         self.game = Game()
-
-        # L cycles the looks, C the casts, W the worlds (None: each look's own); a template is reachable by name
         self.public = public
-        self.look_keys = list(looks.LOOKS)
-        self.cast_keys, self.world_keys = content.casts(public), content.worlds(public)
-        look_key = looks.OLD_NAMES.get(look_key, look_key)
-        if look_key in looks.TEMPLATE_LOOKS:
-            self.look_keys.append(look_key)
-        for key, keys in ((cast_key, self.cast_keys), (world_key, self.world_keys)):
-            if key and key not in keys:
-                keys.append(key)
-        # default: NES with its own pack in development; a packaged app starts on the SNES with its last private
-        # pack's cast and world, if it has one
-        # (packs bundled in a personal build only - not packs the player added, which wait for C / W)
-        private = [k for k in self.cast_keys if os.path.dirname(content.packs().get(k, "")) == content.PRIVATE_PACKS]
-        last = private[-1] if paths.FROZEN and private else None
-        self.look_key = look_key or ("snes" if paths.FROZEN else "nes")
-        self.cast_key = cast_key or last
-        self.world_key = world_key or (last if last in self.world_keys else None)
-        self.made = {}  # (look, cast, world) -> the look, made the first time it's shown
-        self.compare = {"look": None, "cast": None, "world": None}  # the grid's comparison; None = follow yours
-        print(f"looks: {', '.join(self.look_keys)}; casts: {', '.join(self.cast_keys)}; worlds: "
-              f"{', '.join(self.world_keys)} - starting in {self.look.key}", flush=True)
-
-        pygame.display.init()  # not pygame.init(): that also opens pygame's own audio mixer, a 2nd stream on the card
+        self.choose_starting_looks(look_key, cast_key, world_key)
+        pygame.display.init()  # not pygame.init(): that opens pygame's own mixer too (a 2nd sound stream)
         pygame.font.init()
-        try:  # background music (engine/music.py), mixed in the sound card's callback; the game runs without it
-            self.music = MU.MusicPlayer(rate=rate, public=public)
-            self.music.use_world(self.look.world)
-            print(f"music: {self.music.source_name}", flush=True)
-        except Exception as err:
-            print(f"no music: {err}", flush=True)
-            self.music = None
-        self.audio = h.AudioOut(rate, mixer=self.music.mixer if self.music else None)
+        self.start_sound(rate)
         self.panel = DP.DebugPanel(QUAD)
         self.recorder = REC.Recorder(paths.RECORDINGS, rate)
         self.audio.tap, self.panel.listener = self.recorder.audio_tap, self.recorder.event
@@ -118,29 +93,83 @@ class GameWindow:
         self.tag_font = mono(12, bold=True)
         self.now_showing = NowShowing()
         self.help = HelpPanel()
-        with open(rom, "rb") as f:  # a ROM that isn't the version this is made for: say so, and what it means
-            self.now_showing.warning = self.rom_report = versions.report(f.read())
-        if self.rom_report:
-            print("ROM: " + "\n     ".join([self.rom_report[0], *self.rom_report[1]]), flush=True)
-        self.now_showing.show(duration=12 if self.rom_report else 2.5)  # say what's on screen at the start
+        self.check_rom(rom)
 
         self.view = "grid" if grid else "both"
         self.debug = self.paused = False
         self.scrolling, self.scrolls = True, {}  # scrolls: look -> its room scroll while one is sliding
-        self.st = self.prev_st = None
+        self.state = self.prev_state = None
         self.pictures = {}
         self.music_area = None
         self.frame_no, self.render_ms = 0, []
-        self.frame_times = collections.deque(maxlen=121)  # when each of the last game frames ran: the real fps
+        self.frame_times = collections.deque(maxlen=121)  # when the last game frames ran: the real fps
         self.fullscreen = False
         self.vsync = False
         self.screen = self.set_mode()
-        rates = pygame.display.get_desktop_refresh_rates() if hasattr(pygame.display, "get_desktop_refresh_rates") else []
-        self.display_hz_matches = bool(rates) and abs(rates[0] - self.fps) < 1.5
-        print(f"display {rates[0] if rates else '?'} Hz, vsync {'on' if self.vsync else 'off'}, "
-              f"pacing by {'vsync' if self.vsync and self.display_hz_matches else 'timer'}", flush=True)
+        self.choose_pacing()
         if record:
             self.toggle_recording()
+
+    def choose_starting_looks(self, look_key, cast_key, world_key):
+        """What L, C and W cycle through, and what's on screen first. Default: the NES with its own pack in
+        development; a packaged app starts on the SNES with its last private pack's cast and world, if it
+        has one (packs bundled in a personal build only - not packs the player added: they wait for C / W)."""
+        self.look_keys = list(looks.LOOKS)
+        self.cast_keys, self.world_keys = content.casts(self.public), content.worlds(self.public)
+        look_key = looks.OLD_NAMES.get(look_key, look_key)
+        if look_key in looks.TEMPLATE_LOOKS:  # the template look is reachable by name only
+            self.look_keys.append(look_key)
+        for key, keys in ((cast_key, self.cast_keys), (world_key, self.world_keys)):
+            if key and key not in keys:
+                keys.append(key)
+        bundled = []
+        for key in self.cast_keys:
+            folder = content.packs().get(key, "")
+            if os.path.dirname(folder) == content.PRIVATE_PACKS:
+                bundled.append(key)
+        last_bundled = bundled[-1] if paths.FROZEN and bundled else None
+        self.look_key = look_key or ("snes" if paths.FROZEN else "nes")
+        self.cast_key = cast_key or last_bundled
+        if world_key is None and last_bundled in self.world_keys:
+            world_key = last_bundled
+        self.world_key = world_key
+        self.made = {}  # (look, cast, world) -> the look, made the first time it's shown
+        self.compare = {"look": None, "cast": None, "world": None}  # the grid's comparison; None = yours
+        print(f"looks: {', '.join(self.look_keys)}; casts: {', '.join(self.cast_keys)}; worlds: "
+              f"{', '.join(self.world_keys)} - starting in {self.look.key}", flush=True)
+
+    def start_sound(self, rate):
+        """The sound card, with the background music (engine/music.py) mixed in its callback. The game runs
+        without music if it can't start."""
+        try:
+            self.music = MU.MusicPlayer(rate=rate, public=self.public)
+            self.music.use_world(self.look.world)
+            print(f"music: {self.music.source_name}", flush=True)
+        except Exception as err:
+            print(f"no music: {err}", flush=True)
+            self.music = None
+        mixer = self.music.mixer if self.music else None
+        self.audio = h.AudioOut(rate, mixer=mixer)
+
+    def check_rom(self, rom):
+        """A ROM that isn't the version this is made for: say so, and what it means (engine/versions.py)."""
+        with open(rom, "rb") as f:
+            self.rom_report = versions.report(f.read())
+        self.now_showing.warning = self.rom_report
+        if self.rom_report:
+            headline, details = self.rom_report
+            print("ROM: " + "\n     ".join([headline, *details]), flush=True)
+        self.now_showing.show(duration=12 if self.rom_report else 2.5)  # say what's on screen at the start
+
+    def choose_pacing(self):
+        """Vsync paces the loop on a display near the game's rate; anything else, a timer (run())."""
+        rates = []
+        if hasattr(pygame.display, "get_desktop_refresh_rates"):
+            rates = pygame.display.get_desktop_refresh_rates()
+        self.display_hz_matches = bool(rates) and abs(rates[0] - self.fps) < 1.5
+        pacing = "vsync" if self.vsync and self.display_hz_matches else "timer"
+        print(f"display {rates[0] if rates else '?'} Hz, vsync {'on' if self.vsync else 'off'}, "
+              f"pacing by {pacing}", flush=True)
 
     # ---- which looks ---------------------------------------------------------------------------------------
 
@@ -158,10 +187,12 @@ class GameWindow:
 
     @property
     def comparison(self):
-        """The grid's bottom pane: the comparison's own look, cast and world where set (Shift+L / C / W), else
-        the look after yours, with your cast and world."""
-        look = self.compare["look"] or following(self.look_keys, self.look_key)
-        return self.get(look, self.compare["cast"] or self.look.cast.key, self.compare["world"] or self.look.world.key)
+        """The grid's bottom pane: the comparison's own look, cast and world where set (Shift+L / C / W),
+        else the look after yours, with your cast and world."""
+        look_key = self.compare["look"] or following(self.look_keys, self.look_key)
+        cast_key = self.compare["cast"] or self.look.cast.key
+        world_key = self.compare["world"] or self.look.world.key
+        return self.get(look_key, cast_key, world_key)
 
     def grid_looks(self):
         """The grid's left column: what you're playing over the comparison."""
@@ -170,7 +201,7 @@ class GameWindow:
     def recorded_looks(self):
         """While recording: every look in the L cycle (one stream each, named by the look), with the cast
         and world on screen."""
-        return [self.get(k) for k in self.look_keys]
+        return [self.get(look_key) for look_key in self.look_keys]
 
     # ---- the loop ------------------------------------------------------------------------------------------
 
@@ -180,10 +211,11 @@ class GameWindow:
             self.step_game()
             if self.core.frame is None:
                 continue
-            t0 = time.perf_counter()
+            started = time.perf_counter()
             self.draw_pictures()
             self.record_frame()
-            self.render_ms = (self.render_ms + [(time.perf_counter() - t0) * 1000])[-60:]
+            took_ms = (time.perf_counter() - started) * 1000
+            self.render_ms = (self.render_ms + [took_ms])[-60:]  # the last second's
             self.show()
             # with vsync on a ~60 Hz display, flip() already paces us at the game's 60 fps; a second wait on
             # top would stack and stutter. Otherwise (no vsync, or e.g. a 120 Hz display) the clock paces us.
@@ -191,79 +223,115 @@ class GameWindow:
 
     def handle_input(self):
         """Keys -> the joystick or a window command. False = quit."""
-        for e in pygame.event.get():
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE and self.help.open:
+        for event in pygame.event.get():
+            escape = event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
+            if escape and self.help.open:
                 self.help.toggle()  # Esc closes the help first; the next Esc quits
                 continue
-            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
+            if event.type == pygame.QUIT or escape:
                 self.stop_recording()  # finish the files properly
                 return False
-            if e.type == pygame.DROPFILE:  # a pack (folder or .zip) dropped on the window
-                self.install_pack(e.file)
-                continue
-            if e.type in (pygame.KEYDOWN, pygame.KEYUP):
-                if e.key in JOYSTICK:
-                    (self.core.joy.add if e.type == pygame.KEYDOWN else self.core.joy.discard)(JOYSTICK[e.key])
-                elif e.type == pygame.KEYDOWN and e.key in SHIFTED and e.mod & pygame.KMOD_SHIFT:
-                    getattr(self, SHIFTED[e.key])()
-                elif e.type == pygame.KEYDOWN and e.key in KEYS:
-                    getattr(self, KEYS[e.key])()
+            if event.type == pygame.DROPFILE:  # a pack (folder or .zip) dropped on the window
+                self.install_pack(event.file)
+            elif event.type in (pygame.KEYDOWN, pygame.KEYUP):
+                self.handle_key(event)
         return True
+
+    def handle_key(self, event):
+        pressed = event.type == pygame.KEYDOWN
+        if event.key in JOYSTICK:
+            if pressed:
+                self.core.joy.add(JOYSTICK[event.key])
+            else:
+                self.core.joy.discard(JOYSTICK[event.key])
+        elif pressed and event.key in SHIFTED and event.mod & pygame.KMOD_SHIFT:
+            getattr(self, SHIFTED[event.key])()
+        elif pressed and event.key in KEYS:
+            getattr(self, KEYS[event.key])()
 
     def step_game(self):
         """One emulator frame - unless paused, or while a scroll slides (the game simply waits for it)."""
-        if not self.paused and not self.scrolls and not self.help.open:  # the game waits while the help is up
+        waiting = self.paused or self.scrolls or self.help.open  # the game waits while the help is up too
+        if not waiting:
             self.frame_times.append(time.perf_counter())
             self.core.run()
-            self.audio.push(self.core.take_audio())  # the music is added by the sound card's callback, not here
+            self.audio.push(self.core.take_audio())  # the music is added in the sound card's callback
             self.frame_no += 1
             self.panel.update(None, self.core.ram, self.frame_no)  # always, so the event log has history
         if self.music:
-            self.music.paused = self.paused or self.help.open  # P and the help pause the music too; scrolls don't
-        self.audio.expect = not (self.paused or self.scrolls or self.help.open)  # silence is deliberate then
+            self.music.paused = self.paused or self.help.open  # P and the help pause the music; scrolls don't
+        self.audio.expect = not waiting  # silence is deliberate then
+
+    def needed_looks(self):
+        """The looks that draw this frame: what's on screen - and while recording, every look's stream and
+        the grid's comparison too (its own stream: it can have its own cast and world)."""
+        needed = list(self.grid_looks()) if self.view == "grid" else [self.look]
+        if self.recorder.active:
+            recorded = self.recorded_looks()
+            needed = recorded + [look for look in self.grid_looks() if look not in recorded]
+        return needed
 
     def draw_pictures(self):
-        """Every look that's needed draws this frame (all of them while recording)."""
-        needed = list(self.grid_looks()) if self.view == "grid" else [self.look]
-        if self.recorder.active:  # every look's stream, and the grid's comparison (its own stream: it can have
-            needed = self.recorded_looks() + [lk for lk in self.grid_looks() if lk not in self.recorded_looks()]
-            # its own cast and world) - which includes what's on screen
-        if self.scrolls:  # every look scrolls the same distance at the same speed, so they finish together
-            caught_up = next(iter(self.scrolls.values())).offset
-            for lk in needed:  # a view switch (e.g. into the grid) mid-scroll can need a look not yet scrolling
-                if lk not in self.scrolls:
-                    sc = TR.Scroll.between(lk, self.prev_st, self.st, self.frame_no)
-                    if sc:
-                        sc.offset = caught_up
-                        self.scrolls[lk] = sc
-            self.pictures = {lk: sc.frame() for lk, sc in self.scrolls.items()}
-            if all(sc.done for sc in self.scrolls.values()):
-                self.scrolls = {}
+        """Every look that's needed draws this frame - or the next frame of its room scroll."""
+        needed = self.needed_looks()
+        if self.scrolls:
+            self.continue_scrolls(needed)
             return
-        st = self.st = self.game.state(self.core.ram)
-        self.pictures = {lk: lk.draw(st, self.frame_no) for lk in needed}
-        if self.scrolling and self.prev_st and TR.scroll_direction(self.prev_st, st):  # into the next room
-            self.scrolls = {lk: TR.Scroll.between(lk, self.prev_st, st, self.frame_no) for lk in needed}
-            self.pictures = {lk: sc.frame() for lk, sc in self.scrolls.items()}
-        if st.won and not (self.prev_st and self.prev_st.won):
-            print(f"WIN detected (game {st.game}, frame {self.frame_no})", flush=True)
-        self.prev_st = st
-        if self.music is not None:  # switch tracks when the music area changes (title / overworld / ...)
-            area = MU.area_for(st)
-            if area != self.music_area:
-                self.music_area = area
-                self.music.start(area) if self.music.has(area) else self.music.stop()
+        state = self.state = self.game.state(self.core.ram)
+        self.pictures = {look: look.draw(state, self.frame_no) for look in needed}
+        into_next_room = self.prev_state and TR.scroll_direction(self.prev_state, state)
+        if self.scrolling and into_next_room:
+            for look in needed:
+                self.scrolls[look] = TR.Scroll.between(look, self.prev_state, state, self.frame_no)
+            self.pictures = {look: scroll.frame() for look, scroll in self.scrolls.items()}
+        just_won = state.won and not (self.prev_state and self.prev_state.won)
+        if just_won:
+            print(f"WIN detected (game {state.game}, frame {self.frame_no})", flush=True)
+        self.prev_state = state
+        self.follow_music(state)
+
+    def continue_scrolls(self, needed):
+        """The next frame of every look's room scroll. They all move the same distance at the same speed,
+        so they finish together; a view switch mid-scroll (into the grid, say) can need a look that isn't
+        scrolling yet - it joins at the same point."""
+        caught_up = next(iter(self.scrolls.values())).offset
+        for look in needed:
+            if look in self.scrolls:
+                continue
+            scroll = TR.Scroll.between(look, self.prev_state, self.state, self.frame_no)
+            if scroll:
+                scroll.offset = caught_up
+                self.scrolls[look] = scroll
+        self.pictures = {look: scroll.frame() for look, scroll in self.scrolls.items()}
+        if all(scroll.done for scroll in self.scrolls.values()):
+            self.scrolls = {}
+
+    def follow_music(self, state):
+        """Switch tracks when the music area changes (title / overworld / dungeon / final / win)."""
+        if self.music is None:
+            return
+        area = MU.area_for(state)
+        if area == self.music_area:
+            return
+        self.music_area = area
+        if self.music.has(area):
+            self.music.start(area)
+        else:
+            self.music.stop()
 
     def record_frame(self):
-        if self.recorder.active and not self.paused:  # the RAM panel is rebuilt from the RAM at edit time
-            st = self.st
-            self.recorder.frame({"a2600": self.core.frame, "compare": self.pictures.get(self.comparison),
-                                 **{lk.platform: self.pictures.get(lk) for lk in self.recorded_looks()}},
-                                {"g": self.frame_no, "room": st.room_num, "hero": st.hero, "carry": st.carried,
-                                 "look": self.look.platform, "cast": self.look.cast.key,
-                                 "world": self.look.world.key, "grid_top": self.look.platform,
-                                 "grid16": self.comparison.platform, "compare": self.comparison.key,
-                                 "view": self.view, "scroll": bool(self.scrolls)}, self.core.ram)
+        """One frame of every stream, and the log line (the RAM panel is rebuilt from RAM at edit time)."""
+        if not self.recorder.active or self.paused:
+            return
+        state = self.state
+        streams = {"a2600": self.core.frame, "compare": self.pictures.get(self.comparison)}
+        for look in self.recorded_looks():
+            streams[look.platform] = self.pictures.get(look)
+        log_line = {"g": self.frame_no, "room": state.room_num, "hero": state.hero, "carry": state.carried,
+                    "look": self.look.platform, "cast": self.look.cast.key, "world": self.look.world.key,
+                    "grid_top": self.look.platform, "grid16": self.comparison.platform,
+                    "compare": self.comparison.key, "view": self.view, "scroll": bool(self.scrolls)}
+        self.recorder.frame(streams, log_line, self.core.ram)
 
     def show(self):
         main_w, main_h = L.SCREEN_W * SCALE, L.SCREEN_H * SCALE
@@ -271,42 +339,58 @@ class GameWindow:
         screen.fill(BACKGROUND)
         if self.view == "grid":
             top, bottom = self.grid_looks()
-            draw_grid(screen, self.core.frame, (self.pictures.get(top), f"PLAYING - {top.platform_name}"),
-                      (self.pictures.get(bottom), f"COMPARE - {bottom.platform_name}"), self.panel, self.st,
-                      self.tag_font)
+            playing = (self.pictures.get(top), f"PLAYING - {top.platform_name}")
+            comparing = (self.pictures.get(bottom), f"COMPARE - {bottom.platform_name}")
+            draw_grid(screen, self.core.frame, playing, comparing, self.panel, self.state, self.tag_font)
         if self.view in ("both", "look"):
             picture = self.pictures.get(self.look, next(iter(self.pictures.values())))
-            surf = pygame.surfarray.make_surface(picture.transpose(1, 0, 2))
-            screen.blit(pygame.transform.scale(surf, (main_w, main_h)), (0, 0))
+            surface = pygame.surfarray.make_surface(picture.transpose(1, 0, 2))
+            screen.blit(pygame.transform.scale(surface, (main_w, main_h)), (0, 0))
         if self.view in ("both", "2600"):
-            original = pygame.surfarray.make_surface(self.core.frame.transpose(1, 0, 2))
-            if self.view == "both":
-                side_w, side_h = 160 * SIDE_SCALE * 2, 228 * SIDE_SCALE
-                screen.blit(pygame.transform.scale(original, (side_w, side_h)), (main_w + 16, (main_h - side_h) // 2))
-            else:
-                solo_w, solo_h = 160 * SOLO_SCALE * 2, 228 * SOLO_SCALE
-                screen.blit(pygame.transform.scale(original, (solo_w, solo_h)), (0, (main_h - solo_h) // 2))
-        centre = {"both": main_w // 2, "look": main_w // 2, "2600": 160 * SOLO_SCALE, "grid": QUAD[0]}[self.view]
-        both = self.view == "grid" or (self.now_showing.changed or ("",))[0] == "COMPARE"
-        panes = [("PLAYING", self.look), ("COMPARE", self.comparison)] if both else [(None, self.look)]
-        self.now_showing.draw(screen, panes, centre)  # window only - never in the recording
-        self.help.draw(screen)
-        if self.recorder.active and (self.frame_no // 30) % 2 == 0:  # window only - never in the recording
-            pygame.draw.circle(screen, (230, 40, 40), (18, 18), 7)
-            screen.blit(self.font.render("REC", True, (230, 40, 40)), (30, 9))
+            self.show_original(screen, main_w, main_h)
+        self.show_overlays(screen, main_w)
         if self.debug:
-            st, a = self.st, self.audio
-            carried = O.NAMES.get(st.carried) if st.carried != 0x12 else "-"
-            t = self.frame_times
-            fps = (len(t) - 1) / (t[-1] - t[0]) if len(t) > 1 and t[-1] > t[0] else 0.0
-            info = (f"game {fps:4.1f} fps   room ${st.room_num:02X} {st.room['name']}   "
-                    f"hero {st.hero[0]:02X},{st.hero[1]:02X}   carrying {carried}   "
-                    f"render {np.mean(self.render_ms):.1f} ms   "
-                    f"2600 audio missing {a.missing} dropped {a.dropped}  card dropouts {a.xruns}")
+            info = self.debug_line()
             screen.blit(self.font.render(info, True, (200, 200, 220)), (8, main_h + 4))
         if screen is not self.screen:  # a small screen, or a view changed in fullscreen: fit the canvas in
             fit_into(screen, self.screen)
         pygame.display.flip()
+
+    def show_original(self, screen, main_w, main_h):
+        """The 2600's own picture: beside the look (its pixels twice as wide as tall), or alone."""
+        original = pygame.surfarray.make_surface(self.core.frame.transpose(1, 0, 2))
+        scale = SIDE_SCALE if self.view == "both" else SOLO_SCALE
+        width, height = 160 * scale * 2, 228 * scale
+        left = main_w + 16 if self.view == "both" else 0
+        screen.blit(pygame.transform.scale(original, (width, height)), (left, (main_h - height) // 2))
+
+    def show_overlays(self, screen, main_w):
+        """What's showing (I), the help (H) and the recording light - window only, never in a recording."""
+        centres = {"both": main_w // 2, "look": main_w // 2, "2600": 160 * SOLO_SCALE, "grid": QUAD[0]}
+        changed_pane = (self.now_showing.changed or ("",))[0]
+        if self.view == "grid" or changed_pane == "COMPARE":
+            panes = [("PLAYING", self.look), ("COMPARE", self.comparison)]
+        else:
+            panes = [(None, self.look)]
+        self.now_showing.draw(screen, panes, centres[self.view])
+        self.help.draw(screen)
+        blink_on = (self.frame_no // 30) % 2 == 0
+        if self.recorder.active and blink_on:
+            pygame.draw.circle(screen, (230, 40, 40), (18, 18), 7)
+            screen.blit(self.font.render("REC", True, (230, 40, 40)), (30, 9))
+
+    def debug_line(self):
+        """D: the measured game speed, where the hero is, render time and sound diagnostics."""
+        state, audio, times = self.state, self.audio, self.frame_times
+        carried = "-" if state.carried == NOTHING_CARRIED else O.NAMES.get(state.carried)
+        fps = 0.0
+        if len(times) > 1 and times[-1] > times[0]:
+            fps = (len(times) - 1) / (times[-1] - times[0])
+        hero_x, hero_y = state.hero
+        return (f"game {fps:4.1f} fps   room ${state.room_num:02X} {state.room['name']}   "
+                f"hero {hero_x:02X},{hero_y:02X}   carrying {carried}   "
+                f"render {np.mean(self.render_ms):.1f} ms   "
+                f"2600 audio missing {audio.missing} dropped {audio.dropped}  card dropouts {audio.xruns}")
 
     def set_mode(self):
         """The window for the current view. Each view is drawn at a fixed size (self.canvas) and shown scaled
@@ -351,8 +435,8 @@ class GameWindow:
         (only Shift+L / C / W change it). Elsewhere it goes on following yours, so the grid opens on the look
         after yours with your cast and world."""
         if self.view == "grid":
-            cmp = self.comparison
-            self.compare = {"look": cmp.platform, "cast": cmp.cast.key, "world": cmp.world.key}
+            shown = self.comparison
+            self.compare = {"look": shown.platform, "cast": shown.cast.key, "world": shown.world.key}
         else:
             self.compare[part] = None
 
@@ -399,9 +483,9 @@ class GameWindow:
         self.now_showing.show(("COMPARE", "world"))
 
     def toggle_fullscreen(self):
-        """F: fullscreen on / off (the picture keeps its shape). Into fullscreen: the same window grows. Out of
-        it: a new window at the current view's own size - whatever views were chosen meanwhile, and not the
-        whole multiple of it that SCALED would otherwise pick (double, on a big screen)."""
+        """F: fullscreen on / off (the picture keeps its shape). Into fullscreen: the same window grows. Out
+        of it: a new window at the current view's own size - whatever views were chosen meanwhile, and not
+        the whole multiple of it that SCALED would otherwise pick (double, on a big screen)."""
         self.fullscreen = not self.fullscreen
         if self.fullscreen:
             pygame.display.toggle_fullscreen()
@@ -409,7 +493,7 @@ class GameWindow:
             self.screen = self.set_mode()
 
     def install_pack(self, path):
-        """A folder or .zip dropped on the window: add the packs in it (content.install) and show the first."""
+        """A folder or .zip dropped on the window: add the packs in it (content.install), show the first."""
         try:
             keys = content.install(path)
         except Exception as err:
@@ -419,10 +503,13 @@ class GameWindow:
         if not keys:
             self.now_showing.show(note="NO PACK IN THAT (A PACK HAS A PACK.JSON)", duration=5)
             return
-        self.cast_keys = content.casts(self.public) + [k for k in self.cast_keys if k not in content.casts(self.public)]
-        self.world_keys = content.worlds(self.public) + [k for k in self.world_keys
-                                                         if k not in content.worlds(self.public)]
-        self.made = {k: v for k, v in self.made.items() if k[1] not in keys and k[2] not in keys}
+        casts, worlds = content.casts(self.public), content.worlds(self.public)
+        self.cast_keys = casts + [key for key in self.cast_keys if key not in casts]
+        self.world_keys = worlds + [key for key in self.world_keys if key not in worlds]
+        for made_key in list(self.made):  # looks made with an older copy of these packs: make them again
+            _, cast_key, world_key = made_key
+            if cast_key in keys or world_key in keys:
+                del self.made[made_key]
         pack = content.load(keys[0])
         if pack.cast:
             self.cast_key, self.compare["cast"] = keys[0], None
@@ -431,7 +518,7 @@ class GameWindow:
             if self.music:
                 self.music.use_world(self.look.world)
                 self.music_area = None
-        names = ", ".join(content.load(k).name for k in keys)
+        names = ", ".join(content.load(key).name for key in keys)
         print(f"added: {names} -> {paths.USER_PACKS}", flush=True)
         self.now_showing.show(note=f"ADDED: {names}", duration=5)
 
@@ -477,7 +564,8 @@ class GameWindow:
             self.music_area = None  # restart this area's music from the new source
 
     def screenshot(self):
-        """S: the look, the 2600 picture, the RAM (and the grid, in the grid view) to the screenshots folder."""
+        """S: the look, the 2600 picture, the RAM (and the grid, in the grid view) to the screenshots
+        folder."""
         if self.core.frame is None or not self.pictures:
             return
         os.makedirs(paths.SCREENSHOTS, exist_ok=True)
@@ -496,9 +584,11 @@ class GameWindow:
         if self.recorder.active:
             self.stop_recording()
             return
-        streams = {"a2600": (160, 228), "compare": (L.SCREEN_W, L.SCREEN_H),  # compare: the grid's lower pane
-                   **{k: (L.SCREEN_W, L.SCREEN_H) for k in self.look_keys}}
-        game = self.st.game if self.st else 1
+        screen_size = (L.SCREEN_W, L.SCREEN_H)
+        streams = {"a2600": (160, 228), "compare": screen_size}  # compare: the grid's lower pane
+        for look_key in self.look_keys:
+            streams[look_key] = screen_size
+        game = self.state.game if self.state else 1
         where = self.recorder.start({"game": game}, streams)
         print(f"recording to {where}" if where else
               "can't record: ffmpeg isn't installed (https://ffmpeg.org/download.html)", flush=True)
@@ -510,14 +600,15 @@ class GameWindow:
 
 def fit_into(canvas, screen):
     """Paint `canvas` into `screen` as big as fits with its shape kept, centred, bars around it."""
-    (cw, ch), (sw, sh) = canvas.get_size(), screen.get_size()
-    k = min(sw / cw, sh / ch)
-    w, h = int(cw * k), int(ch * k)
-    if (w, h) == (sw, sh):
-        pygame.transform.smoothscale(canvas, (sw, sh), screen)
+    canvas_w, canvas_h = canvas.get_size()
+    screen_w, screen_h = screen.get_size()
+    scale = min(screen_w / canvas_w, screen_h / canvas_h)
+    w, h = int(canvas_w * scale), int(canvas_h * scale)
+    if (w, h) == (screen_w, screen_h):
+        pygame.transform.smoothscale(canvas, (screen_w, screen_h), screen)
         return
     screen.fill(BACKGROUND)
-    screen.blit(pygame.transform.smoothscale(canvas, (w, h)), ((sw - w) // 2, (sh - h) // 2))
+    screen.blit(pygame.transform.smoothscale(canvas, (w, h)), ((screen_w - w) // 2, (screen_h - h) // 2))
 
 
 def following(keys, key):
@@ -525,27 +616,29 @@ def following(keys, key):
     return keys[(keys.index(key) + 1) % len(keys)] if key in keys else keys[0]
 
 
-def draw_grid(screen, frame_2600, top, bottom, panel, st, tag_font):
+def draw_grid(screen, frame_2600, top, bottom, panel, state, tag_font):
     """The grid view: left column `top` over `bottom` ((picture, label) each: what you're playing and the
     comparison); right column the 2600 original over its RAM."""
-    qw, qh = QUAD
-    k = min(qw / 320, qh / 228)  # the 2600's 160x228 has 2:1 wide pixels (= 320x228): fit it, centred
-    w26, h26 = int(320 * k), int(228 * k)
+    pane_w, pane_h = QUAD
+    scale = min(pane_w / 320, pane_h / 228)  # the 2600's 160x228 has 2:1 wide pixels (= 320x228): fit it
+    original_w, original_h = int(320 * scale), int(228 * scale)
     original = pygame.surfarray.make_surface(frame_2600.transpose(1, 0, 2))
-    screen.blit(pygame.transform.scale(original, (w26, h26)), (qw + (qw - w26) // 2, (qh - h26) // 2))
-    for img, (x, y) in ((top[0], (0, 0)), (bottom[0], (0, qh))):
-        surf = pygame.surfarray.make_surface(img.transpose(1, 0, 2))
-        screen.blit(pygame.transform.scale(surf, (qw, qh)), (x, y))
-    pane = pygame.Surface(QUAD)
-    panel.draw(pane, st)
-    screen.blit(pane, (qw, qh))
-    for text, (x, y) in ((top[1], (0, 0)), ("ATARI 2600 - 1980", (qw, 0)),
-                         (bottom[1], (0, qh)), ("INTERNALS", (qw, qh))):
+    centred = (pane_w + (pane_w - original_w) // 2, (pane_h - original_h) // 2)
+    screen.blit(pygame.transform.scale(original, (original_w, original_h)), centred)
+    for picture, (x, y) in ((top[0], (0, 0)), (bottom[0], (0, pane_h))):
+        surface = pygame.surfarray.make_surface(picture.transpose(1, 0, 2))
+        screen.blit(pygame.transform.scale(surface, (pane_w, pane_h)), (x, y))
+    ram_pane = pygame.Surface(QUAD)
+    panel.draw(ram_pane, state)
+    screen.blit(ram_pane, (pane_w, pane_h))
+    labels = ((top[1], (0, 0)), ("ATARI 2600 - 1980", (pane_w, 0)),
+              (bottom[1], (0, pane_h)), ("INTERNALS", (pane_w, pane_h)))
+    for text, (x, y) in labels:  # each pane's name, bottom right on a dark box
         tag = tag_font.render(f" {text} ", True, (235, 235, 245))
         box = pygame.Surface((tag.get_width(), tag.get_height()), pygame.SRCALPHA)
         box.fill((0, 0, 0, 170))
-        pos = (x + qw - tag.get_width() - 6, y + qh - tag.get_height() - 6)
-        screen.blit(box, pos)
-        screen.blit(tag, pos)
-    pygame.draw.line(screen, (60, 60, 80), (qw, 0), (qw, 2 * qh), 2)
-    pygame.draw.line(screen, (60, 60, 80), (0, qh), (2 * qw, qh), 2)
+        corner = (x + pane_w - tag.get_width() - 6, y + pane_h - tag.get_height() - 6)
+        screen.blit(box, corner)
+        screen.blit(tag, corner)
+    pygame.draw.line(screen, (60, 60, 80), (pane_w, 0), (pane_w, 2 * pane_h), 2)
+    pygame.draw.line(screen, (60, 60, 80), (0, pane_h), (2 * pane_w, pane_h), 2)
