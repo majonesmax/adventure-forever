@@ -38,8 +38,6 @@ the other console), the original, and the game's live RAM at once
 (**[how to read the live RAM view →](docs/reading-the-ram.md)**). Gameplay is 100% the original: the emulator
 runs the real game, and the remasters only *draw* it.
 
-Why this exists, and why it was built with an AI assistant: [BACKGROUND.md](BACKGROUND.md).
-
 ## ⬇️ Download
 
 | | |
@@ -66,6 +64,9 @@ More casts and worlds can be added to the app. **[Shall we play a game?](https:/
 is a collection of demo packs, each with its own cast, scenery and soundtrack: *ORIENTATION*, an office floor that
 goes on too long (best in the VGA look), and *SKETCHBOOK*, a world a boy draws in purple crayon as he walks
 through it (best in the paper look).
+
+▶️ **[Watch ORIENTATION played through on YouTube](https://youtu.be/t0TFnZ-mORw)** (1:44): a demo pack in the VGA
+look, beside the 2600 original.
 
 To add a pack, download it (on GitHub: **Code → Download ZIP**) and **drag the zip or folder onto the game
 window**: the game copies it into its packs folder and switches to it. Packs can contain code, so only add
