@@ -1,5 +1,5 @@
-"""Build Adventure Forever for download, on the system it runs on (a Windows build has to be made on Windows,
-and so on - PyInstaller can't cross-build).
+"""Build Adventure Forever for download, on the system it runs on (a Windows build has to be made on
+Windows, and so on - PyInstaller can't cross-build).
 
 Usage: python package/build.py [--with-rom] [--with-private]
 
@@ -35,8 +35,11 @@ from engine import paths  # noqa: E402
 
 NAME = paths.APP_NAME
 PKG = os.path.join(ROOT, "package")
-STAGE, WORK, DIST = (os.path.join(PKG, d) for d in ("stage", "build", "dist"))
+STAGE, WORK, DIST = (os.path.join(PKG, folder) for folder in ("stage", "build", "dist"))
 STELLA_SOURCE = "https://github.com/stella-emu/stella"
+ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+PROCESSORS = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
+Bundled = list[tuple[str, str]]   # PyInstaller's (source, destination) pairs
 
 
 def stage_packs(src: str, dst: str) -> None:
@@ -82,96 +85,121 @@ def icon() -> str | None:
     if paths.SYSTEM == "windows":
         from PIL import Image
         ico = os.path.join(STAGE, "icon.ico")
-        Image.open(os.path.join(PKG, "icon_preview.png")).save(ico, sizes=[(16, 16), (32, 32), (48, 48),
-                                                                            (64, 64), (128, 128), (256, 256)])
+        Image.open(os.path.join(PKG, "icon_preview.png")).save(ico, sizes=ICO_SIZES)
         return ico
     return None
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Build Adventure Forever for download on this system.")
-    ap.add_argument("--with-rom", action="store_true", help="bundle roms/adventure.a26 (personal builds only)")
-    ap.add_argument("--with-private", action="store_true", help="bundle private/ (personal builds only)")
-    args = ap.parse_args()
-    if not os.path.exists(paths.CORE):
-        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "get_core.py")], check=True)
-    for d in (STAGE, WORK, DIST):
-        shutil.rmtree(d, ignore_errors=True)
-    os.makedirs(STAGE)
-    stage_packs(os.path.join(ROOT, "packs"), os.path.join(STAGE, "packs"))
-    sep = os.pathsep  # PyInstaller's "source<sep>destination" for --add-data
-    data = [(os.path.join(STAGE, "packs"), "packs"), (os.path.join(ROOT, "shared", "fonts"), "shared/fonts"),
-            (os.path.join(ROOT, "engine", "palette_ntsc.json"), "engine")]
-    binaries = [(paths.CORE, "cores")]
-    if args.with_rom:
-        data.append((paths.ROM, "roms"))
-    if args.with_private:
-        private = os.path.join(STAGE, "private")
-        os.makedirs(private)
-        stage_packs(os.path.join(paths.PRIVATE, "packs"), os.path.join(private, "packs"))
-        config = os.path.join(paths.PRIVATE, "music.json")
-        if os.path.exists(config):
-            shutil.copy(config, private)
-            with open(config) as f:
-                music = json.load(f)
-            for key, v in music.items():  # the music files it names
-                f = not key.startswith("_") and (v.get("nsf") or v.get("file"))
-                if f:
-                    data.append((os.path.join(ROOT, f), os.path.dirname(f)))
-            from engine import music as MU
-            gme = next((p for p in MU.LIB_PATHS if os.path.exists(p)), None)
-            if gme:  # NSF playback
-                binaries.append((gme, "lib"))
-        data.append((private, "private"))
-    cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--log-level", "WARN",
-           "--name", NAME, "--distpath", os.path.join(STAGE, "app"), "--workpath", WORK, "--specpath", WORK,
-           "--exclude-module", "tkinter", "--exclude-module", "tools", "--exclude-module", "tests"]
+def options() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build Adventure Forever for download on this system.")
+    parser.add_argument("--with-rom", action="store_true",
+                        help="bundle roms/adventure.a26 (personal builds only)")
+    parser.add_argument("--with-private", action="store_true", help="bundle private/ (personal builds only)")
+    return parser.parse_args()
+
+
+def stage_private(data: Bundled, binaries: Bundled) -> None:
+    """--with-private: the private packs, private/music.json and the music files it names (and the NSF
+    player, if any) - into the stage, and onto PyInstaller's lists."""
+    private = os.path.join(STAGE, "private")
+    os.makedirs(private)
+    stage_packs(os.path.join(paths.PRIVATE, "packs"), os.path.join(private, "packs"))
+    config = os.path.join(paths.PRIVATE, "music.json")
+    if os.path.exists(config):
+        shutil.copy(config, private)
+        with open(config) as config_file:
+            music = json.load(config_file)
+        for key, source in music.items():  # the music files it names
+            music_file = not key.startswith("_") and (source.get("nsf") or source.get("file"))
+            if music_file:
+                data.append((os.path.join(ROOT, music_file), os.path.dirname(music_file)))
+        from engine import music as MU
+        gme = next((path for path in MU.LIB_PATHS if os.path.exists(path)), None)
+        if gme:  # NSF playback
+            binaries.append((gme, "lib"))
+    data.append((private, "private"))
+
+
+def pyinstaller_command(data: Bundled, binaries: Bundled) -> list[str]:
+    command = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
+               "--log-level", "WARN", "--name", NAME, "--distpath", os.path.join(STAGE, "app"),
+               "--workpath", WORK, "--specpath", WORK,
+               "--exclude-module", "tkinter", "--exclude-module", "tools", "--exclude-module", "tests"]
     if paths.SYSTEM == "macos":
-        cmd += ["--osx-bundle-identifier", "com.adventure-forever.app"]
+        command += ["--osx-bundle-identifier", "com.adventure-forever.app"]
     app_icon = icon()
     if app_icon:
-        cmd += ["--icon", app_icon]
-    for src, dst in data:
-        cmd += ["--add-data", f"{src}{sep}{dst}"]
-    for src, dst in binaries:
-        cmd += ["--add-binary", f"{src}{sep}{dst}"]
-    subprocess.run(cmd + [os.path.join(ROOT, "play.py")], check=True)
+        command += ["--icon", app_icon]
+    separator = os.pathsep  # PyInstaller's "source<separator>destination" for --add-data
+    for source, destination in data:
+        command += ["--add-data", f"{source}{separator}{destination}"]
+    for source, destination in binaries:
+        command += ["--add-binary", f"{source}{separator}{destination}"]
+    return command + [os.path.join(ROOT, "play.py")]
 
-    # the download: the app, the README and the licences in one folder
+
+def assemble(with_private: bool) -> str:
+    """The download's folder: the app, the README (+ private/README_extra.txt) and the licences."""
     folder = os.path.join(DIST, NAME)
     if paths.SYSTEM == "macos":
         os.makedirs(folder)
         shutil.move(os.path.join(STAGE, "app", f"{NAME}.app"), folder)
     else:  # the program at the top, its files in _internal/ beside it
         shutil.move(os.path.join(STAGE, "app", NAME), folder)
-    with open(os.path.join(PKG, "README.txt")) as f:
-        readme = f.read()
+    with open(os.path.join(PKG, "README.txt")) as readme_file:
+        readme = readme_file.read()
     extra = os.path.join(paths.PRIVATE, "README_extra.txt")
-    if args.with_private and os.path.exists(extra):
-        with open(extra) as f:
-            readme += "\n" + f.read()
-    with open(os.path.join(folder, "README.txt"), "w", newline="\r\n" if paths.SYSTEM == "windows" else "\n") as f:
-        f.write(readme)
+    if with_private and os.path.exists(extra):
+        with open(extra) as extra_file:
+            readme += "\n" + extra_file.read()
+    newline = "\r\n" if paths.SYSTEM == "windows" else "\n"
+    with open(os.path.join(folder, "README.txt"), "w", newline=newline) as readme_file:
+        readme_file.write(readme)
     licences = os.path.join(folder, "licenses")
     shutil.copytree(os.path.join(PKG, "licenses"), licences)
-    for f in ("LICENSE", "LICENSE-ASSETS.md"):
-        shutil.copy(os.path.join(ROOT, f), licences)
-    with open(os.path.join(licences, "STELLA.txt"), "w") as f:
-        f.write(stella_notice(core_version()))
+    for licence in ("LICENSE", "LICENSE-ASSETS.md"):
+        shutil.copy(os.path.join(ROOT, licence), licences)
+    with open(os.path.join(licences, "STELLA.txt"), "w") as notice:
+        notice.write(stella_notice(core_version()))
+    return folder
 
-    proc = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine().lower(),
-                                                                                      platform.machine().lower())
-    personal = "-PERSONAL-do-not-publish" if args.with_rom or args.with_private else ""
-    base = os.path.join(DIST, f"Adventure-Forever-{paths.SYSTEM}-{proc}{personal}")
+
+def archive(folder: str, personal: bool) -> str:
+    """The zip (macOS, Windows) or .tar.gz (Linux) to publish - or, personal, not to."""
+    machine = platform.machine().lower()
+    processor = PROCESSORS.get(machine, machine)
+    label = "-PERSONAL-do-not-publish" if personal else ""
+    base = os.path.join(DIST, f"Adventure-Forever-{paths.SYSTEM}-{processor}{label}")
     if paths.SYSTEM == "linux":
         out = base + ".tar.gz"
-        with tarfile.open(out, "w:gz") as t:
-            t.add(folder, arcname=NAME)
-    elif paths.SYSTEM == "macos":  # ditto keeps the .app's links and signature intact
+        with tarfile.open(out, "w:gz") as tar:
+            tar.add(folder, arcname=NAME)
+        return out
+    if paths.SYSTEM == "macos":  # ditto keeps the .app's links and signature intact
         out = base + ".zip"
         subprocess.run(["ditto", "-c", "-k", "--keepParent", folder, out], check=True)
-    else:
-        out = shutil.make_archive(base, "zip", DIST, NAME)
+        return out
+    return shutil.make_archive(base, "zip", DIST, NAME)
+
+
+def main() -> None:
+    args = options()
+    if not os.path.exists(paths.CORE):
+        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "get_core.py")], check=True)
+    for folder in (STAGE, WORK, DIST):
+        shutil.rmtree(folder, ignore_errors=True)
+    os.makedirs(STAGE)
+    stage_packs(os.path.join(ROOT, "packs"), os.path.join(STAGE, "packs"))
+    data: Bundled = [(os.path.join(STAGE, "packs"), "packs"),
+                     (os.path.join(ROOT, "shared", "fonts"), "shared/fonts"),
+                     (os.path.join(ROOT, "engine", "palette_ntsc.json"), "engine")]
+    binaries: Bundled = [(paths.CORE, "cores")]
+    if args.with_rom:
+        data.append((paths.ROM, "roms"))
+    if args.with_private:
+        stage_private(data, binaries)
+    subprocess.run(pyinstaller_command(data, binaries), check=True)
+    out = archive(assemble(args.with_private), personal=args.with_rom or args.with_private)
     print(f"{out}  ({os.path.getsize(out) // (1024 * 1024)} MB, Stella {core_version()})")
 
 

@@ -33,6 +33,7 @@ from app import transitions as TR  # noqa: E402
 from engine import emulator as h  # noqa: E402
 from engine import ram_map as M  # noqa: E402
 from engine.state import Game  # noqa: E402
+from looks.base import RoomLook  # noqa: E402
 from shared.types import Picture, Point, RamView  # noqa: E402
 
 Scenario = tuple[list[RamView], list[int], list[int]]   # (RAM snapshots, frame numbers, indices to hash)
@@ -57,10 +58,10 @@ def boot(game: int) -> tuple[h.Core, RamView, RamView]:
     ram = core.ram
     assert ram is not None   # load() made the live view of the RAM
 
-    def run(n: int, keys: Iterable[int] = ()) -> None:
+    def run(frames: int, keys: Iterable[int] = ()) -> None:
         core.joy.clear()
         core.joy.update(keys)
-        for _ in range(n):
+        for _ in range(frames):
             core.run()
 
     def press(key: int, bit: int, then: int, seen_after: int) -> None:
@@ -82,54 +83,57 @@ def boot(game: int) -> tuple[h.Core, RamView, RamView]:
 
 def poke(ram: RamView, values: dict[int, int]) -> RamView:
     out = ram.copy()
-    for addr, v in values.items():
-        out[addr - 0x80] = v
+    for addr, value in values.items():
+        out[addr - 0x80] = value
     return out
 
 
 def place(room: int, hero: Point, objs: Sequence[tuple[int, ...]] = (),
           extra: dict[int, int] | None = None) -> dict[int, int]:
     """RAM edits: hero in `room` at `hero`, objects (addr, x, y[, state]) in the same room."""
-    v = {0x8A: room, 0x8B: hero[0], 0x8C: hero[1]}
+    edits = {0x8A: room, 0x8B: hero[0], 0x8C: hero[1]}
     for addr, x, y, *state in objs:
-        v.update({addr: room, addr + 1: x, addr + 2: y})
+        edits.update({addr: room, addr + 1: x, addr + 2: y})
         if state:
-            v[addr + 4] = state[0]
-    v.update(extra or {})
-    return v
+            edits[addr + 4] = state[0]
+    edits.update(extra or {})
+    return edits
 
 
-def scenarios(g1: RamView, g2: RamView, title: RamView) -> dict[str, Scenario]:
+def scenarios(game1: RamView, game2: RamView, title: RamView) -> dict[str, Scenario]:
     """name -> (list of RAM snapshots drawn in order, frame numbers to draw them at, indices to hash)."""
-    s: dict[str, Scenario] = {}
-    s["title"] = ([title, title], [0, 31], [0, 1])
-    s["start_game1"] = ([g1], [0], [0])
+    moments: dict[str, Scenario] = {}
+    moments["title"] = ([title, title], [0, 31], [0, 1])
+    moments["start_game1"] = ([game1], [0], [0])
     # game 2 starts with the bat flying off with the sword; its path depends on when the game saw the last
     # input, which cores deliver a frame or two apart - so place the two where the reference core has them
-    s["start_game2"] = ([poke(g2, {0xCB: 0x11, 0xCC: 0x20, 0xCD: 0x1E, 0xCF: 0x00,      # the bat (room, x, y, state)
-                                   0xB6: 0x11, 0xB7: 0x28, 0xB8: 0x1E})], [0], [0])   # the sword
-    s["dragons"] = ([poke(g1, place(0x0F, (0x50, 0x20), [(0xA4, 0x30, 0x40, 0), (0xA9, 0x60, 0x40, 3),
-                                                           (0xAE, 0x90, 0x40, 1)]))], [0], [0])
-    s["eaten"] = ([poke(g1, place(0x11, (0x50, 0x20), [(0xA9, 0x50, 0x24, 2)]))], [0], [0])
-    items = [(0xB6, 0x30, 0x30), (0xBF, 0x50, 0x50), (0xC2, 0x70, 0x50), (0xC5, 0x90, 0x50), (0xB3, 0x30, 0x55),
-             (0xB9, 0x90, 0x30), (0xCB, 0x60, 0x30, 2)]
-    s["items_bat_up"] = ([poke(g1, place(0x01, (0x50, 0x20), items))], [0, 7], [0])
-    s["bat_down"] = ([poke(g1, place(0x01, (0x50, 0x20), [(0xCB, 0x60, 0x30, 6)]))], [0], [0])
-    s["carry_sword"] = ([poke(g1, place(0x01, (0x50, 0x30), [(0xB6, 0x51, 0x30)],
-                                        {0x9D: 0x09 * 9, 0x9E: 1, 0x9F: 0}))], [0], [0])
-    s["bridge"] = ([poke(g1, place(0x04, (0x80, 0x30), [(0xBC, 0x40, 0x40)]))], [0], [0])
-    s["dark_maze"] = ([poke(g1, place(0x13, (0x50, 0x30)))], [0], [0])
-    s["dot_room"] = ([poke(g2, place(int(g2[0xA1 - 0x80]), (int(g2[0xA2 - 0x80]) + 10, int(g2[0xA3 - 0x80]) + 4)))],
-                     [0], [0])
-    s["secret_room"] = ([poke(g2, place(0x1E, (0x30, 0x20), extra={0xE5: 0x40})),
-                         poke(g2, place(0x1E, (0x30, 0x20), extra={0xE5: 0x90}))], [0, 1], [0, 1])
-    s["black_gate_half"] = ([poke(g1, place(0x10, (0x50, 0x20), extra={0xCA: 0x10}))], [0], [0])
-    s["win"] = ([poke(g1, place(0x12, (0x50, 0x20), [(0xB9, 0x52, 0x20)], {0xDE: 0xFF}))] * 2, [0, 120], [0, 1])
-    walk = [poke(g1, place(0x01, (0x40 + k, 0x30))) for k in range(14)]  # walking right: side view, stride
-    s["walk_right"] = (walk, list(range(14)), [13])
-    up = [poke(g1, place(0x01, (0x40, 0x30 + k))) for k in range(14)]   # walking up: back view
-    s["walk_up"] = (up, list(range(14)), [13])
-    return s
+    bat_and_sword = {0xCB: 0x11, 0xCC: 0x20, 0xCD: 0x1E, 0xCF: 0x00,     # the bat (room, x, y, state)
+                     0xB6: 0x11, 0xB7: 0x28, 0xB8: 0x1E}                 # the sword
+    moments["start_game2"] = ([poke(game2, bat_and_sword)], [0], [0])
+    dragons = [(0xA4, 0x30, 0x40, 0), (0xA9, 0x60, 0x40, 3), (0xAE, 0x90, 0x40, 1)]
+    moments["dragons"] = ([poke(game1, place(0x0F, (0x50, 0x20), dragons))], [0], [0])
+    moments["eaten"] = ([poke(game1, place(0x11, (0x50, 0x20), [(0xA9, 0x50, 0x24, 2)]))], [0], [0])
+    items = [(0xB6, 0x30, 0x30), (0xBF, 0x50, 0x50), (0xC2, 0x70, 0x50), (0xC5, 0x90, 0x50),
+             (0xB3, 0x30, 0x55), (0xB9, 0x90, 0x30), (0xCB, 0x60, 0x30, 2)]
+    moments["items_bat_up"] = ([poke(game1, place(0x01, (0x50, 0x20), items))], [0, 7], [0])
+    moments["bat_down"] = ([poke(game1, place(0x01, (0x50, 0x20), [(0xCB, 0x60, 0x30, 6)]))], [0], [0])
+    moments["carry_sword"] = ([poke(game1, place(0x01, (0x50, 0x30), [(0xB6, 0x51, 0x30)],
+                                                 {0x9D: 0x09 * 9, 0x9E: 1, 0x9F: 0}))], [0], [0])
+    moments["bridge"] = ([poke(game1, place(0x04, (0x80, 0x30), [(0xBC, 0x40, 0x40)]))], [0], [0])
+    moments["dark_maze"] = ([poke(game1, place(0x13, (0x50, 0x30)))], [0], [0])
+    dot_room = int(game2[0xA1 - 0x80])
+    beside_the_dot = (int(game2[0xA2 - 0x80]) + 10, int(game2[0xA3 - 0x80]) + 4)
+    moments["dot_room"] = ([poke(game2, place(dot_room, beside_the_dot))], [0], [0])
+    moments["secret_room"] = ([poke(game2, place(0x1E, (0x30, 0x20), extra={0xE5: 0x40})),
+                               poke(game2, place(0x1E, (0x30, 0x20), extra={0xE5: 0x90}))], [0, 1], [0, 1])
+    moments["black_gate_half"] = ([poke(game1, place(0x10, (0x50, 0x20), extra={0xCA: 0x10}))], [0], [0])
+    chalice_home = poke(game1, place(0x12, (0x50, 0x20), [(0xB9, 0x52, 0x20)], {0xDE: 0xFF}))
+    moments["win"] = ([chalice_home] * 2, [0, 120], [0, 1])
+    walk = [poke(game1, place(0x01, (0x40 + k, 0x30))) for k in range(14)]  # walking right: side view, stride
+    moments["walk_right"] = (walk, list(range(14)), [13])
+    walk_up = [poke(game1, place(0x01, (0x40, 0x30 + k))) for k in range(14)]   # walking up: back view
+    moments["walk_up"] = (walk_up, list(range(14)), [13])
+    return moments
 
 
 # ---- rendering + hashing ------------------------------------------------------------------------------
@@ -139,43 +143,63 @@ def digest(img: Picture) -> str:
 
 
 def render_all() -> tuple[dict[str, str], dict[str, Picture], set[str]]:
-    core, title, g1 = boot(1)
-    _, _, g2 = boot(2)
+    _, title, game1 = boot(1)
+    _, _, game2 = boot(2)
     game = Game()
-    reader = game.reader
     out: dict[str, str] = {}
     screens: dict[str, Picture] = {}
     public: set[str] = set()
+    every_pairing = [(cast_key, world_key) for cast_key in content.casts(examples=True)
+                     for world_key in content.worlds(examples=True)]
     for look_key in {**looks.LOOKS, **looks.TEMPLATE_LOOKS}:
-        for cast_key, world_key in [(c, w) for c in content.casts(examples=True) for w in content.worlds(examples=True)]:
-            make = lambda reader: looks.make(look_key, cast_key, world_key, reader)  # fresh: no state carried over
-            look_name = make(reader).key
+        for cast_key, world_key in every_pairing:
+            look_name, hashes, pictures = render_look(game, look_key, cast_key, world_key,
+                                                      scenarios(game1, game2, title), game1)
             if not (content.is_private(cast_key) or content.is_private(world_key)):
                 public.add(look_name)
-            for name, (rams, frames, keep) in scenarios(g1, g2, title).items():
-                look = make(reader)
-                for i, (ram, f) in enumerate(zip(rams, frames)):
-                    img = look.draw(game.state(ram), f)
-                    if i in keep:
-                        key = f"{look_name}/{name}/{i}"
-                        out[key], screens[key] = digest(img), img
-            # a room scroll, halfway: old room and new room both drawn without actors, the hero carried across
-            look = make(reader)
-            a = game.state(poke(g1, place(0x11, (0x50, 0x0F))))
-            b = game.state(poke(g1, place(0x02, (0x50, 0x69))))
-            sc = TR.Scroll.between(look, a, b, 0)
-            assert sc is not None   # the two rooms are next to each other: there is a scroll
-            for k in range(16):
-                img = sc.frame()
-            key = f"{look_name}/scroll_down/16"
-            out[key], screens[key] = digest(img), img
+            out.update(hashes)
+            screens.update(pictures)
     return out, screens, public
+
+
+def render_look(game: Game, look_key: str, cast_key: str, world_key: str, moments: dict[str, Scenario],
+                game1: RamView) -> tuple[str, dict[str, str], dict[str, Picture]]:
+    """One look with one cast in one world, in every moment and halfway through a room scroll:
+    (the look's name, the hashes, the screens)."""
+    def make_look() -> RoomLook:
+        return looks.make(look_key, cast_key, world_key, game.reader)  # fresh: no state carried over
+    look_name = make_look().key
+    hashes: dict[str, str] = {}
+    pictures: dict[str, Picture] = {}
+    for name, (rams, frames, keep) in moments.items():
+        look = make_look()
+        for index, (ram, frame_no) in enumerate(zip(rams, frames)):
+            img = look.draw(game.state(ram), frame_no)
+            if index in keep:
+                key = f"{look_name}/{name}/{index}"
+                hashes[key], pictures[key] = digest(img), img
+    img = halfway_scroll(make_look(), game, game1)
+    key = f"{look_name}/scroll_down/16"
+    hashes[key], pictures[key] = digest(img), img
+    return look_name, hashes, pictures
+
+
+def halfway_scroll(look: RoomLook, game: Game, game1: RamView) -> Picture:
+    """A room scroll, halfway: old room and new room both drawn without actors, the hero carried across."""
+    leaving = game.state(poke(game1, place(0x11, (0x50, 0x0F))))
+    arriving = game.state(poke(game1, place(0x02, (0x50, 0x69))))
+    scroll = TR.Scroll.between(look, leaving, arriving, 0)
+    assert scroll is not None   # the two rooms are next to each other: there is a scroll
+    img = scroll.frame()
+    for _ in range(15):
+        img = scroll.frame()
+    return img
 
 
 def split(hashes: dict[str, str], public: set[str]) -> tuple[dict[str, str], dict[str, str]]:
     """(hashes with public packs, hashes with private packs)."""
-    pub = {k: v for k, v in hashes.items() if k.split("/")[0] in public}
-    return pub, {k: v for k, v in hashes.items() if k not in pub}
+    pub = {key: value for key, value in hashes.items() if key.split("/")[0] in public}
+    return pub, {key: value for key, value in hashes.items() if key not in pub}
 
 
 def main() -> int:
@@ -194,7 +218,8 @@ def main() -> int:
         if os.path.exists(path):
             with open(path) as f:
                 ref.update(json.load(f))
-    ref = {k: v for k, v in ref.items() if k.split("/")[0] in {key.split("/")[0] for key in hashes}}
+    rendered_looks = {key.split("/")[0] for key in hashes}
+    ref = {key: value for key, value in ref.items() if key.split("/")[0] in rendered_looks}
     bad = [k for k in sorted(ref) if hashes.get(k) != ref[k]]
     missing = [k for k in sorted(hashes) if k not in ref]
     if bad:

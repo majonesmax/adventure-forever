@@ -1,5 +1,5 @@
-"""An animated GIF of the four-way grid (NES, SNES, the 2600 original, the live RAM) from a recorded take - for
-the README and for posts.
+"""An animated GIF of the four-way grid (NES, SNES, the 2600 original, the live RAM) from a recorded take -
+for the README and for posts.
 
 The remasters are drawn again from the take's RAM (ram.bin), so the GIF shows the looks, casts and worlds as
 they are now (each look's own, unless --cast / --world), with room scrolls where the take had them. The 2600
@@ -60,89 +60,126 @@ def frames_2600(take: str, start: int, end: int) -> Iterator[Picture]:
     proc.wait()
 
 
+def options() -> argparse.Namespace:
+    first_sentence = " ".join((__doc__ or "").split("\n")[:2])
+    parser = argparse.ArgumentParser(description=first_sentence)
+    parser.add_argument("take")
+    parser.add_argument("--start", type=int, required=True)
+    parser.add_argument("--end", type=int, required=True)
+    parser.add_argument("-o", "--out", default=os.path.join("docs", "media", "grid.gif"))
+    parser.add_argument("--fps", type=int, help="frames a second (default: 15 for a GIF, 60 for a video)")
+    parser.add_argument("--width", type=int, default=768, help="the GIF's width (the grid is 1024x960)")
+    parser.add_argument("--cast")
+    parser.add_argument("--world")
+    args = parser.parse_args()
+    args.fps = args.fps or (60 if args.out.endswith(".mp4") else 15)
+    return args
+
+
+class Grid:
+    """The four-way grid, drawn again frame by frame from a take: both looks from its RAM (with the room
+    scrolls the take had), its own 2600 picture, and the RAM panel."""
+
+    def __init__(self, args: argparse.Namespace):
+        self.take = args.take
+        self.ram = np.fromfile(os.path.join(self.take, "ram.bin"), np.uint8).reshape(-1, 128)
+        with open(os.path.join(self.take, "log.jsonl")) as f:
+            self.log = [json.loads(line) for line in f]
+        self.game = Game()
+        self.nes = looks.make("nes", args.cast, args.world, self.game.reader)
+        self.snes = looks.make("snes", args.cast, args.world, self.game.reader)
+        self.panel, self.tag_font = DP.DebugPanel(QUAD), mono(12, bold=True)
+        self.screen = pygame.Surface((2 * QUAD[0], 2 * QUAD[1]))
+        self.last_g: int | None = None
+        self.scrolls: dict[RoomLook, TR.Scroll] = {}
+        self.prev = None
+
+    def warm_up(self, start: int) -> None:
+        """The panel's history, and the looks' walk cycle, from the frames before `start`."""
+        for i in range(max(0, start - WARM_UP), start):
+            self.follow_panel(i)
+        self.prev = self.game.state(self.ram[start - 1]) if start else None
+
+    def follow_panel(self, i: int) -> None:
+        if self.log[i]["g"] != self.last_g:
+            self.panel.update(None, self.ram[i], self.log[i]["g"])
+            self.last_g = self.log[i]["g"]
+
+    def pictures(self, i: int) -> dict[RoomLook, Picture]:
+        """Both looks' pictures for take frame i: a room scroll's next frame while one slides, as it did
+        live, else the room drawn again (and a scroll starting, if the hero just changed rooms)."""
+        state = self.game.state(self.ram[i])
+        if self.scrolls and self.log[i]["scroll"]:  # sliding into the next room: the game waits
+            return {look: scroll.frame() for look, scroll in self.scrolls.items()}
+        self.scrolls = {}
+        drawn = {look: look.draw(state, i) for look in (self.nes, self.snes)}
+        if self.prev is not None and TR.scroll_direction(self.prev, state):
+            made = {look: TR.Scroll.between(look, self.prev, state, i) for look in (self.nes, self.snes)}
+            self.scrolls = {look: scroll for look, scroll in made.items() if scroll is not None}
+            drawn = {look: scroll.frame() for look, scroll in self.scrolls.items()}
+        self.prev = state
+        return drawn
+
+    def frame(self, picture_2600: Picture, drawn: dict[RoomLook, Picture], i: int) -> bytes:
+        """The grid for take frame i, as raw RGB."""
+        state = self.game.state(self.ram[i])
+        self.screen.fill((16, 16, 24))
+        draw_grid(self.screen, picture_2600, (drawn[self.nes], self.nes.name),
+                  (drawn[self.snes], self.snes.name), self.panel, state, self.tag_font)
+        return pygame.surfarray.array3d(self.screen).transpose(1, 0, 2).tobytes()
+
+
+def store_frames(grid: Grid, args: argparse.Namespace, raw: str) -> int:
+    """Every kept frame of the grid, raw, into the file `raw`; how many were kept."""
+    every = 60 // args.fps
+    kept = 0
+    frames = zip(range(args.start, args.end), frames_2600(grid.take, args.start, args.end))
+    with open(raw, "wb") as store:
+        for number, (i, picture_2600) in enumerate(frames):
+            grid.follow_panel(i)
+            drawn = grid.pictures(i)
+            if number % every:
+                continue
+            store.write(grid.frame(picture_2600, drawn, i))
+            kept += 1
+    return kept
+
+
+def encode(args: argparse.Namespace, raw: str, encoder: list[str], height: int, palette: str) -> None:
+    """The raw frames as the video (whole-pixel scaling, yuv420p so every player takes it) or the GIF (its
+    own palette, made from the frames first)."""
+    if args.out.endswith(".mp4"):
+        with open(raw, "rb") as f:
+            subprocess.run(encoder + ["-vf", f"scale={args.width}:{height}:flags=neighbor", "-c:v", "libx264",
+                                      "-crf", "14", "-preset", "slow", "-pix_fmt", "yuv420p",
+                                      "-movflags", "+faststart", args.out], stdin=f, check=True)
+        return
+    scale = f"scale={args.width}:{height}:flags=lanczos"
+    with open(raw, "rb") as f:
+        subprocess.run(encoder + ["-vf", f"{scale},palettegen=stats_mode=diff", palette], stdin=f, check=True)
+    use_palette = f"{scale}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle"
+    with open(raw, "rb") as f:
+        subprocess.run(encoder + ["-i", palette, "-lavfi", use_palette, "-loop", "0", args.out],
+                       stdin=f, check=True)
+    os.remove(palette)
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
-    ap.add_argument("take")
-    ap.add_argument("--start", type=int, required=True)
-    ap.add_argument("--end", type=int, required=True)
-    ap.add_argument("-o", "--out", default=os.path.join("docs", "media", "grid.gif"))
-    ap.add_argument("--fps", type=int, help="frames a second (default: 15 for a GIF, 60 for a video)")
-    ap.add_argument("--width", type=int, default=768, help="the GIF's width (the grid is 1024x960)")
-    ap.add_argument("--cast")
-    ap.add_argument("--world")
-    args = ap.parse_args()
-    video = args.out.endswith(".mp4")
-    args.fps = args.fps or (60 if video else 15)
+    args = options()
     pygame.display.init()
     pygame.font.init()
-
-    take = args.take
-    ram = np.fromfile(os.path.join(take, "ram.bin"), np.uint8).reshape(-1, 128)
-    with open(os.path.join(take, "log.jsonl")) as f:
-        log = [json.loads(line) for line in f]
-    game = Game()
-    nes = looks.make("nes", args.cast, args.world, game.reader)
-    snes = looks.make("snes", args.cast, args.world, game.reader)
-    panel, tag_font = DP.DebugPanel(QUAD), mono(12, bold=True)
-    screen = pygame.Surface((2 * QUAD[0], 2 * QUAD[1]))
-
-    last_g = None
-    for i in range(max(0, args.start - WARM_UP), args.start):  # the panel's history, and the looks' walk cycle
-        if log[i]["g"] != last_g:
-            panel.update(None, ram[i], log[i]["g"])
-            last_g = log[i]["g"]
-    prev = game.state(ram[args.start - 1]) if args.start else None
-
+    grid = Grid(args)
+    grid.warm_up(args.start)
+    screen = grid.screen
     height = round(args.width * screen.get_height() / screen.get_width() / 2) * 2
     out_dir = os.path.dirname(os.path.abspath(args.out))
     os.makedirs(out_dir, exist_ok=True)
-    every = 60 // args.fps
-    palette = os.path.join(out_dir, ".palette.png")
-    encode = [ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-              "-s", f"{screen.get_width()}x{screen.get_height()}", "-r", str(args.fps), "-i", "-"]
+    encoder = [ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+               "-s", f"{screen.get_width()}x{screen.get_height()}", "-r", str(args.fps), "-i", "-"]
     raw = os.path.join(out_dir, ".grid.rgb")
-    scrolls: dict[RoomLook, TR.Scroll] = {}
-    kept = 0
-    with open(raw, "wb") as store:
-        for n, (i, picture_2600) in enumerate(zip(range(args.start, args.end), frames_2600(take, args.start, args.end))):
-            r = log[i]
-            if r["g"] != last_g:
-                panel.update(None, ram[i], r["g"])
-                last_g = r["g"]
-            st = game.state(ram[i])
-            if scrolls and r["scroll"]:  # sliding into the next room: the game waits, as it did live
-                pics = {lk: sc.frame() for lk, sc in scrolls.items()}
-            else:
-                scrolls = {}
-                pics = {lk: lk.draw(st, i) for lk in (nes, snes)}
-                if prev is not None and TR.scroll_direction(prev, st):
-                    made = {lk: TR.Scroll.between(lk, prev, st, i) for lk in (nes, snes)}
-                    scrolls = {lk: sc for lk, sc in made.items() if sc is not None}   # into the next room
-                    pics = {lk: sc.frame() for lk, sc in scrolls.items()}
-                prev = st
-            if n % every:
-                continue
-            screen.fill((16, 16, 24))
-            draw_grid(screen, picture_2600, (pics[nes], nes.name), (pics[snes], snes.name), panel, st, tag_font)
-            store.write(pygame.surfarray.array3d(screen).transpose(1, 0, 2).tobytes())
-            kept += 1
-    scale = f"scale={args.width}:{height}:flags=lanczos"
-    if video:  # pixel art: whole-pixel scaling; yuv420p so every player takes it
-        with open(raw, "rb") as f:
-            subprocess.run(encode + ["-vf", f"scale={args.width}:{height}:flags=neighbor", "-c:v", "libx264",
-                                     "-crf", "14", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-                                     args.out], stdin=f, check=True)
-        os.remove(raw)
-        print(f"{args.out}: {kept} frames, {kept / args.fps:.1f} s, {args.width}x{height}, "
-              f"{os.path.getsize(args.out) / 1e6:.1f} MB")
-        return
-    with open(raw, "rb") as f:
-        subprocess.run(encode + ["-vf", f"{scale},palettegen=stats_mode=diff", palette], stdin=f, check=True)
-    with open(raw, "rb") as f:
-        subprocess.run(encode + ["-i", palette, "-lavfi", f"{scale}[x];[x][1:v]paletteuse=dither=bayer:"
-                                 "bayer_scale=4:diff_mode=rectangle", "-loop", "0", args.out], stdin=f, check=True)
+    kept = store_frames(grid, args, raw)
+    encode(args, raw, encoder, height, os.path.join(out_dir, ".palette.png"))
     os.remove(raw)
-    os.remove(palette)
     print(f"{args.out}: {kept} frames, {kept / args.fps:.1f} s, {args.width}x{height}, "
           f"{os.path.getsize(args.out) / 1e6:.1f} MB")
 

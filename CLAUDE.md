@@ -70,12 +70,10 @@ The person who owns this code reads it rather than writes it, and isn't a Python
 - Lines up to 110 characters.
 
 `tools/readability.py` checks what a tool can (ruff.toml's rules, names under 3 letters, and pyright's type
-errors). Existing code
-doesn't all pass yet, so it's a ratchet: no file may get worse than `tools/readability_baseline.json`. The
-Claude Code hook in `.claude/settings.json` runs it after every edit and hands back anything new; fix it before
-moving on. After cleaning a file up, run `python tools/readability.py --update` to lock the improvement in.
+errors). Every file is at zero (`tools/readability_baseline.json`); keep it there. The Claude Code hook in
+`.claude/settings.json` runs it after every edit and hands back anything new - fix it before moving on.
 Refactors are safe: `tests/golden.py` proves every picture stays the same. GitHub runs the same checks on
-every push (`.github/workflows/checks.yml`).
+every push (`.github/workflows/checks.yml`): ruff, pyright and readability.py, all must pass.
 
 ## Style
 

@@ -12,65 +12,73 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, when run as a script
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, as a script
 from engine import rooms as R
 
 from engine import paths
 from shared.types import Rgb
 
 HERE = paths.ROOT
-ROW_LINES = [b - a + 1 for a, b in R.ROW_LINES]  # scan lines per wall row (measured)
-BG = (162, 162, 161)
+ROW_LINES = [last - first + 1 for first, last in R.ROW_LINES]  # scan lines per wall row (measured)
+FLOOR_GREY = (162, 162, 161)               # the 2600's floor, around the walls
 CELL_W, SCALE_Y = 8, 1                     # 40 columns x 8 px = 320 wide; 2600 pixels are 2:1
 
 
-def wall_rgb(n: int, room: dict[str, Any]) -> Rgb:
+def wall_rgb(room_number: int, room: dict[str, Any]) -> Rgb:
     if room["colour"] == 0x08:
         return (70, 70, 80)
-    path = os.path.join(HERE, "shots", "rooms", f"room_{n:02X}.png")
+    path = os.path.join(HERE, "shots", "rooms", f"room_{room_number:02X}.png")
     if not os.path.exists(path):
         return (0, 0, 0)
-    f = np.array(Image.open(path))[13:207].reshape(-1, 3)
-    f = f[np.abs(f.astype(int) - BG).max(axis=1) >= 8]
-    vals, counts = np.unique(f, axis=0, return_counts=True)
-    red, green, blue = (int(v) for v in vals[np.argmax(counts)])
+    pixels = np.array(Image.open(path))[13:207].reshape(-1, 3)
+    pixels = pixels[np.abs(pixels.astype(int) - FLOOR_GREY).max(axis=1) >= 8]
+    colours, counts = np.unique(pixels, axis=0, return_counts=True)
+    red, green, blue = (int(channel) for channel in colours[np.argmax(counts)])
     return red, green, blue
 
 
 def draw_room(room: dict[str, Any]) -> Image.Image:
-    w, h = R.COLS * CELL_W, sum(ROW_LINES) * SCALE_Y
-    im = Image.new("RGB", (w, h), BG)
-    d = ImageDraw.Draw(im)
+    width, height = R.COLS * CELL_W, sum(ROW_LINES) * SCALE_Y
+    picture = Image.new("RGB", (width, height), FLOOR_GREY)
+    pen = ImageDraw.Draw(picture)
     colour = wall_rgb(room["room"], room)
     y = 0
-    for r, lines in enumerate(ROW_LINES):
-        for c, b in enumerate(room["grid"][r]):
-            if b:
-                d.rectangle([c * CELL_W, y, (c + 1) * CELL_W - 1, y + lines * SCALE_Y - 1], fill=colour)
+    for row, lines in enumerate(ROW_LINES):
+        for column, is_wall in enumerate(room["grid"][row]):
+            if is_wall:
+                corners = [column * CELL_W, y, (column + 1) * CELL_W - 1, y + lines * SCALE_Y - 1]
+                pen.rectangle(corners, fill=colour)
         y += lines * SCALE_Y
-    px = CELL_W // 4  # sheet pixels per frame pixel
+    sheet_pixels = CELL_W // 4  # sheet pixels per frame pixel
     for flag, (x0, x1) in (("thin_wall_left", R.THIN_WALL_LEFT_X), ("thin_wall_right", R.THIN_WALL_RIGHT_X)):
         if room[flag]:
-            d.rectangle([x0 * px, 0, (x1 + 1) * px - 1, h - 1], fill=colour)
-    return im
+            pen.rectangle([x0 * sheet_pixels, 0, (x1 + 1) * sheet_pixels - 1, height - 1], fill=colour)
+    return picture
+
+
+def label(pen: ImageDraw.ImageDraw, room: dict[str, Any], x: int, y: int, font: Any) -> None:
+    """A room's number and name, and its exits (and whether it's dark), above its picture."""
+    exits = room["exits"][1]
+    pen.text((x, y), f"${room['room']:02X} {room['name']}", fill=(235, 235, 235), font=font)
+    exit_list = " ".join(f"{direction[0].upper()}:{target:02X}" for direction, target in exits.items())
+    dark = "  (dark)" if room["colour"] == 0x08 else ""
+    pen.text((x, y + 15), exit_list + dark, fill=(150, 150, 170), font=font)
 
 
 def main() -> None:
     rooms = R.decode_all()[1:]
     font = ImageFont.load_default()
-    cols, pad, label_h = 5, 14, 34
-    tw, th = R.COLS * CELL_W, sum(ROW_LINES) * SCALE_Y
-    sheet_rows = (len(rooms) + cols - 1) // cols
-    sheet = Image.new("RGB", (cols * (tw + pad) + pad, sheet_rows * (th + label_h + pad) + pad), (24, 24, 32))
-    d = ImageDraw.Draw(sheet)
-    for i, room in enumerate(rooms):
-        x = pad + (i % cols) * (tw + pad)
-        y = pad + (i // cols) * (th + label_h + pad)
-        sheet.paste(draw_room(room), (x, y + label_h))
-        ex = room["exits"][1]
-        d.text((x, y), f"${room['room']:02X} {room['name']}", fill=(235, 235, 235), font=font)
-        d.text((x, y + 15), " ".join(f"{k[0].upper()}:{v:02X}" for k, v in ex.items())
-               + ("  (dark)" if room["colour"] == 0x08 else ""), fill=(150, 150, 170), font=font)
+    columns, pad, label_height = 5, 14, 34
+    tile_width, tile_height = R.COLS * CELL_W, sum(ROW_LINES) * SCALE_Y
+    sheet_rows = (len(rooms) + columns - 1) // columns
+    sheet_size = (columns * (tile_width + pad) + pad, sheet_rows * (tile_height + label_height + pad) + pad)
+    sheet = Image.new("RGB", sheet_size, (24, 24, 32))
+    pen = ImageDraw.Draw(sheet)
+    for index, room in enumerate(rooms):
+        x = pad + (index % columns) * (tile_width + pad)
+        y = pad + (index // columns) * (tile_height + label_height + pad)
+        sheet.paste(draw_room(room), (x, y + label_height))
+        label(pen, room, x, y, font)
     out = os.path.join(HERE, "shots", "room_sheet.png")
     sheet.save(out)
     print(out, sheet.size)

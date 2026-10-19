@@ -58,8 +58,8 @@ def fetch(asset: str) -> bytes:
             raise SystemExit(f"couldn't download {url} (if the repository is private, install the GitHub CLI "
                              f"and run `gh auth login` first)")
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["gh", "release", "download", RELEASE, "--repo", REPO, "--pattern", asset, "--dir", tmp],
-                       check=True)
+        download = ["gh", "release", "download", RELEASE, "--repo", REPO, "--pattern", asset, "--dir", tmp]
+        subprocess.run(download, check=True)
         with open(os.path.join(tmp, asset), "rb") as f:
             return f.read()
 

@@ -1,9 +1,8 @@
-# The code checks, on every push to main and every pull request: the type hints (pyright, pyrightconfig.json)
-# and tools/readability.py, which counts ruff's rules, short names and type errors per file against its
-# baseline - the same check the hook runs after every edit on a computer. The baseline lets older files keep
-# their known readability issues, but no file may get worse, and there are no type errors at all. The checks
-# read the code only: no ROM, no emulator, no secrets, so they run for anyone's pull request too. (The
-# downloads are built and played by downloads.yml, on a version tag.)
+# The code checks, on every push to main and every pull request: the readability rules (ruff.toml), the type
+# hints (pyright, pyrightconfig.json) and tools/readability.py's count of both against its baseline - the
+# same checks the hook runs after every edit on a computer. They read the code only: no ROM, no emulator,
+# no secrets, so they run for anyone's pull request too. (The downloads are built and played by
+# downloads.yml, on a version tag.)
 name: Checks
 
 on:
@@ -24,6 +23,8 @@ jobs:
           python-version: "3.14"
       - name: Requirements
         run: python -m pip install -r requirements-dev.txt
+      - name: Readability rules (ruff)
+        run: ruff check --config ruff.toml .
       - name: Type hints (pyright)
         run: pyright --pythonpath "$(which python)"   # no .venv here: this machine's Python has the packages
       - name: No file got harder to read (tools/readability.py)

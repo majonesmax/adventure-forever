@@ -1,5 +1,5 @@
-"""The keys are documented, everywhere: every key the window handles (app/window.py) is in app/controls.py - the
-help panel's list - and every key in that list is in README.md's "Controls" table and the downloads'
+"""The keys are documented, everywhere: every key the window handles (app/window.py) is in app/controls.py -
+the help panel's list - and every key in that list is in README.md's "Controls" table and the downloads'
 package/README.txt. Fails with what's missing, so a new key can't go undocumented.
 
 Usage: python tests/test_controls.py
@@ -41,8 +41,9 @@ def main() -> int:
         missing = [label for label in controls.labels() if label not in text]
         if missing:
             problems.append(f"{doc} doesn't list: {missing}")
-    print("\n".join(problems) if problems else f"controls: all {len(keys)} keys documented in the help panel, "
-                                                f"README.md and package/README.txt")
+    documented = (f"controls: all {len(keys)} keys documented in the help panel, README.md and "
+                  "package/README.txt")
+    print("\n".join(problems) if problems else documented)
     return 1 if problems else 0
 
 

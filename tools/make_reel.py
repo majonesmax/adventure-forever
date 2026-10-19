@@ -40,9 +40,9 @@ from shared.types import Picture, RamView, Rgb, Samples  # noqa: E402
 CardLine = tuple[str, int, Rgb]     # a title card's line: (text, size, colour)
 Caption = tuple[int, int, str]      # (first frame, last frame, text)
 
-W, H, FPS = 1920, 1080, 60
+WIDTH, HEIGHT, FPS = 1920, 1080, 60
 STAGE_H = 960                       # the app's picture goes in the top 1920x960; captions below
-BG = (11, 11, 20)
+BACKGROUND = (11, 11, 20)
 INK, DIM = (236, 236, 244), (150, 150, 170)
 READ_FRAMES = int(2.6 * 60)         # every caption stays up at least this long...
 READ_SPEED = 18                     # ...and longer ones at this many characters a second
@@ -69,12 +69,13 @@ class CapturedAudio:
     def push(self, samples: Samples) -> None:
         self.pending.append(samples)
 
-    def take(self, n: int) -> Samples:
-        """Exactly n samples for this frame: the emulator's (silence while paused or scrolling) + the music."""
+    def take(self, count: int) -> Samples:
+        """Exactly `count` samples for this frame: the emulator's (silence while paused or scrolling) + the
+        music."""
         sfx = np.concatenate(self.pending) if self.pending else np.zeros((0, 2), np.int16)
         self.pending = []
-        block = np.zeros((n, 2), np.int16)
-        block[:min(n, len(sfx))] = sfx[:n]
+        block = np.zeros((count, 2), np.int16)
+        block[:min(count, len(sfx))] = sfx[:count]
         return self.mixer(block) if self.mixer else block
 
 
@@ -85,11 +86,16 @@ def ffmpeg() -> str:
     return found
 
 
+def never_records(recorder: REC.Recorder, *_args: Any, **_kwargs: Any) -> None:
+    """In place of the recorder's __init__: a recorder that's never active."""
+    recorder.active = False
+
+
 class Reel:
     def __init__(self, rom: str, out: str, stills: int = 0):
         NS.time = Clock                                  # the pop-ups fade on the video's clock
         h.AudioOut = CapturedAudio                       # no sound card: the reel mixes the sound itself
-        REC.Recorder.__init__ = lambda self, *a, **k: setattr(self, "active", False)  # never records
+        setattr(REC.Recorder, "__init__", never_records)  # replacing a method, deliberately
         WIN.SCALE, WIN.SOLO_SCALE = 4, 4                 # every view fits 1920x960 at its native size
         self.win = WIN.GameWindow(rom, look_key="nes", public=True)
         # the public packs, then the demos from ADVENTURE_PACKS - never private ones
@@ -108,8 +114,8 @@ class Reel:
         if not stills:
             self.video = subprocess.Popen(
                 [ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                 "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "16",
-                 "-pix_fmt", "yuv420p", out + ".video.mp4"], stdin=subprocess.PIPE)
+                 "-s", f"{WIDTH}x{HEIGHT}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium",
+                 "-crf", "16", "-pix_fmt", "yuv420p", out + ".video.mp4"], stdin=subprocess.PIPE)
         else:
             os.makedirs(out, exist_ok=True)
 
@@ -153,17 +159,18 @@ class Reel:
     def walk_to(self, x: int, y: int, most: int = 600, near: int = 2) -> int:
         """Walk the hero toward (x, y) in the game's units (y counts up) - stops there, or after `most`
         frames (a wall in the way). Returns the frames it took."""
+        hero_x = hero_y = 0
         for i in range(most):
-            hx, hy = int(self.ram[0x8B - 0x80]), int(self.ram[0x8C - 0x80])
-            if abs(hx - x) <= near and abs(hy - y) <= near:
+            hero_x, hero_y = int(self.ram[0x8B - 0x80]), int(self.ram[0x8C - 0x80])
+            if abs(hero_x - x) <= near and abs(hero_y - y) <= near:
                 return i
             keys: set[int] = set()
-            if abs(hx - x) > near:
-                keys.add(h.JOY_RIGHT if x > hx else h.JOY_LEFT)
-            if abs(hy - y) > near:
-                keys.add(h.JOY_UP if y > hy else h.JOY_DOWN)
+            if abs(hero_x - x) > near:
+                keys.add(h.JOY_RIGHT if x > hero_x else h.JOY_LEFT)
+            if abs(hero_y - y) > near:
+                keys.add(h.JOY_UP if y > hero_y else h.JOY_DOWN)
             self.play(1, keys)
-        print(f"walk_to: didn't reach ({x:02X}, {y:02X}) from ({hx:02X}, {hy:02X}) in room "
+        print(f"walk_to: didn't reach ({x:02X}, {y:02X}) from ({hero_x:02X}, {hero_y:02X}) in room "
               f"${int(self.ram[0x8A - 0x80]):02X} - {self.caption!r} at {self.frame / FPS:.1f} s", flush=True)
         return most
 
@@ -174,7 +181,8 @@ class Reel:
 
     def use(self, look: str | None = None, cast: str | None = None, world: str | None = None,
             popup: bool = True) -> None:
-        """Straight to a look, cast and world (None: leave as is), with the info pop-up as a key would show."""
+        """Straight to a look, cast and world (None: leave as is), with the info pop-up as a key would
+        show."""
         win = self.win
         win.look_key = look or win.look_key
         win.cast_key = cast or win.cast_key
@@ -194,10 +202,10 @@ class Reel:
         """Set up a scene: write RAM ({address: value}). The next frame is the game's from there - shown
         as a cut, not a room scroll."""
         ram = self.ram
-        if 0x8A in values:  # where the game bounces the hero back to when he hits a wall: here, not the old room
+        if 0x8A in values:  # where the game bounces the hero back to after a wall: here, not the old room
             values = {0xE2: values[0x8A], 0xE3: values[0x8B], 0xE4: values[0x8C], **values}
-        for addr, v in values.items():
-            ram[addr - 0x80] = v
+        for addr, value in values.items():
+            ram[addr - 0x80] = value
         self.win.prev_state = None
         # the 2600 sees walls by hardware collision with the picture it last drew - still the old room's
         # for a frame - so stand still while the new room is drawn
@@ -217,16 +225,16 @@ class Reel:
 
     def card(self, lines: list[CardLine], seconds: float) -> None:
         """A full-screen title card: [(text, size, colour)], centred, top to bottom."""
-        img = pygame.Surface((W, H))
-        img.fill(BG)
+        img = pygame.Surface((WIDTH, HEIGHT))
+        img.fill(BACKGROUND)
         fonts: dict[int, pygame.font.Font] = {}
-        heights = [mono(s, bold=True).get_linesize() + 18 for _, s, _ in lines]
-        y = (H - sum(heights)) // 2
-        for (text, size, colour), lh in zip(lines, heights):
+        heights = [mono(size, bold=True).get_linesize() + 18 for _, size, _ in lines]
+        y = (HEIGHT - sum(heights)) // 2
+        for (text, size, colour), line_height in zip(lines, heights):
             f = fonts.setdefault(size, mono(size, bold=True))
-            r = f.render(text, True, colour)
-            img.blit(r, ((W - r.get_width()) // 2, y))
-            y += lh
+            rendered = f.render(text, True, colour)
+            img.blit(rendered, ((WIDTH - rendered.get_width()) // 2, y))
+            y += line_height
         still = pygame.surfarray.array3d(img).transpose(1, 0, 2)
         for i in range(int(seconds * FPS)):
             fade = min(1.0, i / 15, (seconds * FPS - i) / 15)
@@ -238,8 +246,7 @@ class Reel:
         return np.zeros((self.samples_for_frame(), 2), np.int16)
 
     def samples_for_frame(self) -> int:
-        n = round((self.frame + 1) * self.rate / FPS) - self.samples_done
-        return n
+        return round((self.frame + 1) * self.rate / FPS) - self.samples_done
 
     def step(self) -> None:
         """One frame of the app, as its run() loop does it, captured."""
@@ -254,25 +261,26 @@ class Reel:
         self.emit(self.compose(canvas), self.sound.take(self.samples_for_frame()))
 
     def compose(self, canvas: Picture) -> Picture:
-        img = np.zeros((H, W, 3), np.uint8)
-        img[:] = BG
-        ch, cw = canvas.shape[:2]
-        k = max(1, min(W // cw, STAGE_H // ch))
+        img = np.zeros((HEIGHT, WIDTH, 3), np.uint8)
+        img[:] = BACKGROUND
+        canvas_h, canvas_w = canvas.shape[:2]
+        k = max(1, min(WIDTH // canvas_w, STAGE_H // canvas_h))
         if k > 1:
             canvas = canvas.repeat(k, 0).repeat(k, 1)
-            ch, cw = canvas.shape[:2]
-        if cw > W or ch > STAGE_H:  # too big: shrink smoothly
-            s = min(W / cw, STAGE_H / ch)
-            smaller = (int(cw * s), int(ch * s))
+            canvas_h, canvas_w = canvas.shape[:2]
+        if canvas_w > WIDTH or canvas_h > STAGE_H:  # too big: shrink smoothly
+            shrink = min(WIDTH / canvas_w, STAGE_H / canvas_h)
+            smaller = (int(canvas_w * shrink), int(canvas_h * shrink))
             canvas = np.array(Image.fromarray(canvas).resize(smaller, Image.Resampling.LANCZOS))
-            ch, cw = canvas.shape[:2]
-        y0, x0 = (STAGE_H - ch) // 2, (W - cw) // 2
-        img[y0:y0 + ch, x0:x0 + cw] = canvas
+            canvas_h, canvas_w = canvas.shape[:2]
+        y0, x0 = (STAGE_H - canvas_h) // 2, (WIDTH - canvas_w) // 2
+        img[y0:y0 + canvas_h, x0:x0 + canvas_w] = canvas
         if self.caption:
-            surf = pygame.Surface((W, H - STAGE_H))
-            surf.fill(BG)
-            r = self.font.render(self.caption, True, INK)
-            surf.blit(r, ((W - r.get_width()) // 2, (H - STAGE_H - r.get_height()) // 2))
+            surf = pygame.Surface((WIDTH, HEIGHT - STAGE_H))
+            surf.fill(BACKGROUND)
+            rendered = self.font.render(self.caption, True, INK)
+            left = (WIDTH - rendered.get_width()) // 2
+            surf.blit(rendered, (left, (HEIGHT - STAGE_H - rendered.get_height()) // 2))
             img[STAGE_H:] = pygame.surfarray.array3d(surf).transpose(1, 0, 2)
         return img
 
@@ -307,135 +315,156 @@ class Reel:
         os.remove(self.out + ".video.mp4")
         os.remove(self.out + ".wav")
         with open(os.path.splitext(self.out)[0] + ".srt", "w") as f:
-            for i, (a, b, text) in enumerate(self.captions, 1):
-                f.write(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{text}\n\n")
+            for i, (first, last, text) in enumerate(self.captions, 1):
+                f.write(f"{i}\n{srt_time(first)} --> {srt_time(last)}\n{text}\n\n")
         print(f"{self.out}  {self.frame / FPS:.1f} s, captions in {os.path.splitext(self.out)[0]}.srt")
 
 
 def srt_time(frame: int) -> str:
-    ms = int(round(frame * 1000 / FPS))
-    return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+    millis = int(round(frame * 1000 / FPS))
+    hours, minutes, secs = millis // 3600000, millis // 60000 % 60, millis // 1000 % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis % 1000:03d}"
 
 
-UP, DOWN, LEFT, RIGHT, FIRE = h.JOY_UP, h.JOY_DOWN, h.JOY_LEFT, h.JOY_RIGHT, h.JOY_B
+STICK_UP, STICK_DOWN, STICK_LEFT, STICK_RIGHT, FIRE = h.JOY_UP, h.JOY_DOWN, h.JOY_LEFT, h.JOY_RIGHT, h.JOY_B
 
 
-def script(r: Reel) -> None:
+def script(reel: Reel) -> None:
     """The reel: about two minutes."""
-    r.card([("ADVENTURE FOREVER", 72, INK), ("Atari 2600 Adventure (1980), remastered live", 34, DIM)], 3)
+    reel.card([("ADVENTURE FOREVER", 72, INK), ("Atari 2600 Adventure (1980), remastered live", 34, DIM)], 3)
+    the_original(reel)
+    the_looks(reel)
+    casts_and_worlds(reel)
+    the_game(reel)
+    the_demo_packs(reel)
+    the_grid(reel)
+    the_win(reel)
+    reel.card([("ADVENTURE FOREVER", 72, INK), ("Free and open source", 34, DIM),
+               ("github.com/majonesmax/adventure-forever", 38, (232, 200, 72)),
+               ("Adventure (c) 1980 Atari, by Warren Robinett. Bring your own ROM.", 26, DIM)], 6)
+    reel.finish()
 
-    # the original, then what we read, then the remaster
-    r.press("next_view")
-    r.press("next_view")  # side by side -> look -> the 2600 alone
-    r.say("This is Atari 2600 Adventure (1980), running unmodified in an emulator.")
-    r.play(90)
-    r.switch(h.JOY_START)
-    r.play(40)
-    r.route((0x50, 0x16), (0x2C, 0x16))
-    r.press("next_view")  # -> the grid
-    r.say("Every frame, its 128 bytes of memory are read...")
-    r.route((0x22, 0x30), (0x22, 0x40))  # the gold key
-    r.say("...and the whole scene is drawn again, in a new look.")
-    r.route((0x22, 0x16), (0x50, 0x16))
-    r.press("next_view")  # -> side by side
-    r.say("Same game, same moves. Only the picture is new.")
-    r.play(140, {UP})  # the key opens the gate; into the castle
-    r.press("next_view")  # -> the look alone
-    r.clear()  # the key too: carried past the gate, it would open it again
-    r.poke({0x8A: 0x11, 0x8B: 0x50, 0x8C: 0x1C, 0xC8: 0x1C})  # back out in front of the castle, its gate shut
 
-    # looks
-    r.say("Press L to change the look.")
-    r.route((0x20, 0x1C), most=60)
-    for look, line in (("snes", "SNES: 16-bit colour and a bigger cast."),
-                       ("vga", "VGA: an early-90s PC game, 256 colours."),
-                       ("paper", "Paper: crayon in a sketchbook."),
-                       ("nes", "NES: where it started.")):
-        r.press("next_look")
-        r.say(line)
-        r.route((0x20, 0x50), (0x20, 0x1C), (0x40, 0x1C), most=60)  # clear of the gate
+def the_original(reel: Reel) -> None:
+    """The original, then what we read, then the remaster."""
+    reel.press("next_view")
+    reel.press("next_view")  # side by side -> look -> the 2600 alone
+    reel.say("This is Atari 2600 Adventure (1980), running unmodified in an emulator.")
+    reel.play(90)
+    reel.switch(h.JOY_START)
+    reel.play(40)
+    reel.route((0x50, 0x16), (0x2C, 0x16))
+    reel.press("next_view")  # -> the grid
+    reel.say("Every frame, its 128 bytes of memory are read...")
+    reel.route((0x22, 0x30), (0x22, 0x40))  # the gold key
+    reel.say("...and the whole scene is drawn again, in a new look.")
+    reel.route((0x22, 0x16), (0x50, 0x16))
+    reel.press("next_view")  # -> side by side
+    reel.say("Same game, same moves. Only the picture is new.")
+    reel.play(140, {STICK_UP})  # the key opens the gate; into the castle
+    reel.press("next_view")  # -> the look alone
+    reel.clear()  # the key too: carried past the gate, it would open it again
+    reel.poke({0x8A: 0x11, 0x8B: 0x50, 0x8C: 0x1C, 0xC8: 0x1C})  # back out in front of the castle, gate shut
 
-    # casts and worlds
-    r.say("C changes the cast: who's in the game.")
-    r.press("next_cast")
-    r.route((0x20, 0x50), (0x20, 0x1C), most=80)
-    r.say("W changes the world: where it happens.")
-    r.press("next_world")
-    r.route((0x40, 0x1C), (0x20, 0x1C), (0x20, 0x40), most=60)
-    r.say("Any look shows any cast in any world.")
+
+def the_looks(reel: Reel) -> None:
+    reel.say("Press L to change the look.")
+    reel.route((0x20, 0x1C), most=60)
+    for _look, line in (("snes", "SNES: 16-bit colour and a bigger cast."),
+                        ("vga", "VGA: an early-90s PC game, 256 colours."),
+                        ("paper", "Paper: crayon in a sketchbook."),
+                        ("nes", "NES: where it started.")):
+        reel.press("next_look")
+        reel.say(line)
+        reel.route((0x20, 0x50), (0x20, 0x1C), (0x40, 0x1C), most=60)  # clear of the gate
+
+
+def casts_and_worlds(reel: Reel) -> None:
+    reel.say("C changes the cast: who's in the game.")
+    reel.press("next_cast")
+    reel.route((0x20, 0x50), (0x20, 0x1C), most=80)
+    reel.say("W changes the world: where it happens.")
+    reel.press("next_world")
+    reel.route((0x40, 0x1C), (0x20, 0x1C), (0x20, 0x40), most=60)
+    reel.say("Any look shows any cast in any world.")
     for look, cast, world in (("snes", "classic", "pbj"), ("vga", "pbj", "classic"), ("paper", "pbj", "pbj"),
                               ("nes", "classic", "classic"), ("snes", "pbj", "pbj")):
-        r.use(look, cast, world)
-        r.route((0x40, 0x1C), (0x20, 0x1C), most=45)
+        reel.use(look, cast, world)
+        reel.route((0x40, 0x1C), (0x20, 0x1C), most=45)
 
-    # the game itself, staged: each scene set up in RAM, then played out by the real game
-    r.say("Fight dragons...")
-    r.use("snes", "classic", "classic", popup=False)
-    r.clear()
-    r.clear()
-    r.poke({0x8A: 0x02, 0x8B: 0x30, 0x8C: 0x30, 0xB6: 0x02, 0xB7: 0x38, 0xB8: 0x30, 0x9D: 0x09 * 9, 0x9E: 8,
-            0x9F: 0, 0xA4: 0x02, 0xA5: 0x60, 0xA6: 0x30, 0xA8: 0})  # sword in hand, the red dragon ahead
-    r.play(24, {RIGHT})  # the sword meets the dragon
-    r.play(50, {LEFT})   # step back to see it
-    r.play(60)
-    r.say("...outwit the bat, who steals things...")
-    r.use("vga", "classic", "classic", popup=False)
-    r.clear()
-    r.poke({0x8A: 0x01, 0x8B: 0x50, 0x8C: 0x30, 0xBF: 0x01, 0xC0: 0x58, 0xC1: 0x30, 0x9D: 0x0B * 9, 0x9E: 8,
-            0x9F: 0, 0xCB: 0x01, 0xCC: 0x90, 0xCD: 0x50, 0xCE: 0x9F, 0xCF: 7, 0xD0: 0, 0xD1: 0})  # the key in hand, the bat coming
-    r.play(150)
-    r.say("...and find your way through the dark.")
-    r.use("paper", "sketchbook", "sketchbook", popup=False)
-    r.clear()
-    r.poke({0x8A: 0x13, 0x8B: 0x50, 0x8C: 0x3C})
-    r.route((0x20, 0x3C), (0x80, 0x3C), most=110)
 
-    # the demo packs
-    r.say("More packs are a download away: ORIENTATION, in the VGA look...")
-    r.use("vga", "orientation", "orientation")
-    r.clear()
-    r.poke({0x8A: 0x05, 0x8B: 0x18, 0x8C: 0x3C})
-    r.route((0x48, 0x3C), (0x48, 0x1C), most=90)
-    r.say("...and SKETCHBOOK, in the paper look.")
-    r.use("paper", "sketchbook", "sketchbook")
-    r.clear()
-    r.poke({0x8A: 0x0F, 0x8B: 0x50, 0x8C: 0x1C})
-    r.route((0x20, 0x1C), (0x20, 0x50), most=90)
+def the_game(reel: Reel) -> None:
+    """The game itself, staged: each scene set up in RAM, then played out by the real game."""
+    reel.say("Fight dragons...")
+    reel.use("snes", "classic", "classic", popup=False)
+    reel.clear()
+    reel.clear()
+    # the sword in hand, the red dragon ahead
+    reel.poke({0x8A: 0x02, 0x8B: 0x30, 0x8C: 0x30, 0xB6: 0x02, 0xB7: 0x38, 0xB8: 0x30, 0x9D: 0x09 * 9,
+               0x9E: 8, 0x9F: 0, 0xA4: 0x02, 0xA5: 0x60, 0xA6: 0x30, 0xA8: 0})
+    reel.play(24, {STICK_RIGHT})  # the sword meets the dragon
+    reel.play(50, {STICK_LEFT})   # step back to see it
+    reel.play(60)
+    reel.say("...outwit the bat, who steals things...")
+    reel.use("vga", "classic", "classic", popup=False)
+    reel.clear()
+    reel.poke({0x8A: 0x01, 0x8B: 0x50, 0x8C: 0x30, 0xBF: 0x01, 0xC0: 0x58, 0xC1: 0x30, 0x9D: 0x0B * 9,
+               0x9E: 8, 0x9F: 0, 0xCB: 0x01, 0xCC: 0x90, 0xCD: 0x50, 0xCE: 0x9F, 0xCF: 7, 0xD0: 0,
+               0xD1: 0})  # the key in hand, the bat coming
+    reel.play(150)
+    reel.say("...and find your way through the dark.")
+    reel.use("paper", "sketchbook", "sketchbook", popup=False)
+    reel.clear()
+    reel.poke({0x8A: 0x13, 0x8B: 0x50, 0x8C: 0x3C})
+    reel.route((0x20, 0x3C), (0x80, 0x3C), most=110)
 
-    # the grid
-    r.use("nes", "classic", "classic", popup=False)
-    r.poke({0x8A: 0x02, 0x8B: 0x50, 0x8C: 0x30, 0x9D: 0xA2})
-    r.press("next_view")
-    r.press("next_view")  # -> the 2600 alone -> the grid
-    r.say("The grid: what you play, a comparison, the original and its live memory.")
-    r.route((0x80, 0x30), (0x30, 0x30), most=100)
-    r.press("compare_look")
-    r.say("Shift+L, C or W changes the comparison.")
-    r.route((0x80, 0x30), (0x30, 0x30), most=100)
-    r.press("next_view")  # -> side by side
 
-    # the win
-    r.say("Bring the chalice home.")
-    r.use("snes", "pbj", "pbj", popup=False)
-    r.clear()
-    r.poke({0x8A: 0x12, 0x8B: 0x50, 0x8C: 0x18, 0xB9: 0x12, 0xBA: 0x58, 0xBB: 0x18, 0x9D: 0x10 * 9,
-            0x9E: 8, 0x9F: 0})  # inside the gold castle, the chalice in hand
-    r.play(300, {UP})
-    r.say("H shows every key.")
-    r.press("toggle_help", then=210)
-    r.press("toggle_help")
-    r.say(None)
-    r.card([("ADVENTURE FOREVER", 72, INK), ("Free and open source", 34, DIM),
-            ("github.com/majonesmax/adventure-forever", 38, (232, 200, 72)),
-            ("Adventure (c) 1980 Atari, by Warren Robinett. Bring your own ROM.", 26, DIM)], 6)
-    r.finish()
+def the_demo_packs(reel: Reel) -> None:
+    reel.say("More packs are a download away: ORIENTATION, in the VGA look...")
+    reel.use("vga", "orientation", "orientation")
+    reel.clear()
+    reel.poke({0x8A: 0x05, 0x8B: 0x18, 0x8C: 0x3C})
+    reel.route((0x48, 0x3C), (0x48, 0x1C), most=90)
+    reel.say("...and SKETCHBOOK, in the paper look.")
+    reel.use("paper", "sketchbook", "sketchbook")
+    reel.clear()
+    reel.poke({0x8A: 0x0F, 0x8B: 0x50, 0x8C: 0x1C})
+    reel.route((0x20, 0x1C), (0x20, 0x50), most=90)
+
+
+def the_grid(reel: Reel) -> None:
+    reel.use("nes", "classic", "classic", popup=False)
+    reel.poke({0x8A: 0x02, 0x8B: 0x50, 0x8C: 0x30, 0x9D: 0xA2})
+    reel.press("next_view")
+    reel.press("next_view")  # -> the 2600 alone -> the grid
+    reel.say("The grid: what you play, a comparison, the original and its live memory.")
+    reel.route((0x80, 0x30), (0x30, 0x30), most=100)
+    reel.press("compare_look")
+    reel.say("Shift+L, C or W changes the comparison.")
+    reel.route((0x80, 0x30), (0x30, 0x30), most=100)
+    reel.press("next_view")  # -> side by side
+
+
+def the_win(reel: Reel) -> None:
+    reel.say("Bring the chalice home.")
+    reel.use("snes", "pbj", "pbj", popup=False)
+    reel.clear()
+    reel.poke({0x8A: 0x12, 0x8B: 0x50, 0x8C: 0x18, 0xB9: 0x12, 0xBA: 0x58, 0xBB: 0x18, 0x9D: 0x10 * 9,
+               0x9E: 8, 0x9F: 0})  # inside the gold castle, the chalice in hand
+    reel.play(300, {STICK_UP})
+    reel.say("H shows every key.")
+    reel.press("toggle_help", then=210)
+    reel.press("toggle_help")
+    reel.say(None)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-o", "--out", default=os.path.join(paths.SHOTS, "reel.mp4"))
-    ap.add_argument("--stills", type=int, default=0, help="save every Nth frame as a PNG instead of a video")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-o", "--out", default=os.path.join(paths.SHOTS, "reel.mp4"))
+    parser.add_argument("--stills", type=int, default=0,
+                        help="save every Nth frame as a PNG instead of a video")
+    args = parser.parse_args()
     out = os.path.join(paths.SHOTS, "reel_stills") if args.stills else args.out
     rom = os.path.join(paths.ROOT, "roms", "adventure.a26")
     script(Reel(rom, out, args.stills))

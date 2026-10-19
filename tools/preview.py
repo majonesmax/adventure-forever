@@ -1,5 +1,5 @@
-"""See a cast and world without playing: the golden test's game moments (the title, dragons, items, the bridge,
-a dark maze, the win...) drawn in each look, as one picture - a row per look, a column per moment.
+"""See a cast and world without playing: the golden test's game moments (the title, dragons, items, the
+bridge, a dark maze, the win...) drawn in each look, as one picture - a row per look, a column per moment.
 
 Made for checking a pack while you work on it, and for AI assistants, which can read the picture but can't
 play the game. Needs your ROM and the emulator core, like the tests.
@@ -15,6 +15,7 @@ Moments: title, start_game1, start_game2, dragons, eaten, items_bat_up, bat_down
 import argparse
 import os
 import sys
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -31,38 +32,50 @@ DEFAULT = "title,start_game1,dragons,items_bat_up,carry_sword,bridge,dark_maze,b
 TITLE_FRAME = 200  # the title screen once its animations have finished
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--pack", help="a pack's cast and world")
-    ap.add_argument("--cast", help="a pack's cast (default: --pack, else each look's own)")
-    ap.add_argument("--world", help="a pack's world (default: --pack, else each look's own)")
-    ap.add_argument("--look", default=",".join(looks.LOOKS), help="looks, comma-separated (default: all)")
-    ap.add_argument("--moments", default=DEFAULT, help=f"comma-separated (default: {DEFAULT})")
-    ap.add_argument("--scale", type=int, default=2, help="pixels per screen pixel (default 2)")
-    args = ap.parse_args()
-    cast, world = args.cast or args.pack, args.world or args.pack
+def options() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--pack", help="a pack's cast and world")
+    parser.add_argument("--cast", help="a pack's cast (default: --pack, else each look's own)")
+    parser.add_argument("--world", help="a pack's world (default: --pack, else each look's own)")
+    parser.add_argument("--look", default=",".join(looks.LOOKS), help="looks, comma-separated (default: all)")
+    parser.add_argument("--moments", default=DEFAULT, help=f"comma-separated (default: {DEFAULT})")
+    parser.add_argument("--scale", type=int, default=2, help="pixels per screen pixel (default 2)")
+    return parser.parse_args()
 
-    _, title, g1 = G.boot(1)
-    _, _, g2 = G.boot(2)
+
+def look_row(look_key: str, names: list[str], moments: dict[str, Any], cast: str | None, world: str | None,
+             game: Game) -> Picture:
+    """One look's row of moments, with white gaps between them."""
+    row: list[Picture] = []
+    for name in names:
+        if name not in moments:
+            sys.exit(f"no moment called {name!r}: see --help")
+        rams, frames, _ = moments[name]
+        look = looks.make(look_key, cast, world, game.reader)  # fresh: no state carried over
+        for ram, frame in zip(rams, frames):
+            picture = look.draw(game.state(ram), TITLE_FRAME if name == "title" else frame)
+        row += [picture, np.full((picture.shape[0], 4, 3), 255, np.uint8)]
+    return np.concatenate(row[:-1], axis=1)
+
+
+def main() -> None:
+    args = options()
+    cast, world = args.cast or args.pack, args.world or args.pack
+    _, title, game_1 = G.boot(1)
+    _, _, game_2 = G.boot(2)
     game = Game()
-    moments = G.scenarios(g1, g2, title)
+    moments = G.scenarios(game_1, game_2, title)
     rows: list[Picture] = []
     for look_key in args.look.split(","):
-        row: list[Picture] = []
-        for name in args.moments.split(","):
-            if name not in moments:
-                sys.exit(f"no moment called {name!r}: see --help")
-            rams, frames, _ = moments[name]
-            look = looks.make(look_key, cast, world, game.reader)  # fresh: no state carried over
-            for ram, frame in zip(rams, frames):
-                img = look.draw(game.state(ram), TITLE_FRAME if name == "title" else frame)
-            row += [img, np.full((img.shape[0], 4, 3), 255, np.uint8)]
-        rows += [np.concatenate(row[:-1], axis=1), np.full((4, sum(r.shape[1] for r in row[:-1]), 3), 255, np.uint8)]
+        row = look_row(look_key, args.moments.split(","), moments, cast, world, game)
+        rows += [row, np.full((4, row.shape[1], 3), 255, np.uint8)]
     sheet = np.concatenate(rows[:-1], axis=0)
     out_dir = os.path.join(paths.SHOTS, "preview")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"{args.look.replace(',', '-')}+{cast or 'own'}@{world or 'own'}.png")
-    Image.fromarray(sheet).resize((sheet.shape[1] * args.scale, sheet.shape[0] * args.scale), Image.Resampling.NEAREST).save(out)
+    size = (sheet.shape[1] * args.scale, sheet.shape[0] * args.scale)
+    Image.fromarray(sheet).resize(size, Image.Resampling.NEAREST).save(out)
     print(out)
 
 
