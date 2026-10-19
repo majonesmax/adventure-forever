@@ -15,6 +15,7 @@ sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import NES
 from shared.pixelart import from_ascii
+from shared.types import Picture
 
 TILES = {  # name -> (colours, art)
     "floor_cave": ({"D": 0x0D, "L": 0x2D}, """
@@ -383,7 +384,7 @@ MMDDMMMMMMMMMMMMMMDDMMMMMMMMMMMM"""),
 }
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     out = {}
     for name, (colours, art) in TILES.items():
         rgb = {char: NES[index] for char, index in colours.items()}

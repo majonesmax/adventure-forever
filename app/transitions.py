@@ -9,15 +9,24 @@ sets y = $0D, down y = $69, left x = $9E, right x = $03) or, for the castle gate
 Anything else (RESET, the game-number screen) gets no scroll - a plain cut, as before.
 """
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 
 from engine import rooms as R
+from engine.state import GameState
 from shared.pixelart import blit
+from shared.types import Picture
+
+if TYPE_CHECKING:   # only for the type checker
+    from looks.base import RoomLook
 
 PX_PER_FRAME = {"up": 6, "down": 6, "left": 8, "right": 8}  # ~32 frames (half a second) either way
+Actors = dict[Any, tuple[Picture, float, float]]   # a look's actors: key -> (sprite, x, y) (look.actors)
+Rect = tuple[int, int, int, int]                   # (x, y, width, height)
 
 
-def scroll_direction(prev, state):
+def scroll_direction(prev: GameState, state: GameState) -> str | None:
     """'up' / 'down' / 'left' / 'right', or None for a cut. prev, state: GameStates before/after."""
     room_before, room_after = prev.room_num, state.room_num
     if room_before == room_after or room_before == 0 or room_after == 0:  # room 0: the game-select screen
@@ -44,7 +53,7 @@ class Scroll:
     rect: (x, y, w, h) of the room on the screen - the look's ROOM_RECT."""
 
     @classmethod
-    def between(cls, look, before, after, frame_no):
+    def between(cls, look: "RoomLook", before: GameState, after: GameState, frame_no: int) -> "Scroll | None":
         """The scroll from GameState `before` to `after` in `look`, or None when the change is a plain cut."""
         direction = scroll_direction(before, after)
         if direction is None:
@@ -54,7 +63,8 @@ class Scroll:
         old_actors, new_actors = look.actors(before, frame_no), look.actors(after, frame_no)
         return cls(old_screen, new_screen, direction, old_actors, new_actors, look.ROOM_RECT)
 
-    def __init__(self, old_screen, new_screen, direction, old_actors, new_actors, rect):
+    def __init__(self, old_screen: Picture, new_screen: Picture, direction: str, old_actors: Actors | None,
+                 new_actors: Actors | None, rect: Rect):
         x0, y0, w, h = self.rect = rect
         self.old = old_screen[y0:y0 + h, x0:x0 + w]
         self.new = new_screen[y0:y0 + h, x0:x0 + w]
@@ -65,10 +75,10 @@ class Scroll:
         self.old_actors, self.new_actors = old_actors or {}, new_actors or {}
 
     @property
-    def done(self):
+    def done(self) -> bool:
         return self.offset >= self.span
 
-    def frame(self):
+    def frame(self) -> Picture:
         self.offset = min(self.offset + PX_PER_FRAME[self.direction], self.span)
         view = self.sliding_rooms()
         self.glide_actors(view)
@@ -77,7 +87,7 @@ class Scroll:
         out[y0:y0 + h, x0:x0 + w] = view
         return out
 
-    def sliding_rooms(self):
+    def sliding_rooms(self) -> Picture:
         """The two rooms side by side (or one above the other), and the window onto them right now."""
         offset, span, direction = self.offset, self.span, self.direction
         if direction == "up":      # the new room comes in from the top
@@ -94,7 +104,7 @@ class Scroll:
             view = strip[:, offset:offset + span]
         return view.copy()
 
-    def glide_actors(self, view):
+    def glide_actors(self, view: Picture) -> None:
         """The hero and his item, drawn once, moving from where they were in the old room to where they are
         in the new one as the rooms slide."""
         offset, span = self.offset, self.span

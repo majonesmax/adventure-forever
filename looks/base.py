@@ -24,16 +24,22 @@ example is looks/template_look.py - copy it to start a new look.
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 import numpy as np
 
 from engine import objects as O
 from engine import palette as P
+from engine.state import GameState
 from shared import layout as L
+from content.cast import Cast
 from content.pictures import FLASH
-from content.world import CASTLES
+from content.world import CASTLES, Room, World
 from shared import palettes as PAL
 from shared.pixelart import blit
+from shared.types import Floats, Picture, Rgb
+
+Placed = tuple[Picture, float, float]   # a sprite and where its top-left goes, in room pixels (x, y)
 
 DRAGON_COLOUR = {0x06: "red", 0x07: "yellow", 0x08: "green"}  # object number -> which dragon
 AUTHOR = 0x04  # Warren Robinett's credit: always shown in the 2600's own colours, never a remaster's
@@ -44,7 +50,7 @@ BOTTOM_LINE = 224  # the TV scan line at a room's bottom: the game's y counts up
 HERO_HALF_HEIGHT = 4  # scan lines from the hero's position to the middle of his hit-box
 
 
-def scan_line(game_y):
+def scan_line(game_y: int) -> int:
     """The game's y (counting up from the room's bottom) -> the TV scan line that layout.to_room() expects."""
     return BOTTOM_LINE - 2 * game_y
 
@@ -59,13 +65,14 @@ class Look(ABC):
     ROOM_RECT  (x, y, w, h) of the room on the screen - a room-to-room scroll slides only this area
     """
 
-    platform = key = "?"
-    name = "?"
+    platform: str = "?"
+    key: str = "?"
+    name: str = "?"
     SCREEN_W, SCREEN_H = L.SCREEN_W, L.SCREEN_H  # every look draws a 256x240 screen
-    ROOM_RECT = L.ROOM_RECT
+    ROOM_RECT: tuple[int, int, int, int] = L.ROOM_RECT
 
     @abstractmethod
-    def draw(self, state, frame_no, actors=True):
+    def draw(self, state: GameState, frame_no: int, actors: bool = True) -> Picture:
         """The screen for this frame: an (SCREEN_H, SCREEN_W, 3) uint8 RGB array.
 
         state     the GameState (engine/state.py)
@@ -75,11 +82,11 @@ class Look(ABC):
         Called every frame, in order - a look may keep state between calls (e.g. which way the hero faces)."""
 
     @abstractmethod
-    def actors(self, state, frame_no):
+    def actors(self, state: GameState, frame_no: int) -> dict[str, Placed]:
         """What a room scroll carries across: {"hero": (sprite, x, y)} plus "item" when one is held, in the
         order to draw them. Sprites are RGBA arrays; x, y are pixels inside ROOM_RECT."""
 
-    def won(self, state):
+    def won(self, state: GameState) -> bool:
         """Is the game won? (The music switches to the win tune.) The game's own flag - rarely worth
         changing."""
         return state.won
@@ -90,10 +97,11 @@ class HeroAnim:
     is just a square). Any sideways movement -> side view ("left"/"right"); pure up/down -> back/front view
     ("up"/"down"). frame() is 0 standing, alternating 0/1 while walking."""
 
-    def __init__(self):
-        self.prev, self.view, self.moving_for, self.still_for = None, "down", 0, 0
+    def __init__(self) -> None:
+        self.prev: tuple[int, int, int] | None = None   # (room, x, y) last frame
+        self.view, self.moving_for, self.still_for = "down", 0, 0
 
-    def update(self, state):
+    def update(self, state: GameState) -> None:
         position = (state.room_num, *state.hero)
         if self.prev and position[0] == self.prev[0]:
             dx, dy = position[1] - self.prev[1], position[2] - self.prev[2]
@@ -109,13 +117,13 @@ class HeroAnim:
                     self.moving_for = 0
         self.prev = position
 
-    def frame(self):
+    def frame(self) -> int:
         if not self.moving_for:
             return 0
         return (self.moving_for // 8) % 2  # a stride every 8 frames of walking
 
 
-def dragon_pose(dragon_state):
+def dragon_pose(dragon_state: int) -> str:
     """A dragon's state byte -> its pose: "dead" (1), "normal" (0, or 2 = it has eaten the hero), "roar"
     (anything higher: attacking, jaws open). From the game's MoveDragon routine."""
     if dragon_state == 1:
@@ -125,7 +133,8 @@ def dragon_pose(dragon_state):
     return "roar"
 
 
-def original_graphic(obj, object_state, nes_colour=None, col_w=L.COL_W):
+def original_graphic(obj: dict[str, Any], object_state: int, nes_colour: int | None = None,
+                     col_w: int = L.COL_W) -> Picture:
     """An object's own 2600 graphic as an RGBA sprite: each bit col_w/4 * its width px wide, each row 2 px
     tall, in one NES colour, with a 1 px black outline."""
     rows = O.graphic_for_state(obj, object_state)  # one byte per row, 8 bits across
@@ -157,13 +166,16 @@ class RoomLook(Look):
     SPLASH_AFTER   frames of win_banner over the room before win_splash takes over (if it returns a screen)
     """
 
-    platform = platform_name = "?"
-    own_pack = "classic"
+    platform: str = "?"
+    platform_name: str = "?"
+    own_pack: str = "classic"
     SPLASH_AFTER = 90
 
-    scenery = {}  # (platform, world, room number, light) -> the room as this platform shows it (shared)
+    # (platform, world, room number, light) -> the room as this platform shows it (shared by every look;
+    # a look whose rooms depend on more than these keeps its own)
+    scenery: dict[tuple[str, str, int, float], Picture] = {}
 
-    def __init__(self, reader, cast, world):
+    def __init__(self, reader: O.Reader, cast: Cast, world: World):
         """reader: the ROM's object table (Game().reader) - which graphic and size each object has.
         cast, world: content/cast.py, content/world.py - the cast's pictures go through adapt() once, here."""
         self.reader = reader
@@ -173,34 +185,36 @@ class RoomLook(Look):
         self.name = " - ".join([self.platform_name] + [part.name for part in (cast, world)
                                                        if part.key != self.own_pack])
         self.anim = HeroAnim()
-        self.sprite_cache = {}
-        self.current_state = None  # the frame being drawn (the author's credit flashes in its colours)
-        self.won_at = None
-        self.pal_2600, self.nearest = P.load(), {}
+        self.sprite_cache: dict[tuple[Any, ...], Picture | None] = {}
+        self.current_state: GameState | None = None  # the frame being drawn (for the credit's colours)
+        self.won_at: int | None = None
+        self.pal_2600: dict[int, Rgb] = P.load()
+        self.nearest: dict[tuple[int, ...], int] = {}   # a 2600 colour -> its nearest NES colour
         yy, xx = np.mgrid[0:L.ROOM_H, 0:L.ROOM_W]
         self.grid_yx = (yy, xx)
         self.hero = {view: [self.adapt(frame) for frame in frames] for view, frames in cast.hero().items()}
         self.dragons = {pose_colour: self.adapt(picture) for pose_colour, picture in cast.villains().items()}
         self.bat = {wings: self.adapt(picture) for wings, picture in cast.bat().items()}
         self.items = cast.items()  # adapted when drawn: a flashing item changes colour every few frames
-        self.flashes = set()  # items with pixels that flash
+        self.flashes: set[int] = set()  # items with pixels that flash
         for object_number, art in self.items.items():
             if np.all(art[..., :3] == FLASH, axis=2).any():
                 self.flashes.add(object_number)
 
     # ---- PLATFORM: what a subclass supplies --------------------------------------------------------------
 
-    def adapt(self, sprite):
+    def adapt(self, sprite: Picture) -> Picture:
         """The platform's rules for a cast's picture (an RGBA array) -> the picture as this look shows it:
         e.g. snapped to the NES's colours. Called once per picture (and per flash colour). Default: as is."""
         return sprite
 
-    def adapt_scenery(self, picture):
+    def adapt_scenery(self, picture: Picture) -> Picture:
         """The platform's rules for the world's pictures - rooms (RGB) and gates (RGBA). Called once per room
         and gate size. Default: as is."""
         return picture
 
-    def object_sprite(self, object_number, object_state, box_w, box_h, frame_no):
+    def object_sprite(self, object_number: int, object_state: int, box_w: float, box_h: float,
+                      frame_no: int) -> Picture | None:
         """Any object other than the hero and dragons (objects.py numbers them: 09 sword, 0A bridge, 0B-0D
         keys, 0E bat, 10 chalice, 11 magnet, 01-03 castle gates...). box_w, box_h: the original's size in
         room pixels - the bridge and gates should fill it. RGBA, drawn centred on the original's box.
@@ -217,7 +231,7 @@ class RoomLook(Look):
             return self.item_sprite(object_number, frame_no)
         return None
 
-    def gate_sprite(self, object_number, w, h):
+    def gate_sprite(self, object_number: int, w: int, h: int) -> Picture | None:
         """A castle's gate, at its current height h (0 = fully open: nothing to draw)."""
         key = ("gate", object_number, w, h)
         if key not in self.sprite_cache:
@@ -225,7 +239,7 @@ class RoomLook(Look):
             self.sprite_cache[key] = None if gate is None else self.adapt_scenery(gate)
         return self.sprite_cache[key]
 
-    def item_sprite(self, object_number, frame_no):
+    def item_sprite(self, object_number: int, frame_no: int) -> Picture | None:
         """The cast's picture of an item, in this frame's colour if it flashes."""
         art = self.items[object_number]
         flash = None
@@ -240,7 +254,7 @@ class RoomLook(Look):
             self.sprite_cache[key] = self.adapt(art)
         return self.sprite_cache[key]
 
-    def bridge_sprite(self, h, w=None):
+    def bridge_sprite(self, h: int, w: int | None = None) -> Picture | None:
         """The bridge, h pixels long (centred in w if given): the cast's, adapted; None = the original."""
         key = ("bridge", h, w)
         if key not in self.sprite_cache:
@@ -249,32 +263,32 @@ class RoomLook(Look):
         return self.sprite_cache[key]
 
     @abstractmethod
-    def draw_hud(self, screen, state, frame_no):
+    def draw_hud(self, screen: Picture, state: GameState, frame_no: int) -> None:
         """The status bar: everything above ROOM_RECT on `screen` (paint it in place)."""
 
     @abstractmethod
-    def title_screen(self, state, frame_no):
+    def title_screen(self, state: GameState, frame_no: int) -> Picture:
         """The whole screen for the game-select room (state.on_title_screen). Return a new RGB array."""
 
     @abstractmethod
-    def win_banner(self, screen, state, frame_no):
+    def win_banner(self, screen: Picture, state: GameState, frame_no: int) -> None:
         """Painted over the room when the game is won (state.won)."""
 
-    def win_splash(self, state, frame_no):
+    def win_splash(self, state: GameState, frame_no: int) -> Picture | None:
         """A full-screen victory picture, shown SPLASH_AFTER frames after the win; None = keep the banner."""
         return None
 
-    def unlit(self, room, light):
+    def unlit(self, room: Picture, light: Floats) -> Picture:
         """A dark room away from the torch: light is 0..1 per pixel (h, w). Default: fading to black."""
         return (room * light[..., None]).astype(np.uint8)
 
-    def carried_on_top(self, object_number):
+    def carried_on_top(self, object_number: int) -> bool:
         """Draw the held item over the hero (True) or under him, like the original (False)?"""
         return False
 
     # ---- shared machinery ---------------------------------------------------------------------------------
 
-    def room_image(self, room, light=1.0):
+    def room_image(self, room: Room, light: float = 1.0) -> Picture:
         """The room's walls and floor as this look shows them: the world's picture through adapt_scenery -
         dimmed to `light` first when the world's lights dip (world.lighting)."""
         light = round(light, 2)
@@ -286,17 +300,17 @@ class RoomLook(Look):
             self.scenery[key] = self.adapt_scenery(picture)
         return self.scenery[key]
 
-    def hero_sprite(self, view, frame):
+    def hero_sprite(self, view: str, frame: int) -> Picture:
         """The hero: view is "down" / "up" / "left" / "right", frame 0 (standing) or 1 (stride). RGBA."""
         return self.hero[view][frame]
 
-    def dragon_sprite(self, pose, colour):
+    def dragon_sprite(self, pose: str, colour: str) -> Picture | None:
         """A dragon: pose "normal" / "roar" / "dead", colour "red" / "yellow" / "green". RGBA, drawn centred
         on the original dragon with its feet on the bottom of the original's box. None = draw the original."""
         return self.dragons.get((pose, colour))
 
     @staticmethod
-    def flashing(sprite, colour):
+    def flashing(sprite: Picture, colour: int) -> Picture:
         """The sprite with its FLASH pixels (content/pictures.py) in NES colour `colour`."""
         mark = np.all(sprite[..., :3] == FLASH, axis=2) & (sprite[..., 3] > 0)
         if not mark.any():
@@ -305,7 +319,7 @@ class RoomLook(Look):
         out[mark, :3] = PAL.NES[colour]
         return out
 
-    def held_icon(self, object_number, frame_no):
+    def held_icon(self, object_number: int, frame_no: int) -> Picture:
         """The carried object as the status bar's item box shows it (fitted to 12 px; the bridge 24 px)."""
         if object_number == BRIDGE:
             sprite = self.bridge_sprite(24)
@@ -315,7 +329,7 @@ class RoomLook(Look):
             sprite = self.original_sprite(object_number, 0, frame_no)
         return sprite
 
-    def obj_colour(self, object_number, frame_no):
+    def obj_colour(self, object_number: int, frame_no: int) -> int | None:
         """The NES colour for a flashing object (odd 2600 colour) this frame, else None."""
         colour_byte = self.reader.objects[object_number]["colour"]
         if not colour_byte & 1:  # an even colour doesn't flash
@@ -328,16 +342,18 @@ class RoomLook(Look):
             return self.nearest[rgb]
         return PAL.flash_colour(frame_no)
 
-    def original_sprite(self, object_number, object_state, frame_no):
+    def original_sprite(self, object_number: int, object_state: int, frame_no: int) -> Picture:
         """The object's own 2600 graphic (cached) - for anything the art methods don't draw."""
         colour = self.obj_colour(object_number, frame_no)
         key = (object_number, object_state, colour)
         if key not in self.sprite_cache:
             obj = self.reader.objects[object_number]
             self.sprite_cache[key] = original_graphic(obj, object_state, nes_colour=colour)
-        return self.sprite_cache[key]
+        sprite = self.sprite_cache[key]
+        assert sprite is not None   # every object has its own graphic
+        return sprite
 
-    def placed(self, object_number, x, y, object_state, frame_no):
+    def placed(self, object_number: int, x: int, y: int, object_state: int, frame_no: int) -> Placed:
         """An object at the game's position (x, y) -> (sprite, room-space x, y) to blit."""
         obj = self.reader.objects[object_number]
         wide_shift = 0 if obj["width"] > 1 else -1  # a single-width graphic sits one unit left
@@ -357,12 +373,12 @@ class RoomLook(Look):
         return sprite, left - 1, top - 1  # its 1 px outline
 
     @staticmethod
-    def hero_centre(state):
+    def hero_centre(state: GameState) -> tuple[float, float]:
         """The middle of the hero's hit-box, in room pixels."""
         hero_x, hero_y = state.hero
         return L.to_room(hero_x, scan_line(hero_y) + HERO_HALF_HEIGHT)
 
-    def hero_placed(self, state):
+    def hero_placed(self, state: GameState) -> Placed:
         """(sprite, x, y): feet on the bottom of the game's hit-box. Overlap with a wall then only happens
         upward - the head against the wall above, which reads as standing in front of it."""
         centre_x, centre_y = self.hero_centre(state)
@@ -370,13 +386,14 @@ class RoomLook(Look):
         feet = centre_y + HERO_HALF_HEIGHT
         return sprite, centre_x - sprite.shape[1] / 2, feet - (sprite.shape[0] - 1 - self.cast.foot_gap)
 
-    def carried_placed(self, state, object_number, x, y, object_state, frame_no):
+    def carried_placed(self, state: GameState, object_number: int, x: int, y: int, object_state: int,
+                       frame_no: int) -> Placed:
         """Where the held item is drawn: exactly where the game has it - moving it would make hits miss
         where they looked like they landed (the game hit-tests its own positions)."""
         return self.placed(object_number, x, y, object_state, frame_no)
 
-    def actors(self, state, frame_no):
-        out = {}
+    def actors(self, state: GameState, frame_no: int) -> dict[str, Placed]:
+        out: dict[str, Placed] = {}
         for object_number, x, y, object_state in state.objects:
             if object_number == state.carried:
                 out["item"] = self.carried_placed(state, object_number, x, y, object_state, frame_no)
@@ -385,7 +402,7 @@ class RoomLook(Look):
         out["hero"] = self.hero_placed(state)
         return out
 
-    def draw(self, state, frame_no, actors=True):
+    def draw(self, state: GameState, frame_no: int, actors: bool = True) -> Picture:
         self.anim.update(state)
         self.current_state = state
         if state.on_title_screen:
@@ -404,7 +421,7 @@ class RoomLook(Look):
             return screen
         return self.winning(screen, state, frame_no)
 
-    def draw_objects(self, room, state, frame_no, actors):
+    def draw_objects(self, room: Picture, state: GameState, frame_no: int, actors: bool) -> None:
         """Every object where the game has it, then the hero; the held item is drawn in its place among the
         objects (under the hero, like the original) or after him if this look carries it on top.
         actors=False leaves out the hero and his item (a room scroll draws those itself)."""
@@ -423,7 +440,7 @@ class RoomLook(Look):
             if object_number == state.carried and self.carried_on_top(object_number):
                 blit(room, *self.carried_placed(state, object_number, x, y, object_state, frame_no))
 
-    def torch_lit(self, room, state):
+    def torch_lit(self, room: Picture, state: GameState) -> Picture:
         """A dark room: only a torch light around the hero shows it, in 3 bands of brightness."""
         centre_x, centre_y = self.hero_centre(state)
         yy, xx = self.grid_yx
@@ -432,7 +449,7 @@ class RoomLook(Look):
         banded = np.round(brightness * 3) / 3
         return self.unlit(room, banded)
 
-    def winning(self, screen, state, frame_no):
+    def winning(self, screen: Picture, state: GameState, frame_no: int) -> Picture:
         """The game is won: the win banner over the room, then (after SPLASH_AFTER frames) the splash."""
         if self.won_at is None:
             self.won_at = frame_no

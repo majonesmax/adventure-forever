@@ -9,13 +9,24 @@ object in the room, whether the game is won - so a look never needs to know a RA
     st.room_num, st.hero, st.carried, st.objects, st.won, st.eaten_by, st.game, st.on_title_screen
 """
 
+from typing import Any, NamedTuple
+
 from engine import objects as O
 from engine import palette as P
 from engine import ram_map as M
 from engine import rooms as R
+from shared.types import Point, RamBytes, RamView, Rgb
 
 DRAWN_OBJECTS = range(0x00, 0x12)  # every object but "null"
 DRAGON_COLOURS = {M.RED_DRAGON: "red", M.YELLOW_DRAGON: "yellow", M.GREEN_DRAGON: "green"}
+
+
+class RoomObject(NamedTuple):
+    """An object in the hero's room (engine/objects.py numbers them)."""
+    number: int
+    x: int
+    y: int
+    state: int        # its state byte: a dragon's mood, a gate's height... (0 for most)
 
 
 class GameState:
@@ -33,29 +44,29 @@ class GameState:
     ram              the 128 bytes themselves, indexed from $80 - for the RAM panel, not for looks
     """
 
-    def __init__(self, ram, reader, room_table):
-        def byte(addr):  # the RAM byte at a 2600 address ($80-$FF)
+    def __init__(self, ram: RamBytes, reader: O.Reader, room_table: list[dict[str, Any]]):
+        def byte(addr: int) -> int:  # the RAM byte at a 2600 address ($80-$FF)
             return int(ram[addr - 0x80])
-        self.ram = ram
+        self.ram: RamBytes = ram
         # Right after power-on, before the game has set up its RAM, the bytes are whatever the console
         # powered up with (random, on real hardware and on newer Stella cores): an impossible room or item
         # is read as "still starting up" - the title screen, nothing carried - never as an error.
         room_num = byte(M.ROOM)
-        self.room_num = room_num if room_num < len(room_table) else M.NUMBER_ROOM
-        self.room = room_table[self.room_num]
-        self.hero = (byte(M.HERO_X), byte(M.HERO_Y))
+        self.room_num: int = room_num if room_num < len(room_table) else M.NUMBER_ROOM
+        self.room: dict[str, Any] = room_table[self.room_num]
+        self.hero: Point = (byte(M.HERO_X), byte(M.HERO_Y))
         carried = byte(M.CARRIED) // 9  # the game keeps the object number times 9
-        self.carried = carried if carried < len(reader.objects) else M.NOTHING_CARRIED // 9
-        self.game = min(byte(M.LEVEL) // 2, 2) + 1
-        self.on_title_screen = self.room_num == M.NUMBER_ROOM
+        self.carried: int = carried if carried < len(reader.objects) else M.NOTHING_CARRIED // 9
+        self.game: int = min(byte(M.LEVEL) // 2, 2) + 1
+        self.on_title_screen: bool = self.room_num == M.NUMBER_ROOM
         # only a win sets the flag (being eaten doesn't)
-        self.won = not self.on_title_screen and byte(M.GAME_ACTIVE) != 0
-        self.eaten_by = None
+        self.won: bool = not self.on_title_screen and byte(M.GAME_ACTIVE) != 0
+        self.eaten_by: str | None = None
         for addr, colour in DRAGON_COLOURS.items():
             if byte(addr + M.DRAGON_STATE_OFFSET) == 2:  # 2: this dragon has eaten the hero
                 self.eaten_by = colour
                 break
-        self.objects = []  # (object number, x, y, state)
+        self.objects: list[RoomObject] = []
         for object_number in DRAWN_OBJECTS:
             room, x, y = reader.where(ram, object_number)
             if room != self.room_num:
@@ -63,9 +74,9 @@ class GameState:
             if object_number == self.carried:  # exactly hero + offset (the game applies it a step late)
                 x = (self.hero[0] + byte(M.CARRY_DX)) & 0xFF
                 y = (self.hero[1] + byte(M.CARRY_DY)) & 0xFF
-            self.objects.append((object_number, x, y, reader.state(ram, object_number)))
+            self.objects.append(RoomObject(object_number, x, y, reader.state(ram, object_number)))
 
-    def colour(self, value):
+    def colour(self, value: int) -> int:
         """The game's ChangeColor ($F2D3): a 2600 colour as the game shows it this frame - odd values flash
         (their colour comes from RAM, usually the frame counter), and attract mode dims everything."""
         colour = value >> 1
@@ -80,16 +91,16 @@ class GameState:
 class Game:
     """What the ROM says about the world - read once: the rooms, the object table, the 2600 palette."""
 
-    def __init__(self):
-        self.rom = R.load_rom()
-        self.rooms = R.decode_all(self.rom)
-        self.reader = O.Reader(self.rom)
-        self.palette = P.load()
+    def __init__(self) -> None:
+        self.rom: bytes = R.load_rom()
+        self.rooms: list[dict[str, Any]] = R.decode_all(self.rom)
+        self.reader: O.Reader = O.Reader(self.rom)
+        self.palette: dict[int, Rgb] = P.load()
 
-    def state(self, ram):
+    def state(self, ram: RamView) -> GameState:
         """A GameState from the 128 RAM bytes (copied - the emulator's RAM is live)."""
         return GameState(ram.copy(), self.reader, self.rooms)
 
-    def rgb(self, colour):
+    def rgb(self, colour: int) -> Rgb:
         """A 2600 colour number -> (r, g, b) as the Stella core shows it."""
         return self.palette[colour & 0xFE]

@@ -8,23 +8,25 @@ Usage: python -m engine.soundcard     -> shots/music/<song>-vga.wav, to listen t
 
 from engine import band as B
 from engine import fm as F
+from engine.chiptune import Song
+from shared.types import Floats, Samples
 
 
-def fm_brass(pitch, length):
+def fm_brass(pitch: float, length: int) -> Floats:
     tone = F.fm(pitch, length, ratio=1.0, index=3.0, index_decay=0.4)
     return tone * F.env(length, attack=0.03, decay=0.6, sustain=0.6, release=0.05)
 
 
-def reed(pitch, length):
+def reed(pitch: float, length: int) -> Floats:
     tone = F.fm(pitch, length, ratio=2.0, index=1.6)    # odd harmonics: a clarinet-ish buzz
     return tone * F.env(length, attack=0.02, decay=0.8, sustain=0.7, release=0.05)
 
 
-def lead(pitch, length):
+def lead(pitch: float, length: int) -> Floats:
     return F.fm(pitch, length, ratio=1.0, index=2.2) * F.env(length, attack=0.01, decay=0.5, sustain=0.65)
 
 
-def pluck(pitch, length):
+def pluck(pitch: float, length: int) -> Floats:
     tone = F.fm(pitch, length, ratio=1.0, index=2.0, index_decay=0.04)
     return tone * F.env(length, decay=0.15, release=0.02)
 
@@ -35,7 +37,7 @@ BAND = B.Band(lead={"anthem": fm_brass, "fanfare": fm_brass, "march": reed, "cre
               bass=F.bass, drum=F.drum, room=B.dry, mix=(0.30, 0.22, 0.34, 0.22))
 
 
-def render(song):
+def render(song: Song) -> Samples:
     return B.render(song, BAND)
 
 

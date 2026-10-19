@@ -18,10 +18,12 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, as a script
-from engine.chiptune import RATE, Timing, chord_notes, midi_hz, note_hz, parse_melody  # noqa: E402
+from engine.chiptune import RATE, Song, Timing, chord_notes, midi_hz, note_hz, parse_melody  # noqa: E402
+from shared.types import Floats, Instrument, Samples  # noqa: E402
 
 
-def env(length, attack=0.005, decay=0.6, sustain=0.0, release=0.05):
+def env(length: int, attack: float = 0.005, decay: float = 0.6, sustain: float = 0.0,
+        release: float = 0.05) -> Floats:
     """A note's loudness over time: a rise, a fall towards `sustain`, a fade at the end."""
     seconds = np.arange(length) / RATE
     after_attack = sustain + (1 - sustain) * np.exp(-(seconds - attack) / decay)
@@ -32,7 +34,8 @@ def env(length, attack=0.005, decay=0.6, sustain=0.0, release=0.05):
     return loudness
 
 
-def fm(freq, length, ratio=1.0, index=1.0, index_decay=None, detune=0.0):
+def fm(freq: float, length: int, ratio: float = 1.0, index: float = 1.0, index_decay: float | None = None,
+       detune: float = 0.0) -> Floats:
     """Two-operator FM: a sine carrier, phase-modulated by a sine at freq * ratio, the modulation `index`
     fading over index_decay seconds (None: steady) - bright at the attack, mellow as it rings."""
     seconds = np.arange(length) / RATE
@@ -42,28 +45,28 @@ def fm(freq, length, ratio=1.0, index=1.0, index_decay=None, detune=0.0):
     return np.sin(2 * np.pi * carrier * seconds + depth * modulator)
 
 
-def epiano(freq, length):
+def epiano(freq: float, length: int) -> Floats:
     tine = 0.15 * fm(freq, length, ratio=14.0, index=1.2, index_decay=0.02)  # the bright "tink" on top
     body = fm(freq, length, ratio=1.0, index=1.8, index_decay=0.35)
     return (body + tine) * env(length, decay=1.1, sustain=0.15)
 
 
-def bell(freq, length):
+def bell(freq: float, length: int) -> Floats:
     return fm(freq, length, ratio=3.5, index=2.2, index_decay=0.9) * env(length, decay=2.4, release=0.2)
 
 
-def pad(freq, length):
+def pad(freq: float, length: int) -> Floats:
     lower = fm(freq, length, ratio=1.0, index=0.7, detune=-0.003)  # two voices a hair apart: warmth
     upper = fm(freq, length, ratio=2.0, index=0.4, detune=0.003)
     return 0.5 * (lower + upper) * env(length, attack=0.7, decay=3.0, sustain=0.8, release=0.5)
 
 
-def bass(freq, length):
+def bass(freq: float, length: int) -> Floats:
     tone = fm(freq, length, ratio=1.0, index=1.4, index_decay=0.18)
     return tone * env(length, decay=0.9, sustain=0.45, release=0.04)
 
 
-def drum(kind, length, rng):
+def drum(kind: str, length: int, rng: np.random.Generator) -> Floats:
     seconds = np.arange(length) / RATE
     if kind == "k":  # a soft, low thump
         freqs = 46 + 70 * np.exp(-seconds / 0.04)
@@ -76,7 +79,7 @@ def drum(kind, length, rng):
     return np.zeros(length)
 
 
-def echo(pcm, seconds=0.33, feedback=0.38, mix=0.32):
+def echo(pcm: Floats, seconds: float = 0.33, feedback: float = 0.38, mix: float = 0.32) -> Floats:
     """A feedback delay, for the empty-office reverb (pcm: (n, 2)) - 5 repeats, each quieter."""
     delay = int(seconds * RATE)
     out = pcm.copy()
@@ -87,7 +90,7 @@ def echo(pcm, seconds=0.33, feedback=0.38, mix=0.32):
     return out
 
 
-def render(song):
+def render(song: Song) -> Samples:
     """A song dict -> int16 stereo PCM of one pass (loops cleanly: the echo's tail wraps round to the
     start)."""
     timing = Timing(song)
@@ -115,7 +118,7 @@ def render(song):
     return mix_down(melody, chordal, low, drums, total, song.get("loop", True))
 
 
-def add_melody(melody, tokens, voice, timing, length):
+def add_melody(melody: Floats, tokens: list[str], voice: Instrument, timing: Timing, length: int) -> None:
     """The lead: eighth-note tokens ("-" holds, "." rests); each note rings at least 1.2 s."""
     i = 0
     while i < len(tokens):
@@ -129,7 +132,8 @@ def add_melody(melody, tokens, voice, timing, length):
         i = j
 
 
-def add_pad_and_bass(chordal, low, root, tones, bar_start, timing):
+def add_pad_and_bass(chordal: Floats, low: Floats, root: int, tones: list[int], bar_start: int,
+                     timing: Timing) -> None:
     """ambient / chime: a pad holds the chord (a little past the bar), a soft bass under it."""
     held = timing.bar_n + timing.at(4)
     for midi in tones:
@@ -137,7 +141,7 @@ def add_pad_and_bass(chordal, low, root, tones, bar_start, timing):
     low[bar_start:bar_start + timing.bar_n] += bass(midi_hz(root - 12), timing.bar_n) * 0.8
 
 
-def add_bell_arpeggio(chordal, tones, bar_start, timing, length):
+def add_bell_arpeggio(chordal: Floats, tones: list[int], bar_start: int, timing: Timing, length: int) -> None:
     """chime: bells arpeggiate the chord, two octaves up, in eighths."""
     sequence = tones + [tones[0] + 12]
     for sixteenth in range(0, 16, 2):
@@ -147,7 +151,8 @@ def add_bell_arpeggio(chordal, tones, bar_start, timing, length):
         chordal[start:start + ring] += bell(midi_hz(midi), ring) * 0.5
 
 
-def add_ostinato(chordal, low, root, tones, bar_start, timing, length):
+def add_ostinato(chordal: Floats, low: Floats, root: int, tones: list[int], bar_start: int, timing: Timing,
+                 length: int) -> None:
     """ostinato: an electric piano repeats the chord in eighths, bass on beats 1 and 3, a quiet pad."""
     order = [0, 2, 1, 2, 0, 2, 1, 2]  # root, fifth, third, fifth...
     for eighth in range(8):
@@ -162,14 +167,15 @@ def add_ostinato(chordal, low, root, tones, bar_start, timing, length):
     chordal[bar_start:bar_start + timing.bar_n] += pad(midi_hz(tones[0] + 12), timing.bar_n) * 0.25
 
 
-def add_drone(low, root, bar_start, timing):
+def add_drone(low: Floats, root: int, bar_start: int, timing: Timing) -> None:
     """drone: a low pad on the chord's root and fifth."""
     held = timing.bar_n + timing.at(4)
     for midi in (root - 12, root - 5):
         low[bar_start:bar_start + held] += pad(midi_hz(midi), held) * 0.9
 
 
-def add_drums(drums, pattern, bar_start, timing, length, rng):
+def add_drums(drums: Floats, pattern: str, bar_start: int, timing: Timing, length: int,
+              rng: np.random.Generator) -> None:
     """One bar of the drum pattern (16 steps: k kick, s snare, h hi-hat, . nothing)."""
     for sixteenth, kind in enumerate(pattern):
         if kind == ".":
@@ -179,7 +185,7 @@ def add_drums(drums, pattern, bar_start, timing, length, rng):
         drums[start:start + ring] += drum(kind, ring, rng)
 
 
-def mix_down(melody, chordal, low, drums, total, loop):
+def mix_down(melody: Floats, chordal: Floats, low: Floats, drums: Floats, total: int, loop: bool) -> Samples:
     """The voices -> stereo with an echo; a loop's echo tail wraps onto its start, a jingle fades out."""
     left = 0.30 * melody + 0.26 * chordal * 0.9 + 0.34 * low + 0.22 * drums
     right = 0.30 * melody * 0.9 + 0.26 * chordal * 1.1 + 0.34 * low + 0.22 * drums
@@ -198,7 +204,7 @@ def mix_down(melody, chordal, low, drums, total, loop):
     return pcm.astype(np.int16)
 
 
-def main():
+def main() -> None:
     import json
     import wave
     from engine import paths

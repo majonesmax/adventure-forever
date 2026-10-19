@@ -13,11 +13,17 @@
 Walls stay where the game has them - only corners are rounded by a few pixels, gameplay unchanged.
 """
 
+from typing import Any
+
 import numpy as np
 from PIL import Image, ImageFilter
 
 from shared import layout as L
 from shared.pixelart import blit, shade, snes_rgb
+from shared.types import Floats, Mask, Picture, Rgb
+
+Grid = np.ndarray   # a whole number per pixel: coordinates, hashes, depths
+Colours = dict[str, Floats]   # a theme's named colours, as float RGB (painting works in floats)
 
 OUTLINE = (32, 32, 48)  # the dark line around decorations
 DECALS = {
@@ -146,7 +152,7 @@ KhWWCK
 ..KK..""", [(248, 136, 32)]),
 }
 
-def text_art(art, colours):
+def text_art(art: str, colours: dict[str, Rgb]) -> Picture:
     """Text art ("." clear) -> an RGBA picture."""
     rows = art.strip("\n").split("\n")
     picture = np.zeros((len(rows), len(rows[0]), 4), np.uint8)
@@ -157,12 +163,12 @@ def text_art(art, colours):
     return picture
 
 
-def decal(name):
+def decal(name: str) -> Picture:
     art, colours = DECALS[name]
     return text_art(art, colours)
 
 
-def rounded_mask(walls, radius=4):
+def rounded_mask(walls: Mask, radius: int = 4) -> Mask:
     """Round the corners of a wall mask: blur, re-threshold. Edges replicate so walls touching the screen
     edge stay straight there."""
     margin = radius * 3
@@ -172,7 +178,7 @@ def rounded_mask(walls, radius=4):
     return soft >= 115  # a touch under half: 1-column (6 px) maze walls keep their full width
 
 
-def face_depth(walls, yy, face_h):
+def face_depth(walls: Mask, yy: Grid, face_h: int) -> Grid:
     """For wall pixels: how far down to open floor (1..face_h), 0 elsewhere = the front-face band."""
     h = walls.shape[0]
     depth = np.zeros(walls.shape, int)
@@ -270,11 +276,11 @@ for _kingdom, _floor in PALACE_FLOORS.items():
                                 "caps": None, "decals": PALACE_DECALS[_kingdom]}
 
 
-def world_hash(xx, yy):
+def world_hash(xx: Grid, yy: Grid) -> Grid:
     return (xx * 73856093 ^ yy * 19349663) & 0xFFFF
 
 
-def make_floor(theme, size=32):
+def make_floor(theme: str, size: int = 32) -> Picture:
     """Procedural ground tile for themes without a floor tile: base + scattered light/dark specks."""
     settings = THEMES[theme]
     base, light, dark = (np.array(colour, np.uint8) for colour in settings["floor"])
@@ -296,7 +302,7 @@ def make_floor(theme, size=32):
     return tile
 
 
-def merlons(walls, band=16):
+def merlons(walls: Mask, band: int = 16) -> list[tuple[int, int]]:
     """The castle battlements: narrow wall runs (<= 8 px) in the top half-row -> list of (x0, x1)."""
     row = walls[band // 2]
     runs, x = [], 0
@@ -313,7 +319,7 @@ def merlons(walls, band=16):
     return runs
 
 
-def paint_themed_walls(img, walls, yy, xx, face_h, theme):
+def paint_themed_walls(img: Floats, walls: Mask, yy: Grid, xx: Grid, face_h: int, theme: str) -> None:
     """Top with gentle patches + specks and a light rim, side strips a shade darker, a patterned front face
     with drips over its top edge, line art in the theme's dark colour. World space (rooms tile seamlessly)."""
     settings = THEMES[theme]
@@ -334,18 +340,18 @@ def paint_themed_walls(img, walls, yy, xx, face_h, theme):
     paint_line_art(img, walls, face, drip, yy, xx, colours["line"])
 
 
-def paint_wall_tops(img, walls, colours):
+def paint_wall_tops(img: Floats, walls: Mask, colours: Colours) -> None:
     """The walls' tops: the theme's colour in soft patches, lighter and darker - the same in every room."""
     h, w = walls.shape
     patches_rng = np.random.default_rng(7)
     noise = Image.fromarray((patches_rng.random((h // 32 + 2, w // 32 + 2)) * 255).astype(np.uint8))
-    soft = np.array(noise.resize((w + 64, h + 64), Image.BICUBIC))[32:32 + h, 32:32 + w] / 255.0
+    soft = np.array(noise.resize((w + 64, h + 64), Image.Resampling.BICUBIC))[32:32 + h, 32:32 + w] / 255.0
     darker_or_plain = np.where((soft < 0.25)[..., None], colours["top_lo"], colours["top"])
     top = np.where((soft > 0.72)[..., None], colours["top_hi"], darker_or_plain)
     img[walls] = top[walls]
 
 
-def paint_specks(img, body, hsh, specks):
+def paint_specks(img: Floats, body: Mask, hsh: Grid, specks: list[Rgb]) -> None:
     """Sprinkles on the tops, 2 px long, across or down."""
     for i, colour in enumerate(specks):
         dot = (hsh % 509 == i * 7) & body
@@ -355,7 +361,7 @@ def paint_specks(img, body, hsh, specks):
         img[np.roll(dot & ~across, 1, axis=0) & body] = colour
 
 
-def paint_sides_and_rim(img, walls, body, yy, xx, colours):
+def paint_sides_and_rim(img: Floats, walls: Mask, body: Mask, yy: Grid, xx: Grid, colours: Colours) -> None:
     """3 px strips next to open floor left and right, a shade darker (the wall's side in 3/4 view), and a
     light rim along the top edge."""
     w = walls.shape[1]
@@ -368,7 +374,8 @@ def paint_sides_and_rim(img, walls, body, yy, xx, colours):
     img[rim & (yy > 1)] = colours["rim"]
 
 
-def paint_face_pattern(img, face, row, xx, hsh, pattern, colours):
+def paint_face_pattern(img: Floats, face: Mask, row: Grid, xx: Grid, hsh: Grid, pattern: str,
+                       colours: Colours) -> None:
     """The front face's pattern: two colours (stripe, stripe_hi) drawn over the face colour."""
     stripe, stripe_hi = colours["stripe"], colours["stripe_hi"]
     if pattern == "wafer":
@@ -399,7 +406,7 @@ def paint_face_pattern(img, face, row, xx, hsh, pattern, colours):
         img[face & ((xx - row) % 7 == 0)] = stripe_hi
 
 
-def paint_drips(img, face, row, xx, colours):
+def paint_drips(img: Floats, face: Mask, row: Grid, xx: Grid, colours: Colours) -> Mask:
     """Icing / snow / lava / grass running over the face's top edge, in 4 px drips of varied length.
     -> where the drips are."""
     group = xx // 4
@@ -414,7 +421,8 @@ def paint_drips(img, face, row, xx, colours):
     return drip
 
 
-def paint_line_art(img, walls, face, drip, yy, xx, line):
+def paint_line_art(img: Floats, walls: Mask, face: Mask, drip: Mask, yy: Grid, xx: Grid,
+                   line: Floats) -> None:
     """A dark line around the walls, and where the top meets the face (not across the drips)."""
     h, w = walls.shape
     above_below = np.roll(walls, 1, 0) & np.roll(walls, -1, 0)
@@ -426,7 +434,7 @@ def paint_line_art(img, walls, face, drip, yy, xx, line):
     img[crease & ~drip] = line
 
 
-def caps_sprites(theme):
+def caps_sprites(theme: str) -> list[Picture]:
     art, cap_colours = CAPS[theme]
     out = []
     for colour in cap_colours:
@@ -435,7 +443,8 @@ def caps_sprites(theme):
     return out
 
 
-def paint_room(room, theme="candy", floor_tile=None, seed=0, face_h=10):
+def paint_room(room: dict[str, Any], theme: str = "candy", floor_tile: Picture | None = None, seed: int = 0,
+               face_h: int = 10) -> Picture:
     """One room in a theme. floor_tile: a ground tile (grass.png); else the theme's procedural floor."""
     settings = THEMES[theme]
     exact = L.wall_mask(room)
@@ -452,7 +461,7 @@ def paint_room(room, theme="candy", floor_tile=None, seed=0, face_h=10):
     img = floor_tile[yy % floor_tile.shape[0], xx % floor_tile.shape[1]].astype(float)
     rng = np.random.default_rng(seed)
     field = Image.fromarray((rng.random((h // 24 + 2, w // 24 + 2)) * 255).astype(np.uint8))
-    field = np.array(field.resize((w + 48, h + 48), Image.BICUBIC))[24:24 + h, 24:24 + w] / 255.0
+    field = np.array(field.resize((w + 48, h + 48), Image.Resampling.BICUBIC))[24:24 + h, 24:24 + w] / 255.0
     if settings.get("floor_pattern") != "checker":  # palace tiles stay clean
         img[field > 0.62] *= 1.08 if theme == "ice" else 1.12
         img[field < 0.3] *= 0.94 if theme == "ice" else 0.9
@@ -468,7 +477,8 @@ def paint_room(room, theme="candy", floor_tile=None, seed=0, face_h=10):
     return img
 
 
-def scatter_decals(img, walls, names, rng, most=46, tries=600):
+def scatter_decals(img: Picture, walls: Mask, names: list[str], rng: np.random.Generator, most: int = 46,
+                   tries: int = 600) -> None:
     """Decorations at random places on open ground, clear of walls and of each other."""
     h, w = walls.shape
     wide_walls = Image.fromarray(walls.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(9))
@@ -493,7 +503,7 @@ GATE_COLOURS = {  # line, bar, the bar's other colour, crossbar
     "fire": ((32, 16, 32), (96, 80, 88), (248, 136, 32), (136, 112, 112))}
 
 
-def gate_sprite(w, h, theme):
+def gate_sprite(w: int, h: int, theme: str) -> Picture:
     """Themed portcullis at the original's current height: candy-stripe bars / icicle bars / glowing iron."""
     out = np.zeros((h, w, 4), np.uint8)
     line, bar, bar2, cross = GATE_COLOURS[theme]

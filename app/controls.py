@@ -38,10 +38,10 @@ SECTIONS = [
 ]
 
 
-def covered():
+def covered() -> set[str]:
     """Every key name the list covers (pygame.key.name style; "shift+l" for Shift+L)."""
     return {name for _, rows in SECTIONS for _, _, names in rows for name in names}
 
 
-def labels():
+def labels() -> list[str]:
     return [keys for _, rows in SECTIONS for keys, _, _ in rows]

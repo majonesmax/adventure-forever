@@ -5,27 +5,29 @@ and pebbles. Each place's theme is set in pack.json ("areas": {place: {"theme": 
 
 import functools
 import os
+from typing import Any
 
 import numpy as np
 
 import scenery as SC
 from content import pictures as PIC
 from content.world import World, area
+from shared.types import Picture, Rgb
 
 GRASS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "grass.png")
 GATE_THEME = {"gold": "candy", "white": "ice", "black": "fire"}
 
 
 @functools.cache
-def grass_tile():
+def grass_tile() -> Picture:
     return PIC.load(GRASS)[..., :3]
 
 
 class CustomWorld(World):
-    def theme(self, room_num):
+    def theme(self, room_num: int) -> str:
         return self.setting(area(room_num), "theme") or "grass"
 
-    def room(self, room):
+    def room(self, room: dict[str, Any]) -> Picture:
         room_number = room["room"]
         if room_number not in self.rooms:
             theme = self.theme(room_number)
@@ -33,11 +35,11 @@ class CustomWorld(World):
             self.rooms[room_number] = SC.paint_room(room, theme, floor_tile=grass, seed=room_number)
         return self.rooms[room_number]
 
-    def colour(self, room_num):
+    def colour(self, room_num: int) -> Rgb:
         return SC.THEMES[self.theme(room_num)]["title"]
 
-    def gate(self, castle, w, h):
+    def gate(self, castle: str, w: int, h: int) -> Picture | None:
         return SC.gate_sprite(w, h, GATE_THEME[castle]) if h > 0 else None
 
-    def wall_tile(self, room_num):
+    def wall_tile(self, room_num: int) -> Picture | None:
         return None

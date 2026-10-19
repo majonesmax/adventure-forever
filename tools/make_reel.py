@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import wave
+from typing import Any, Callable, Iterable
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # no window
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, as a script
@@ -34,6 +35,10 @@ from app import window as WIN  # noqa: E402
 from app.fonts import mono  # noqa: E402
 from engine import emulator as h  # noqa: E402
 from engine import paths  # noqa: E402
+from shared.types import Picture, RamView, Rgb, Samples  # noqa: E402
+
+CardLine = tuple[str, int, Rgb]     # a title card's line: (text, size, colour)
+Caption = tuple[int, int, str]      # (first frame, last frame, text)
 
 W, H, FPS = 1920, 1080, 60
 STAGE_H = 960                       # the app's picture goes in the top 1920x960; captions below
@@ -48,7 +53,7 @@ class Clock:
     now = 0.0
 
     @classmethod
-    def perf_counter(cls):
+    def perf_counter(cls) -> float:
         return cls.now
 
 
@@ -56,14 +61,15 @@ class CapturedAudio:
     """Stands in for the sound card (engine/emulator.AudioOut): keeps the emulator's samples for the frame
     being made. The reel mixes them with the music itself, a frame's worth at a time."""
 
-    def __init__(self, rate, mixer=None, **_):
-        self.rate, self.mixer, self.pending = rate, mixer, []
+    def __init__(self, rate: int, mixer: Callable[[Samples], Samples] | None = None, **_: Any):
+        self.rate, self.mixer = rate, mixer
+        self.pending: list[Samples] = []
         self.tap, self.expect, self.missing, self.dropped, self.xruns = None, True, 0, 0, 0
 
-    def push(self, samples):
+    def push(self, samples: Samples) -> None:
         self.pending.append(samples)
 
-    def take(self, n):
+    def take(self, n: int) -> Samples:
         """Exactly n samples for this frame: the emulator's (silence while paused or scrolling) + the music."""
         sfx = np.concatenate(self.pending) if self.pending else np.zeros((0, 2), np.int16)
         self.pending = []
@@ -72,8 +78,15 @@ class CapturedAudio:
         return self.mixer(block) if self.mixer else block
 
 
+def ffmpeg() -> str:
+    found = REC.find_ffmpeg()
+    if found is None:
+        raise SystemExit("the reel needs ffmpeg: https://ffmpeg.org/download.html")
+    return found
+
+
 class Reel:
-    def __init__(self, rom, out, stills=0):
+    def __init__(self, rom: str, out: str, stills: int = 0):
         NS.time = Clock                                  # the pop-ups fade on the video's clock
         h.AudioOut = CapturedAudio                       # no sound card: the reel mixes the sound itself
         REC.Recorder.__init__ = lambda self, *a, **k: setattr(self, "active", False)  # never records
@@ -84,23 +97,37 @@ class Reel:
         self.win.cast_keys += [k for k in extra if content.load(k).cast]
         self.win.world_keys += [k for k in extra if content.load(k).world]
         self.out, self.stills, self.frame = out, stills, 0
-        self.rate = self.win.audio.rate
+        self.rate = self.sound.rate
         self.samples_done = 0
-        self.captions, self.caption, self.caption_from = [], None, 0
+        self.captions: list[Caption] = []
+        self.caption: str | None = None
+        self.caption_from = 0
         self.font, self.small = mono(40, bold=True), mono(26)
-        self.audio = []
-        self.video = None
+        self.audio: list[Samples] = []
+        self.video: subprocess.Popen[bytes] | None = None
         if not stills:
             self.video = subprocess.Popen(
-                [REC.find_ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                [ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
                  "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "16",
                  "-pix_fmt", "yuv420p", out + ".video.mp4"], stdin=subprocess.PIPE)
         else:
             os.makedirs(out, exist_ok=True)
 
+    @property
+    def sound(self) -> CapturedAudio:
+        audio = self.win.audio
+        assert isinstance(audio, CapturedAudio)   # put in place of the sound card before the window was made
+        return audio
+
+    @property
+    def ram(self) -> RamView:
+        ram = self.win.core.ram
+        assert ram is not None   # the window loaded the ROM
+        return ram
+
     # ---- the script's verbs -----------------------------------------------------------------------------
 
-    def say(self, text=None):
+    def say(self, text: str | None = None) -> None:
         """The caption from now on (None: none). The one before stays up long enough to read: the game
         carries on, nothing pressed, until it has."""
         if self.caption:
@@ -111,41 +138,42 @@ class Reel:
             self.captions.append((self.caption_from, self.frame, self.caption))
         self.caption, self.caption_from = text, self.frame
 
-    def play(self, frames, keys=()):
+    def play(self, frames: int, keys: Iterable[int] = ()) -> None:
         """Run the game for `frames` frames with these joystick directions held (h.JOY_*)."""
         for _ in range(frames):
             self.win.core.joy.clear()
             self.win.core.joy.update(keys)
             self.step()
 
-    def press(self, command, then=0):
+    def press(self, command: str, then: int = 0) -> None:
         """A window command, as its key would (a GameWindow method name: "next_look", "next_view"...)."""
         getattr(self.win, command)()
         self.play(then)
 
-    def walk_to(self, x, y, most=600, near=2):
+    def walk_to(self, x: int, y: int, most: int = 600, near: int = 2) -> int:
         """Walk the hero toward (x, y) in the game's units (y counts up) - stops there, or after `most`
         frames (a wall in the way). Returns the frames it took."""
         for i in range(most):
-            hx, hy = int(self.win.core.ram[0x8B - 0x80]), int(self.win.core.ram[0x8C - 0x80])
+            hx, hy = int(self.ram[0x8B - 0x80]), int(self.ram[0x8C - 0x80])
             if abs(hx - x) <= near and abs(hy - y) <= near:
                 return i
-            keys = set()
+            keys: set[int] = set()
             if abs(hx - x) > near:
                 keys.add(h.JOY_RIGHT if x > hx else h.JOY_LEFT)
             if abs(hy - y) > near:
                 keys.add(h.JOY_UP if y > hy else h.JOY_DOWN)
             self.play(1, keys)
         print(f"walk_to: didn't reach ({x:02X}, {y:02X}) from ({hx:02X}, {hy:02X}) in room "
-              f"${int(self.win.core.ram[0x8A - 0x80]):02X} - {self.caption!r} at {self.frame / FPS:.1f} s", flush=True)
+              f"${int(self.ram[0x8A - 0x80]):02X} - {self.caption!r} at {self.frame / FPS:.1f} s", flush=True)
         return most
 
-    def route(self, *points, most=400):
+    def route(self, *points: tuple[int, int], most: int = 400) -> None:
         """walk_to each point in turn (around walls the straight line would hit)."""
         for x, y in points:
             self.walk_to(x, y, most)
 
-    def use(self, look=None, cast=None, world=None, popup=True):
+    def use(self, look: str | None = None, cast: str | None = None, world: str | None = None,
+            popup: bool = True) -> None:
         """Straight to a look, cast and world (None: leave as is), with the info pop-up as a key would show."""
         win = self.win
         win.look_key = look or win.look_key
@@ -158,14 +186,14 @@ class Reel:
         if popup:
             win.now_showing.show()
 
-    def switch(self, key, frames=8):
+    def switch(self, key: int, frames: int = 8) -> None:
         """Hold a console switch (h.JOY_SELECT / h.JOY_START) for a few frames, then let go."""
         self.play(frames, {key})
 
-    def poke(self, values):
+    def poke(self, values: dict[int, int]) -> None:
         """Set up a scene: write RAM ({address: value}). The next frame is the game's from there - shown
         as a cut, not a room scroll."""
-        ram = self.win.core.ram
+        ram = self.ram
         if 0x8A in values:  # where the game bounces the hero back to when he hits a wall: here, not the old room
             values = {0xE2: values[0x8A], 0xE3: values[0x8B], 0xE4: values[0x8C], **values}
         for addr, v in values.items():
@@ -177,21 +205,21 @@ class Reel:
         if 0x8A in values and int(ram[0x8A - 0x80]) != values[0x8A]:
             print(f"poke: the hero didn't stay in room ${values[0x8A]:02X}", flush=True)
 
-    def clear(self):
+    def clear(self) -> None:
         """Every dragon, item and the bat out of the way (into the far red maze), the dragons dead, nothing
         carried - for a scene of its own."""
         for addr in (0xA4, 0xA9, 0xAE, 0xB3, 0xB6, 0xB9, 0xBC, 0xBF, 0xC2, 0xC5, 0xCB):
-            self.win.core.ram[addr - 0x80] = 0x1D
+            self.ram[addr - 0x80] = 0x1D
         for dragon in (0xA4, 0xA9, 0xAE):  # dead, so they don't wander back in (a scene revives its own)
-            self.win.core.ram[dragon + 4 - 0x80] = 1
-        self.win.core.ram[0x9D - 0x80] = 0xA2
-        self.win.core.ram[0xD0 - 0x80] = 0
+            self.ram[dragon + 4 - 0x80] = 1
+        self.ram[0x9D - 0x80] = 0xA2
+        self.ram[0xD0 - 0x80] = 0
 
-    def card(self, lines, seconds):
+    def card(self, lines: list[CardLine], seconds: float) -> None:
         """A full-screen title card: [(text, size, colour)], centred, top to bottom."""
         img = pygame.Surface((W, H))
         img.fill(BG)
-        fonts = {}
+        fonts: dict[int, pygame.font.Font] = {}
         heights = [mono(s, bold=True).get_linesize() + 18 for _, s, _ in lines]
         y = (H - sum(heights)) // 2
         for (text, size, colour), lh in zip(lines, heights):
@@ -206,14 +234,14 @@ class Reel:
 
     # ---- frames -------------------------------------------------------------------------------------------
 
-    def silence(self):
+    def silence(self) -> Samples:
         return np.zeros((self.samples_for_frame(), 2), np.int16)
 
-    def samples_for_frame(self):
+    def samples_for_frame(self) -> int:
         n = round((self.frame + 1) * self.rate / FPS) - self.samples_done
         return n
 
-    def step(self):
+    def step(self) -> None:
         """One frame of the app, as its run() loop does it, captured."""
         Clock.now = self.frame / FPS
         win = self.win
@@ -223,9 +251,9 @@ class Reel:
         win.draw_pictures()
         win.show()
         canvas = pygame.surfarray.array3d(win.canvas).transpose(1, 0, 2)
-        self.emit(self.compose(canvas), win.audio.take(self.samples_for_frame()))
+        self.emit(self.compose(canvas), self.sound.take(self.samples_for_frame()))
 
-    def compose(self, canvas):
+    def compose(self, canvas: Picture) -> Picture:
         img = np.zeros((H, W, 3), np.uint8)
         img[:] = BG
         ch, cw = canvas.shape[:2]
@@ -235,7 +263,8 @@ class Reel:
             ch, cw = canvas.shape[:2]
         if cw > W or ch > STAGE_H:  # too big: shrink smoothly
             s = min(W / cw, STAGE_H / ch)
-            canvas = np.array(Image.fromarray(canvas).resize((int(cw * s), int(ch * s)), Image.LANCZOS))
+            smaller = (int(cw * s), int(ch * s))
+            canvas = np.array(Image.fromarray(canvas).resize(smaller, Image.Resampling.LANCZOS))
             ch, cw = canvas.shape[:2]
         y0, x0 = (STAGE_H - ch) // 2, (W - cw) // 2
         img[y0:y0 + ch, x0:x0 + cw] = canvas
@@ -247,22 +276,24 @@ class Reel:
             img[STAGE_H:] = pygame.surfarray.array3d(surf).transpose(1, 0, 2)
         return img
 
-    def emit(self, img, audio):
+    def emit(self, img: Picture, audio: Samples) -> None:
         if self.stills:
             if self.frame % self.stills == 0:
                 Image.fromarray(img).save(os.path.join(self.out, f"{self.frame:05d}.png"))
         else:
+            assert self.video is not None and self.video.stdin is not None   # started in __init__ (no stills)
             self.video.stdin.write(img.tobytes())
         self.audio.append(audio)
         self.samples_done += len(audio)
         self.frame += 1
 
-    def finish(self):
+    def finish(self) -> None:
         self.say(None)
         pcm = np.concatenate(self.audio)
         if self.stills:
             print(f"{self.frame} frames ({self.frame / FPS:.1f} s); stills in {self.out}")
             return
+        assert self.video is not None and self.video.stdin is not None   # started in __init__ (no stills)
         self.video.stdin.close()
         self.video.wait()
         with wave.open(self.out + ".wav", "wb") as w:
@@ -270,7 +301,7 @@ class Reel:
             w.setsampwidth(2)
             w.setframerate(self.rate)
             w.writeframes(pcm.tobytes())
-        subprocess.run([REC.find_ffmpeg(), "-loglevel", "error", "-y", "-i", self.out + ".video.mp4",
+        subprocess.run([ffmpeg(), "-loglevel", "error", "-y", "-i", self.out + ".video.mp4",
                         "-i", self.out + ".wav", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                         "-ar", "48000", "-shortest", self.out], check=True)
         os.remove(self.out + ".video.mp4")
@@ -281,7 +312,7 @@ class Reel:
         print(f"{self.out}  {self.frame / FPS:.1f} s, captions in {os.path.splitext(self.out)[0]}.srt")
 
 
-def srt_time(frame):
+def srt_time(frame: int) -> str:
     ms = int(round(frame * 1000 / FPS))
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
@@ -289,7 +320,7 @@ def srt_time(frame):
 UP, DOWN, LEFT, RIGHT, FIRE = h.JOY_UP, h.JOY_DOWN, h.JOY_LEFT, h.JOY_RIGHT, h.JOY_B
 
 
-def script(r):
+def script(r: Reel) -> None:
     """The reel: about two minutes."""
     r.card([("ADVENTURE FOREVER", 72, INK), ("Atari 2600 Adventure (1980), remastered live", 34, DIM)], 3)
 
@@ -400,7 +431,7 @@ def script(r):
     r.finish()
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-o", "--out", default=os.path.join(paths.SHOTS, "reel.mp4"))
     ap.add_argument("--stills", type=int, default=0, help="save every Nth frame as a PNG instead of a video")

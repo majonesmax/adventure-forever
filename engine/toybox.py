@@ -9,22 +9,24 @@ import numpy as np
 
 from engine import band as B
 from engine.chiptune import RATE
+from engine.chiptune import Song
 from engine.fm import env, fm
+from shared.types import Floats, Samples
 
 
-def music_box(pitch, length):
+def music_box(pitch: float, length: int) -> Floats:
     """A comb's tooth plucked: bright, bell-like, ringing on whatever the note's length."""
     tine = fm(pitch * 2, length, ratio=4.0, index=1.0, index_decay=0.08)
     body = fm(pitch * 2, length, ratio=1.0, index=0.3, index_decay=0.4)
     return (0.4 * tine + body) * env(length, attack=0.002, decay=0.6, release=0.05)
 
 
-def glockenspiel(pitch, length):
+def glockenspiel(pitch: float, length: int) -> Floats:
     bar = fm(pitch * 2, length, ratio=2.76, index=0.8, index_decay=0.2)   # a metal bar's uneven overtone
     return bar * env(length, decay=0.35, release=0.03)
 
 
-def marimba(pitch, length):
+def marimba(pitch: float, length: int) -> Floats:
     """A wooden bar: the note and its fourth harmonic, which dies first."""
     time = np.arange(length) / RATE
     overtone = 0.3 * np.sin(2 * np.pi * pitch * 4 * time) * np.exp(-time / 0.03)
@@ -32,7 +34,7 @@ def marimba(pitch, length):
     return tone * env(length, attack=0.003, decay=0.35, release=0.03)
 
 
-def drum(kind, length, rng):
+def drum(kind: str, length: int, rng: np.random.Generator) -> Floats:
     time = np.arange(length) / RATE
     if kind == "k":   # a toy drum
         pitch = 130 + 60 * np.exp(-time / 0.02)
@@ -49,7 +51,7 @@ BAND = B.Band(lead={"default": music_box}, arpeggio=glockenspiel, stab=glockensp
               mix=(0.36, 0.20, 0.30, 0.22))
 
 
-def render(song):
+def render(song: Song) -> Samples:
     return B.render(song, BAND)
 
 

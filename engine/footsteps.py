@@ -5,11 +5,16 @@ engine/nature.py makes the sounds; engine/ambience.py plays them with the rest o
 """
 
 import threading
+from typing import Callable
 
 import numpy as np
 
 from engine import nature as N
-from engine.ambience import call_samples
+from engine.ambience import Ambience, call_samples
+from engine.state import GameState
+from shared.types import Floats, Point
+
+Mover = str | int    # "hero", or a dragon's or the bat's object number
 
 DRAGONS, BAT = (0x06, 0x07, 0x08), 0x0E      # object numbers (engine/objects.py)
 GROUND = {"summer": "grass", "woods": "grass", "frost": "snow"}   # an ambience -> its ground; else stone
@@ -21,35 +26,37 @@ ROOM_MIDDLE, HALF_WIDTH = 80, 100            # the game's x across a room -> lef
 WIDEST = 0.7
 
 
-def pan(x):
+def pan(x: int) -> float:
     return float(np.clip((x - ROOM_MIDDLE) / HALF_WIDTH, -WIDEST, WIDEST))
 
 
 class Footsteps:
     """follow() once a frame while the ambience plays. The sounds are made in the background at the start."""
 
-    def __init__(self, ambience):
+    def __init__(self, ambience: Ambience):
         self.ambience = ambience
-        self.sounds = {}
-        self.last_seen, self.moving_for, self.still_for = {}, {}, {}
+        self.sounds: dict[str, list[Floats]] = {}   # grass / stone / snow / dragon / bat -> its variants
+        self.last_seen: dict[Mover, Point] = {}
+        self.moving_for: dict[Mover, int] = {}
+        self.still_for: dict[Mover, int] = {}
         self.rng = np.random.default_rng()
         threading.Thread(target=self.make_all, daemon=True).start()
 
-    def make_all(self):
-        def made(make, who):
+    def make_all(self) -> None:
+        def made(make: Callable[[int], Floats], who: str) -> list[Floats]:
             return [call_samples(make(seed), LOUDNESS[who]) for seed in range(VARIANTS)]
         for ground in ("grass", "stone", "snow"):
             self.sounds[ground] = made(lambda seed, ground=ground: N.step(ground, seed), "hero")
         self.sounds["dragon"] = made(N.stomp, "dragon")
         self.sounds["bat"] = made(N.wingbeat, "bat")
 
-    def follow(self, state, ambience_name, quiet):
+    def follow(self, state: GameState, ambience_name: str | None, quiet: bool) -> None:
         """Who moved since the last frame, and a sound for each who's moved long enough. quiet: no music
         playing, so the hero and the bat are heard too."""
         if state.on_title_screen:
             self.last_seen = {}
             return
-        movers = {"hero": ("hero", state.hero)} if quiet else {}
+        movers: dict[Mover, tuple[str, Point]] = {"hero": ("hero", state.hero)} if quiet else {}
         for number, x, y, _state in state.objects:
             if number == state.carried:
                 continue
@@ -58,10 +65,11 @@ class Footsteps:
             elif number == BAT and quiet:
                 movers[number] = ("bat", (x, y))
         for key, (who, place) in movers.items():
-            self.watch(key, who, place, GROUND.get(ambience_name, "stone"))
+            ground = GROUND.get(ambience_name, "stone") if ambience_name is not None else "stone"
+            self.watch(key, who, place, ground)
         self.last_seen = {key: place for key, (_who, place) in movers.items()}
 
-    def watch(self, key, who, place, ground):
+    def watch(self, key: Mover, who: str, place: Point, ground: str) -> None:
         """Count the frames someone's been on the move (the game moves them only every few frames, so a
         short stop doesn't count) and make a sound every STEP_EVERY of them."""
         moved = self.last_seen.get(key, place) != place

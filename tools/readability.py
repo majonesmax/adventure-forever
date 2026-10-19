@@ -1,9 +1,10 @@
 """Readability check: code that's easy for a person to read, whoever (or whatever) wrote it.
 
-Two kinds of issue, counted per file:
+Three kinds of issue, counted per file:
   ruff's readability rules (ruff.toml): long lines, two statements on a line, named lambdas, functions with
-      too many branches, statements or arguments, blocks nested too deep
+      too many branches, statements or arguments, blocks nested too deep, functions without type hints
   names shorter than 3 letters (N001), outside a few everyone knows: i, j, k, x, y, dx, dy, w, h, f, e, ...
+  type errors (TYPE): pyright's findings (pyrightconfig.json) - a type hint the code doesn't keep to
 
 The code already has some of these. Rather than fix everything at once, the counts are a ratchet: each file's
 count of each kind is saved in tools/readability_baseline.json, and a file may not get worse. Clean a file up,
@@ -14,7 +15,7 @@ Usage: python tools/readability.py              every file against the baseline 
        python tools/readability.py --update     save the current counts as the baseline
        python tools/readability.py --hook       for a Claude Code PostToolUse hook (.claude/settings.json):
                                                 reads the edited file from stdin; exit 2 + the issues if worse
-Needs ruff for its rules (pip install -r requirements-dev.txt); without it only names are checked.
+Needs ruff and pyright (pip install -r requirements-dev.txt); without them only names are checked.
 """
 
 import ast
@@ -24,6 +25,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Iterator
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINE = os.path.join(ROOT, "tools", "readability_baseline.json")
@@ -32,9 +34,11 @@ SKIP = {".venv", "private", "shots", "recordings", "art", "lib", "build", "dist"
 SHORT_NAMES_OK = {"_", "i", "j", "k", "x", "y", "z", "dx", "dy", "x0", "y0", "x1", "y1", "xx", "yy", "w", "h",
                   "f", "e", "ok", "id"}
 MIN_NAME = 3
+Issue = tuple[str, int, str, str]   # (file, line, code, message)
+Counts = dict[str, dict[str, int]]  # {file: {code: count}}
 
 
-def python_files():
+def python_files() -> Iterator[str]:
     for folder, dirs, files in os.walk(ROOT):
         dirs[:] = [sub for sub in dirs if sub not in SKIP]
         for name in files:
@@ -42,19 +46,30 @@ def python_files():
                 yield os.path.relpath(os.path.join(folder, name), ROOT)
 
 
-def find_ruff():
-    candidates = (os.path.join(ROOT, ".venv", "bin", "ruff"),
-                  os.path.join(ROOT, ".venv", "Scripts", "ruff.exe"),
-                  shutil.which("ruff"))
+def find_tool(name: str) -> str | None:
+    """A development tool (ruff, pyright): the project's own, else one on the PATH."""
+    candidates = (os.path.join(ROOT, ".venv", "bin", name),
+                  os.path.join(ROOT, ".venv", "Scripts", f"{name}.exe"),
+                  shutil.which(name))
     for path in candidates:
         if path and os.path.exists(path):
             return path
     return None
 
 
-def ruff_issues(files):
+def project_python() -> str:
+    """The Python whose packages pyright should see: the project's .venv, else this one (a build server's)."""
+    candidates = (os.path.join(ROOT, ".venv", "bin", "python"),
+                  os.path.join(ROOT, ".venv", "Scripts", "python.exe"))
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return sys.executable
+
+
+def ruff_issues(files: list[str]) -> list[Issue]:
     """[(file, line, code, message)] from ruff's readability rules."""
-    ruff = find_ruff()
+    ruff = find_tool("ruff")
     if ruff is None or not files:
         return []
     result = subprocess.run([ruff, "check", "--output-format", "json", "--no-cache", *files],
@@ -66,7 +81,7 @@ def ruff_issues(files):
     return issues
 
 
-def bound_names(node):
+def bound_names(node: ast.AST) -> Iterator[tuple[str, int]]:
     """(name, line) for every name a piece of code introduces: parameters, assignments, loop variables..."""
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
         args = node.args
@@ -77,7 +92,7 @@ def bound_names(node):
         yield node.id, node.lineno
 
 
-def short_names(path):
+def short_names(path: str) -> list[Issue]:
     """[(file, line, "N001", message)] - each too-short name once per function."""
     with open(os.path.join(ROOT, path), encoding="utf-8") as f:
         tree = ast.parse(f.read())
@@ -94,14 +109,31 @@ def short_names(path):
     return issues
 
 
-def all_issues(files):
-    issues = ruff_issues(files)
+def type_issues(files: list[str]) -> list[Issue]:
+    """[(file, line, "TYPE", message)] from pyright, the type checker."""
+    pyright = find_tool("pyright")
+    if pyright is None or not files:
+        return []
+    command = [pyright, "--outputjson", "--pythonpath", project_python(), *files]
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+    report = json.loads(result.stdout or "{}")
+    issues: list[Issue] = []
+    for item in report.get("generalDiagnostics", []):
+        if item["severity"] == "error":
+            path = os.path.relpath(item["file"], ROOT)
+            message = item["message"].split("\n")[0]
+            issues.append((path, item["range"]["start"]["line"] + 1, "TYPE", message))
+    return issues
+
+
+def all_issues(files: list[str]) -> list[Issue]:
+    issues = ruff_issues(files) + type_issues(files)
     for path in files:
         issues += short_names(path)
     return sorted(set(issues))
 
 
-def counts(issues):
+def counts(issues: list[Issue]) -> Counts:
     """{file: {code: count}}"""
     out = collections.defaultdict(collections.Counter)
     for path, _, code, _ in issues:
@@ -109,14 +141,14 @@ def counts(issues):
     return {path: dict(per_code) for path, per_code in out.items()}
 
 
-def load_baseline():
+def load_baseline() -> Counts:
     if not os.path.exists(BASELINE):
         return {}
     with open(BASELINE) as f:
         return json.load(f)
 
 
-def worse(path, now, baseline):
+def worse(path: str, now: Counts, baseline: Counts) -> dict[str, tuple[int, int]]:
     """The codes whose count in this file went up: {code: (before, now)}."""
     before = baseline.get(path, {})
     went_up = {}
@@ -126,12 +158,12 @@ def worse(path, now, baseline):
     return went_up
 
 
-def show(issues):
+def show(issues: list[Issue]) -> None:
     for path, line, code, message in issues:
         print(f"{path}:{line}: {code} {message}")
 
 
-def hook():
+def hook() -> int:
     """Claude Code PostToolUse: after an edit to a Python file, exit 2 (the issues go back to the assistant)
     if the file got less readable."""
     event = json.load(sys.stdin)
@@ -153,7 +185,7 @@ def hook():
     return 2
 
 
-def main():
+def main() -> int:
     args = sys.argv[1:]
     if args == ["--hook"]:
         return hook()

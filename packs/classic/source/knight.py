@@ -14,6 +14,7 @@ REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
 sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import NES
+from shared.types import Picture
 
 COLOURS = {"K": 0x0F, "R": 0x16, "S": 0x10}
 
@@ -78,7 +79,7 @@ SPRITES = {
 }
 
 
-def to_rgba(art):
+def to_rgba(art: str) -> Picture:
     rows = art.strip("\n").split("\n")
     assert len(rows) == 16 and all(len(row) == 16 for row in rows), [len(row) for row in rows]
     out = np.zeros((16, 16, 4), np.uint8)
@@ -89,7 +90,7 @@ def to_rgba(art):
     return out
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     """picture name -> RGBA ("side" is the right-facing view; the look mirrors it for left)."""
     return {f"hero_{'right' if view == 'side' else view}_{frame}": to_rgba(art)
             for (view, frame), art in SPRITES.items()}

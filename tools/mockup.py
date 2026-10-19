@@ -14,6 +14,7 @@ Usage: python mockup.py   -> shots/mockups/*.png
 
 import os
 import sys
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -22,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 from engine import emulator as h
 from engine import objects as O
 from engine import ram_map as M
-from engine.state import Game
+from engine.state import Game, GameState
 from engine import rooms as R
 from engine import paths
 import content
@@ -30,6 +31,7 @@ from content.world import area, paint_tiles
 from looks.base import original_graphic as object_sprite
 from shared.palettes import BLACK, NES
 from shared.pixelart import blit
+from shared.types import Picture, Point
 
 OUT = os.path.join(paths.SHOTS, "mockups")
 
@@ -42,15 +44,17 @@ HUD_H, ROOM_H, SCREEN = 48, 192, (256, 240)
 SCENES = [(0x11, "gold"), (0x04, "blue"), (0x0E, "red"), (0x09, "dark")]
 
 
-def to_layout(fx, line, col_w):
+def to_layout(fx: float, line: float, col_w: int) -> tuple[float, float]:
     """2600 frame coordinates (160 px wide, scan lines 13-205) -> room-space pixels of a layout."""
     return fx * col_w / 4, (line - 13) * ROOM_H / 193
 
 
-def scene_image(st, layout, reader, hero_spr, font):
+def scene_image(st: GameState, layout: str, reader: O.Reader, hero_spr: Picture,
+                font: ImageFont.ImageFont | ImageFont.FreeTypeFont) -> tuple[Picture, Picture, int]:
     L = LAYOUTS[layout]
     col_w = L["col"]
     world = content.load("classic").world
+    assert world is not None   # the classic pack has a world
     place = area(st.room["room"])
     room_img = paint_tiles(st.room, world.tile(place, "wall"), world.tile(place, "floor"), (0, 0, 0), 0.6,
                            col_w=col_w)
@@ -91,10 +95,12 @@ def scene_image(st, layout, reader, hero_spr, font):
     return np.array(im), room_img, cam
 
 
-def capture_states():
+def capture_states() -> tuple[dict[int, GameState], Game]:
     """Real game-1 states, one per scene room, with the hero in a sensible open spot."""
     c = h.Core()
     c.load(os.path.join(h.HERE, "roms", "adventure.a26"))
+    ram = c.ram
+    assert ram is not None   # load() made the live view of the RAM
     c.joy = set()
     for _ in range(60):
         c.run()
@@ -106,23 +112,23 @@ def capture_states():
         c.run()
     ren = Game()
     wanted = {0x11: (0x30, 0x30), 0x04: (0x50, 0x52), 0x0E: (0x60, 0x30), 0x09: (0x2A, 0x28)}
-    states = {}
+    states: dict[int, GameState] = {}
     for room, _ in SCENES:
         x, y = open_spot(ren.rooms[room], *wanted[room])
         for _ in range(4):
             for a, v in ((M.ROOM, room), (M.PREV_ROOM, room), (M.HERO_X, x), (M.PREV_X, x), (M.HERO_Y, y), (M.PREV_Y, y)):
-                c.ram[a - 0x80] = v
+                ram[a - 0x80] = v
             if room == 0x11:  # carry the yellow key here, so the status bar has something to show
-                c.ram[M.CARRIED - 0x80], c.ram[M.CARRY_DX - 0x80], c.ram[M.CARRY_DY - 0x80] = 0x0B * 9, 8, 0
+                ram[M.CARRIED - 0x80], ram[M.CARRY_DX - 0x80], ram[M.CARRY_DY - 0x80] = 0x0B * 9, 8, 0
             c.run()
-        states[room] = ren.state(c.ram.copy())
-        c.ram[M.CARRIED - 0x80] = M.NOTHING_CARRIED
+        states[room] = ren.state(ram.copy())
+        ram[M.CARRIED - 0x80] = M.NOTHING_CARRIED
     return states, ren
 
 
-def open_spot(room, x, y):
+def open_spot(room: dict[str, Any], x: int, y: int) -> Point:
     """Nearest hero position to (x, y) whose 4x8 hit-box (plus a margin) is on floor, not wall."""
-    def free(hx, hy):
+    def free(hx: int, hy: int) -> bool:
         x0, line0 = hx - 2, 224 - 2 * hy
         for line in range(line0 - 2, line0 + 10):
             r = next((i for i, (a, b) in enumerate(R.ROW_LINES) if a <= line <= b), None)
@@ -137,11 +143,13 @@ def open_spot(room, x, y):
     return best
 
 
-def main():
+def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     states, ren = capture_states()
     reader = ren.reader
-    hero = content.load("classic").cast.hero()["right"][0]
+    cast = content.load("classic").cast
+    assert cast is not None   # the classic pack has a cast
+    hero = cast.hero()["right"][0]
     font = ImageFont.load_default()
     for layout, L in LAYOUTS.items():
         tiles = []
@@ -154,14 +162,14 @@ def main():
                 full = Image.fromarray(room_img)
                 d = ImageDraw.Draw(full)
                 d.rectangle([cam, 0, cam + 255, ROOM_H - 1], outline=(255, 255, 255), width=2)
-                full.resize((full.width * 3, full.height * 3), Image.NEAREST).save(
+                full.resize((full.width * 3, full.height * 3), Image.Resampling.NEAREST).save(
                     os.path.join(OUT, "layout_B_camera_window.png"))
         # 2x2 sheet at 3x scale with a title
         sheet = Image.new("RGB", (2 * 256 * 3 + 30, 2 * 240 * 3 + 80), (30, 30, 40))
         d = ImageDraw.Draw(sheet)
         d.text((10, 12), L["title"], fill=(240, 240, 240), font=ImageFont.load_default(size=28))
         for i, t in enumerate(tiles):
-            im = Image.fromarray(t).resize((256 * 3, 240 * 3), Image.NEAREST)
+            im = Image.fromarray(t).resize((256 * 3, 240 * 3), Image.Resampling.NEAREST)
             sheet.paste(im, (10 + (i % 2) * (256 * 3 + 10), 60 + (i // 2) * (240 * 3 + 10)))
         sheet.save(os.path.join(OUT, f"layout_{layout}.png"))
         print(os.path.join(OUT, f"layout_{layout}.png"))

@@ -14,12 +14,17 @@ Its own pack is "classic"; it was made for moody, liminal worlds.
 import numpy as np
 
 from engine import rooms as R
+from engine.objects import Reader
+from engine.state import GameState
+from content.cast import Cast
+from content.world import World
 from content.pictures import FLASH
 from looks.base import RoomLook
 from shared import hud as HUD
 from shared import layout as L
 from shared.pixelart import blit
 from looks.vga.palette import palette_for
+from shared.types import Picture, Rgb
 
 GREY, LIGHT, DARK, INK, PAPER = (170, 170, 170), (255, 255, 255), (85, 85, 85), (0, 0, 0), (232, 232, 220)
 BAR_BG, BLUE = (16, 16, 24), (0, 0, 170)
@@ -27,7 +32,7 @@ GOLD_CASTLE = 0x11  # the room the title screen shows
 TITLE_GLOOM = 0.55  # how lit the title's castle is once it has faded up
 
 
-def title_room(world, light):
+def title_room(world: World, light: float) -> Picture:
     """The gold castle's room as the title shows it: dimmed to `light`, its corners darker still."""
     room = world.room(R.decode_room(R.load_rom(), GOLD_CASTLE)).astype(float)
     yy, xx = np.mgrid[0:L.ROOM_H, 0:L.ROOM_W]
@@ -36,7 +41,7 @@ def title_room(world, light):
     return (room * light * vignette[..., None]).astype(np.uint8)
 
 
-def bevel(img, x0, y0, x1, y1, raised=True):
+def bevel(img: Picture, x0: int, y0: int, x1: int, y1: int, raised: bool = True) -> None:
     """A 3-D bevel, like the era's buttons and icon bars: light top-left, dark bottom-right (or the other way
     round, sunken)."""
     lit, shadowed = (LIGHT, DARK) if raised else (DARK, LIGHT)
@@ -51,7 +56,7 @@ class VgaLook(RoomLook):
     platform_name = "VGA REMASTER"
     own_pack = "classic"
 
-    def __init__(self, reader, cast, world):
+    def __init__(self, reader: Reader, cast: Cast, world: World):
         title = title_room(world, TITLE_GLOOM)  # the title is a scene of its own: its colours count too
         self.vga = palette_for(cast, world, own_colours=(PAPER, BAR_BG), scenes=[title])  # before adapting
         self.scenery = {}  # this look's own rooms: the palette depends on the cast too, not just the world
@@ -59,7 +64,7 @@ class VgaLook(RoomLook):
 
     # ---- the platform (the RoomLook methods) ----
 
-    def adapt(self, sprite):
+    def adapt(self, sprite: Picture) -> Picture:
         """Sprites: the palette's nearest colours (the flashing marker is left for the flash)."""
         out = sprite.copy()
         keep = np.all(out[..., :3] == FLASH, axis=2)
@@ -67,17 +72,17 @@ class VgaLook(RoomLook):
         out[keep, :3] = FLASH
         return out
 
-    def adapt_scenery(self, picture):
+    def adapt_scenery(self, picture: Picture) -> Picture:
         """Rooms and gates: the palette's nearest colours."""
         out = picture.copy()
         out[..., :3] = self.vga.show(picture[..., :3])
         return out
 
-    def draw(self, state, frame_no, actors=True):
+    def draw(self, state: GameState, frame_no: int, actors: bool = True) -> Picture:
         """The screen, in the palette's 256 colours only - the torchlight and the status bar too."""
         return self.vga.show(super().draw(state, frame_no, actors))
 
-    def menu_strip(self, screen):
+    def menu_strip(self, screen: Picture) -> None:
         """The grey strip along the top, with menu words - a PC program's window, not a console's."""
         screen[0:11] = GREY
         screen[11] = DARK
@@ -86,7 +91,7 @@ class VgaLook(RoomLook):
             HUD.draw_text(screen, word, x, 2, INK, shadow=None)
             x += HUD.text_width(word) + 14
 
-    def draw_hud(self, screen, state, frame_no):
+    def draw_hud(self, screen: Picture, state: GameState, frame_no: int) -> None:
         screen[:L.HUD_H] = BAR_BG
         self.menu_strip(screen)
         place = self.world.area_name(state.room_num)
@@ -100,7 +105,8 @@ class VgaLook(RoomLook):
             spr = self.held_icon(state.carried, frame_no)
             blit(screen, spr, 26 - spr.shape[1] / 2, 29 - spr.shape[0] / 2)
 
-    def message_box(self, screen, lines, colours, top, portrait=None):
+    def message_box(self, screen: Picture, lines: list[str], colours: list[Rgb], top: int,
+                    portrait: Picture | None = None) -> None:
         """A message box: paper with a double border, its text centred, a portrait on the left if given."""
         text_w = max(HUD.text_width(line) for line in lines) + 32
         if portrait is not None and text_w + portrait.shape[1] + 12 > L.SCREEN_W - 8:
@@ -124,14 +130,14 @@ class VgaLook(RoomLook):
         for i, (text, colour) in enumerate(zip(lines, colours)):
             HUD.draw_text(screen, text, text_x, top + 10 + 14 * i, colour, shadow=None)
 
-    def win_banner(self, screen, state, frame_no):
+    def win_banner(self, screen: Picture, state: GameState, frame_no: int) -> None:
         who = self.cast.messenger(frame_no)
         who = None if who is None else self.adapt(who)
         self.message_box(screen, list(self.cast.win_lines), [INK] * len(self.cast.win_lines), 84, who)
         msg = "PRESS ENTER TO PLAY AGAIN"
         HUD.draw_text(screen, msg, (L.SCREEN_W - HUD.text_width(msg)) // 2, 160, PAPER, shadow=INK)
 
-    def title_screen(self, state, frame_no):
+    def title_screen(self, state: GameState, frame_no: int) -> Picture:
         """A DOS prompt types the program's name; then the gold castle's room fades up from black - dim, its
         corners darker - with the cast's title figures standing small in the middle, under the title."""
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
@@ -142,9 +148,10 @@ class VgaLook(RoomLook):
             return screen
         light = round(min(1.0, (frame_no - 90) / 60) * TITLE_GLOOM, 2)  # fades up over a second
         key = ("title", self.world.key, light)
-        if key not in self.sprite_cache:
-            self.sprite_cache[key] = self.adapt_scenery(title_room(self.world, light))
-        room = self.sprite_cache[key].copy()
+        room = self.sprite_cache.get(key)
+        if room is None:
+            room = self.sprite_cache[key] = self.adapt_scenery(title_room(self.world, light))
+        room = room.copy()
         cast = [self.adapt(figure) for figure in self.cast.title_cast()]
         width = sum(figure.shape[1] for figure in cast) + 8 * (len(cast) - 1)
         x = L.ROOM_W // 2 - width // 2

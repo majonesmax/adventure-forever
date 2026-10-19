@@ -16,11 +16,13 @@ Its own pack is "classic"; it was made for drawn worlds.
 import numpy as np
 
 from engine import rooms as R
+from engine.state import GameState
 from content.pictures import FLASH
 from looks.base import RoomLook
 from shared import hud as HUD
 from shared import layout as L
 from shared.pixelart import blit
+from shared.types import Floats, Picture, Rgb
 
 PAPER = np.array((246, 240, 226), float)
 CRAYONS = np.array([  # the box: one row per crayon (peach among them, for faces)
@@ -32,12 +34,14 @@ RULE, MARGIN = (150, 190, 226), (226, 120, 120)  # an index card's blue lines an
 FULL, LIGHT_HAND = 0.88, 0.42  # how much crayon a pixel gets: pressed in, and coloured in lightly
 
 
-def grain(h, w, seed=7):
+def grain(h: int, w: int, seed: int = 7) -> Floats:
     """The paper's tooth, 0..1 per pixel: a fixed noise smeared along the crayon's diagonal strokes, so the
     paper shows through in short streaks rather than speckles."""
     rng = np.random.default_rng(seed)
     noise = rng.normal(0, 1, (h + 8, w + 8))
-    smeared = sum(np.roll(np.roll(noise, k, 0), 2 * k, 1) for k in range(-3, 4))  # along a 1:2 diagonal
+    smeared = np.zeros_like(noise)
+    for k in range(-3, 4):   # along a 1:2 diagonal
+        smeared = smeared + np.roll(np.roll(noise, k, 0), 2 * k, 1)
     smeared = smeared[4:h + 4, 4:w + 4]
     smeared = (smeared - smeared.min()) / (smeared.max() - smeared.min())  # 0..1
     return np.clip((smeared - 0.22) * 2.2, 0, 1)  # more contrast: most of it fully covered
@@ -46,7 +50,7 @@ def grain(h, w, seed=7):
 TOOTH = grain(L.SCREEN_H, L.SCREEN_W)
 
 
-def crayon_index(rgb):
+def crayon_index(rgb: Picture) -> np.ndarray:
     """RGB (..., 3) -> the nearest crayon's row in CRAYONS, or -1 for bare paper."""
     pal = np.vstack([CRAYONS, PAPER[None]])
     distance = ((rgb[..., None, :].astype(float) - pal) ** 2).sum(-1)
@@ -55,7 +59,7 @@ def crayon_index(rgb):
     return nearest
 
 
-def wax(rgb, idx, pressure, tooth):
+def wax(rgb: Picture, idx: np.ndarray, pressure: Floats, tooth: Floats) -> Picture:
     """Crayon `idx` laid on paper with `pressure` (0..1 per pixel), the paper's tooth showing through."""
     cover = (pressure * (0.35 + 0.65 * tooth))[..., None]
     colour = CRAYONS[np.maximum(idx, 0)]
@@ -64,7 +68,7 @@ def wax(rgb, idx, pressure, tooth):
     return out.astype(np.uint8)
 
 
-def spiral(screen):
+def spiral(screen: Picture) -> None:
     """The sketchbook's binding along the top: wire loops through punched holes."""
     for x in range(10, L.SCREEN_W - 4, 14):
         screen[6:9, x:x + 4] = (90, 86, 82)                    # the hole
@@ -72,7 +76,7 @@ def spiral(screen):
         screen[1, x:x + 4] = (190, 190, 198)
 
 
-def scrawl(screen, text, x, y, colour, scale=1, seed=0):
+def scrawl(screen: Picture, text: str, x: int, y: int, colour: Rgb, scale: int = 1, seed: int = 0) -> None:
     """Handwritten: the pixel font with each letter a little up or down."""
     for i, letter in enumerate(text):
         raised = (i * 7 + seed * 3 + len(text)) % 5 == 0  # a fixed pattern, so the words don't jiggle
@@ -82,7 +86,8 @@ def scrawl(screen, text, x, y, colour, scale=1, seed=0):
         HUD.draw_text(screen, letter, letter_x, y + dy * scale, colour, scale=scale, shadow=None)
 
 
-def index_card(screen, lines, colours, top, portrait=None):
+def index_card(screen: Picture, lines: list[str], colours: list[Rgb], top: int,
+               portrait: Picture | None = None) -> None:
     """A ruled index card - a red margin line, blue rules, the words written on the lines."""
     text_w = max(HUD.text_width(line) for line in lines) + 32
     if portrait is not None and text_w + portrait.shape[1] + 12 > L.SCREEN_W - 8:
@@ -113,7 +118,7 @@ class PaperLook(RoomLook):
 
     # ---- the platform (the RoomLook methods) ----
 
-    def adapt(self, sprite):
+    def adapt(self, sprite: Picture) -> Picture:
         """Sprites: the nearest crayons, solid (the flashing marker is left for the flash); near-paper colours
         become the paper."""
         out = sprite.copy()
@@ -123,7 +128,7 @@ class PaperLook(RoomLook):
         out[keep, :3] = FLASH
         return out
 
-    def adapt_scenery(self, picture):
+    def adapt_scenery(self, picture: Picture) -> Picture:
         """Rooms and gates: waxy crayon on paper, the paper's tooth showing through; the biggest colour in a
         room coloured in lightly."""
         out = picture.copy()
@@ -137,12 +142,12 @@ class PaperLook(RoomLook):
         out[..., :3] = wax(picture[..., :3], idx, pressure, TOOTH[:h, :w])
         return out
 
-    def unlit(self, room, light):
+    def unlit(self, room: Picture, light: Floats) -> Picture:
         """Away from the torch the page is blank: the drawing fades to paper, not to black."""
-        light = light[..., None]
-        return (room * light + PAPER * (1 - light)).astype(np.uint8)
+        each_pixel = light[..., None]
+        return (room * each_pixel + PAPER * (1 - each_pixel)).astype(np.uint8)
 
-    def draw_hud(self, screen, state, frame_no):
+    def draw_hud(self, screen: Picture, state: GameState, frame_no: int) -> None:
         screen[:L.HUD_H] = PAPER
         screen[:, :L.ROOM_X] = PAPER                            # the page's margins beside the room
         screen[:, L.ROOM_X + L.ROOM_W:] = PAPER
@@ -159,7 +164,7 @@ class PaperLook(RoomLook):
             blit(screen, spr, 26 - spr.shape[1] / 2, 29 - spr.shape[0] / 2)
 
     @staticmethod
-    def doodle_ring(screen, centre_x, centre_y, radius):
+    def doodle_ring(screen: Picture, centre_x: float, centre_y: float, radius: float) -> None:
         """A circle drawn round twice by hand - where the carried item goes."""
         for lap, (lap_radius, start) in enumerate(((radius, 0.0), (radius + 0.8, 0.5))):
             for angle in np.linspace(start, start + 2 * np.pi * 0.95, 160):  # not quite closed
@@ -169,7 +174,7 @@ class PaperLook(RoomLook):
                 if 0 <= y < L.HUD_H and 0 <= x < L.SCREEN_W:
                     screen[y, x] = GRAPHITE
 
-    def win_banner(self, screen, state, frame_no):
+    def win_banner(self, screen: Picture, state: GameState, frame_no: int) -> None:
         who = self.cast.messenger(frame_no)
         who = None if who is None else self.adapt(who)
         lines = list(self.cast.win_lines)
@@ -179,7 +184,7 @@ class PaperLook(RoomLook):
         screen[158:170, x - 4:x + HUD.text_width(msg) + 4] = CARD
         scrawl(screen, msg, x, 160, GRAPHITE)
 
-    def title_screen(self, state, frame_no):
+    def title_screen(self, state: GameState, frame_no: int) -> Picture:
         """A blank page: ADVENTURE is written a letter at a time, then the gold castle's room is drawn in from
         left to right, the cast's title figures in the middle, and an index card says what to press."""
         screen = np.empty((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
@@ -192,9 +197,11 @@ class PaperLook(RoomLook):
             return screen
         scrawl(screen, small, (L.SCREEN_W - HUD.text_width(small)) // 2, 37, GRAPHITE, seed=2)
         key = ("title", self.world.key)
-        if key not in self.sprite_cache:
-            self.sprite_cache[key] = self.adapt_scenery(self.world.room(R.decode_room(R.load_rom(), 0x11)))
-        room = self.sprite_cache[key].copy()
+        room = self.sprite_cache.get(key)
+        if room is None:
+            castle = self.world.room(R.decode_room(R.load_rom(), 0x11))
+            room = self.sprite_cache[key] = self.adapt_scenery(castle)
+        room = room.copy()
         cast = [self.adapt(figure) for figure in self.cast.title_cast()]
         width = sum(figure.shape[1] for figure in cast) + 8 * (len(cast) - 1)
         x = L.ROOM_W // 2 - width // 2

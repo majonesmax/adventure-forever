@@ -49,7 +49,10 @@ import os
 
 import numpy as np
 
+from typing import Any
+
 from content import pictures as PIC
+from shared.types import Picture
 
 POSES = ("normal", "roar", "dead")
 COLOURS = ("red", "yellow", "green")
@@ -64,39 +67,40 @@ class Cast:
     them as text art (each built-in pack's source/ folder keeps the text art its pictures were made from).
     """
 
-    def __init__(self, key, folder, info):
+    def __init__(self, key: str, folder: str, info: dict[str, Any]):
         """key: the pack's; folder: its cast/ folder; info: pack.json's "cast" section."""
         self.key, self.folder = key, folder
-        self.name = info.get("name", key.upper())
-        self.win_lines = tuple(info.get("win_lines", ("YOU WIN!", "THE CHALICE", "IS HOME!")))
-        self.title_names = info.get("title_cast", ["hero_down_0"])
-        self.messenger_every = info.get("messenger_every", 16)
-        self.foot_gap = info.get("foot_gap", 0)
-        self.voices = info.get("voices", {})   # dragon colour -> "growl" / "squawk" / "gurgle"
-        self.pictures = PIC.load_folder(folder, info.get("scale", 1))
+        self.name: str = info.get("name", key.upper())
+        default_lines = ("YOU WIN!", "THE CHALICE", "IS HOME!")
+        self.win_lines: tuple[str, ...] = tuple(info.get("win_lines", default_lines))
+        self.title_names: list[str] = info.get("title_cast", ["hero_down_0"])
+        self.messenger_every: int = info.get("messenger_every", 16)
+        self.foot_gap: int = info.get("foot_gap", 0)
+        self.voices: dict[str, str] = info.get("voices", {})   # dragon colour -> growl / squawk / gurgle
+        self.pictures: dict[str, Picture] = PIC.load_folder(folder, info.get("scale", 1))
         if "hero_down_0" not in self.pictures:
             raise ValueError(f"{folder}: a cast needs at least hero_down_0.png")
 
-    def picture(self, name):
+    def picture(self, name: str) -> Picture | None:
         return self.pictures.get(name)
 
     # ---- what looks ask for ----------------------------------------------------------------------------
 
-    def hero(self):
+    def hero(self) -> dict[str, list[Picture]]:
         """{"down": [stand, stride], "up": [...], "right": [...], "left": [...]}."""
         pictures = self.pictures
 
-        def frames(view, otherwise):
+        def frames(view: str, otherwise: list[Picture]) -> list[Picture]:
             if f"hero_{view}_0" not in pictures:
                 return list(otherwise)
             stand = pictures[f"hero_{view}_0"]
             return [stand, pictures.get(f"hero_{view}_1", stand)]
-        down = frames("down", None)
+        down = frames("down", [])   # never empty: a cast always has hero_down_0
         right = frames("right", down)
         mirrored = [frame[:, ::-1] for frame in right]
         return {"down": down, "up": frames("up", down), "right": right, "left": frames("left", mirrored)}
 
-    def villains(self):
+    def villains(self) -> dict[tuple[str, str], Picture]:
         """{(pose, colour): sprite} for the three dragons; missing ones are drawn as the original."""
         pictures, out = self.pictures, {}
         for colour in COLOURS:
@@ -108,14 +112,14 @@ class Cast:
                     out[(pose, colour)] = sprite
         return out
 
-    def bat(self):
+    def bat(self) -> dict[str, Picture]:
         """{"up": sprite, "down": sprite} - or {} for the original bat."""
         wings_up = self.pictures.get("bat_up")
         if wings_up is None:
             return {}
         return {"up": wings_up, "down": self.pictures.get("bat_down", wings_up)}
 
-    def items(self):
+    def items(self) -> dict[int, Picture]:
         """{object number: sprite} for whichever of ITEMS the cast draws."""
         out = {}
         for name, object_number in ITEMS.items():
@@ -123,7 +127,7 @@ class Cast:
                 out[object_number] = self.pictures[f"item_{name}"]
         return out
 
-    def bridge(self, height, width=None):
+    def bridge(self, height: int, width: int | None = None) -> Picture | None:
         """The bridge `height` pixels long, centred in `width` if given; None = the original bridge."""
         top, mid, bottom = (self.pictures.get(f"bridge_{part}") for part in ("top", "middle", "bottom"))
         if mid is None:
@@ -138,13 +142,13 @@ class Cast:
             out = np.pad(out, ((0, 0), (pad // 2, pad - pad // 2), (0, 0)))
         return out
 
-    def messenger(self, frame_no):
+    def messenger(self, frame_no: int) -> Picture | None:
         """Who announces the win (beside the speech bubble), this frame; None = nobody."""
         frames = [self.pictures[name] for name in sorted(self.pictures) if name.startswith("messenger_")]
         if not frames:
             return self.pictures.get("messenger")
         return frames[(frame_no // self.messenger_every) % len(frames)]
 
-    def title_cast(self):
+    def title_cast(self) -> list[Picture]:
         """The pictures standing in front of the castle on a title screen."""
         return [self.pictures[name] for name in self.title_names if name in self.pictures]

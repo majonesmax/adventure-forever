@@ -14,6 +14,7 @@ Usage: python -m engine.effects     -> shots/effects/<look>_<sound>.wav, to list
 import os
 import threading
 import wave
+from typing import Any, Callable, Iterator
 
 import numpy as np
 
@@ -21,8 +22,11 @@ from engine import ram_map as M
 from engine.chiptune import RATE
 from engine.effects import nes, paper, snes, vga
 from engine.effects.tools import DRAGON_VOICES, KINDS, Voice
+from shared.types import Floats, RamBytes, Samples
 
-SETS = {"nes": nes.EFFECTS, "snes": snes.EFFECTS, "vga": vga.EFFECTS, "paper": paper.EFFECTS}
+EffectSet = dict[str, Callable[..., Floats]]   # name -> make(), or make(voice) for a dragon's
+SETS: dict[str, EffectSet] = {"nes": nes.EFFECTS, "snes": snes.EFFECTS, "vga": vga.EFFECTS,
+                              "paper": paper.EFFECTS}
 GAME_SOUNDS = {0: "win", 1: "roar", 2: "eaten", 3: "dragon_dies", 4: "drop", 5: "pickup"}   # SOUND_TYPE
 DRAGON_SOUNDS = ("roar", "dragon_dies")   # each dragon has its own voice (tools.DRAGON_VOICES)
 DRAGONS = {M.RED_DRAGON: "red", M.YELLOW_DRAGON: "yellow", M.GREEN_DRAGON: "green"}
@@ -32,10 +36,10 @@ SHARE = {"drop": 0.7, "pickup": 0.85, "gate_open": 0.8, "gate_close": 0.8}   # q
 FALLBACK = "nes"         # a look without its own set (the template) uses the NES's
 
 
-def heard(before, after):
+def heard(before: RamBytes, after: RamBytes) -> list[str]:
     """The sounds that start between two frames' RAM (128 bytes each, from $80): the game's own (a roar or
     a death named for its dragon: "roar_red"), and a gate starting to open or close."""
-    def byte(ram, address):
+    def byte(ram: RamBytes, address: int) -> int:
         return int(ram[address - 0x80])
     sounds = []
     if byte(after, M.SOUND_COUNTER) > byte(before, M.SOUND_COUNTER):   # it only counts down, unless a
@@ -52,12 +56,12 @@ def heard(before, after):
     return sounds
 
 
-def which_dragon(before, after, sound):
+def which_dragon(before: RamBytes, after: RamBytes, sound: str) -> str:
     """The dragon a roar or a death belongs to: the one whose state just changed to roaring (anything but 0
     normal, 1 dead, 2 has eaten) or to dead - else any dragon in that state; else Yorgle."""
-    def state(ram, dragon):
+    def state(ram: RamBytes, dragon: int) -> int:
         return int(ram[dragon + M.DRAGON_STATE_OFFSET - 0x80])
-    def fits(value):
+    def fits(value: int) -> bool:
         return value == 1 if sound == "dragon_dies" else value not in (0, 1, 2)
     changed = [colour for dragon, colour in DRAGONS.items()
                if state(before, dragon) != state(after, dragon) and fits(state(after, dragon))]
@@ -65,7 +69,7 @@ def which_dragon(before, after, sound):
     return either[0] if either else "yellow"
 
 
-def to_pcm(track, name):
+def to_pcm(track: Floats, name: str) -> Samples:
     """A mono effect -> int16 stereo at LEVEL (x its SHARE) on average while it sounds - so a pure whistle
     and a noisy crash come out alike - with its peaks rounded off below PEAK."""
     sounding = track[np.abs(track) > np.abs(track).max() * 0.1]
@@ -75,7 +79,7 @@ def to_pcm(track, name):
     return np.repeat(rounded[:, None], 2, axis=1).astype(np.int16)
 
 
-def made(effects):
+def made(effects: EffectSet) -> Iterator[tuple[str, Samples]]:
     """(name, sound) for each of a look's effects - the dragons' in every kind of voice, for each dragon."""
     for name, make in effects.items():
         if name in DRAGON_SOUNDS:
@@ -90,17 +94,17 @@ class Effects:
     """Plays the effects. play() from the game loop; render() from the sound card's callback. Every set is
     made in the background at the start (a fraction of a second); until then, nothing plays."""
 
-    def __init__(self):
-        self.sets = {}
-        self.voices = []          # [samples, position] of each effect playing
+    def __init__(self) -> None:
+        self.sets: dict[str, dict[str, Samples]] = {}   # look -> effect name -> its sound
+        self.voices: list[list[Any]] = []    # [samples, position] of each effect playing; position moves
         self.lock = threading.Lock()
         threading.Thread(target=self.make_all, daemon=True).start()
 
-    def make_all(self):
+    def make_all(self) -> None:
         for look, effects in SETS.items():
             self.sets[look] = dict(made(effects))
 
-    def play(self, name, look, voices):
+    def play(self, name: str, look: str, voices: dict[str, str]) -> None:
         """Start one of the game's sounds, as `look` (a look's platform: nes, snes...) plays it. voices: the
         cast's kind of voice for each dragon colour (a roar_red becomes roar_squawk_red, say)."""
         effects = self.sets.get(look if look in SETS else FALLBACK)
@@ -112,7 +116,7 @@ class Effects:
         with self.lock:
             self.voices.append([effects[name], 0])
 
-    def render(self, count):
+    def render(self, count: int) -> Samples:
         """The next `count` stereo samples of every effect playing."""
         out = np.zeros((count, 2), np.float32)
         with self.lock:
@@ -125,7 +129,7 @@ class Effects:
         return np.clip(out, -32767, 32767).astype(np.int16)
 
 
-def main():
+def main() -> None:
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     folder = os.path.join(root, "shots", "effects")
     os.makedirs(folder, exist_ok=True)

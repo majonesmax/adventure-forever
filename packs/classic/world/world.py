@@ -6,16 +6,17 @@ import numpy as np
 
 from content.world import World
 from shared.palettes import NES
+from shared.types import Picture
 
 BLACK, GREY = 0x0F, 0x10  # NES colours
 
 
 class CustomWorld(World):
-    def gate(self, castle, w, h):
+    def gate(self, castle: str, w: int, h: int) -> Picture | None:
         return portcullis(w, h) if h > 0 else None
 
 
-def portcullis(w, h):
+def portcullis(w: int, h: int) -> Picture:
     """Iron portcullis of the original's current height: vertical bars, a crossbar every 6 px, spikes at
     the bottom."""
     out = np.zeros((h, w, 4), np.uint8)

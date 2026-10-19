@@ -7,29 +7,32 @@ steady - a steady hiss sounds like static - so the leaves only rustle when the b
 its own noise, so the air is wide; the calls are mono, and placed left or right as they play.
 """
 
+from typing import Callable
+
 import numpy as np
 
 from engine.chiptune import RATE
+from shared.types import Floats
 
 LOOP_SECONDS = 16       # a bed's length; it loops
 RUSTLE_FROM = 0.5       # the leaves rustle only when the breeze is stronger than this (0-1)
 
 
-def seconds(count):
+def seconds(count: float) -> int:
     return int(count * RATE)
 
 
-def decay(length, time_constant):
+def decay(length: int, time_constant: float) -> Floats:
     return np.exp(-np.arange(length) / RATE / time_constant)
 
 
-def fade_in_out(length, rise, fall):
+def fade_in_out(length: int, rise: float, fall: float) -> Floats:
     """An envelope rising over `rise` seconds and falling over the last `fall`."""
     time = np.arange(length) / RATE
     return np.minimum(1, time / rise) * np.minimum(1, (length / RATE - time) / fall).clip(0, 1)
 
 
-def filtered(signal, low_hz, high_hz, tilt=0.0):
+def filtered(signal: Floats, low_hz: float, high_hz: float, tilt: float = 0.0) -> Floats:
     """Only the frequencies from low_hz to high_hz of each column, louder low down by `tilt` (0 flat, 1 a
     deep rumble); circular, so a loop stays a loop. Peak about 1."""
     length = len(signal)
@@ -40,7 +43,7 @@ def filtered(signal, low_hz, high_hz, tilt=0.0):
     return out / max(1e-9, np.abs(out).max())
 
 
-def band(signal, centre_hz, octaves):
+def band(signal: Floats, centre_hz: float, octaves: float) -> Floats:
     """The frequencies around centre_hz, falling away smoothly on both sides (`octaves` wide at half
     strength) - softer than filtered()'s hard edges, which make noise sound like a radio between stations.
     Circular, like filtered(). Peak about 1."""
@@ -52,17 +55,17 @@ def band(signal, centre_hz, octaves):
     return out / max(1e-9, np.abs(out).max())
 
 
-def noise(length, seed):
+def noise(length: int, seed: int) -> Floats:
     return np.random.default_rng(seed).normal(size=(length, 2))
 
 
-def whistle(pitch):
+def whistle(pitch: Floats) -> Floats:
     """A pure tone following a pitch that may change from sample to sample."""
     return np.sin(2 * np.pi * np.cumsum(pitch) / RATE)
 
 
 # --- beds: loops ----------------------------------------------------------------------------------------
-def gusts(seed, calm=0.3):
+def gusts(seed: int, calm: float = 0.3) -> Floats:
     """How hard the breeze blows through the loop, 0-1: slow, uneven swells (a few each loop), never quite
     still - `calm` at the quietest."""
     length = seconds(LOOP_SECONDS)
@@ -70,14 +73,14 @@ def gusts(seed, calm=0.3):
     return calm + (1 - calm) * ((slow + 1) / 2) ** 1.5
 
 
-def breeze(seed, calm=0.3):
+def breeze(seed: int, calm: float = 0.3) -> Floats:
     """Air moving over open ground: a soft, low rush that rises and falls with the gusts."""
     length = seconds(LOOP_SECONDS)
     body = band(noise(length, seed), 220, 2.5)
     return body * gusts(seed + 1, calm)[:, None]
 
 
-def leaves(seed):
+def leaves(seed: int) -> Floats:
     """Leaves stirring: a light, uneven rustle, only in the strongest gusts (the same gusts as
     breeze(seed - 1)) - and silent in between, so it never settles into a hiss."""
     length = seconds(LOOP_SECONDS)
@@ -87,13 +90,13 @@ def leaves(seed):
     return rustle * flutter * strongest[:, None]
 
 
-def still_air(seed, low_hz=80, high_hz=400):
+def still_air(seed: int, low_hz: float = 80, high_hz: float = 400) -> Floats:
     """A room's or a cave's quiet: very low, barely moving air."""
     length = seconds(LOOP_SECONDS)
     return filtered(noise(length, seed), low_hz, high_hz, tilt=0.7) * gusts(seed + 1, calm=0.6)[:, None]
 
 
-def embers(seed):
+def embers(seed: int) -> Floats:
     """A fire burning low: a soft roar, with crackles here and there."""
     length = seconds(LOOP_SECONDS)
     rng = np.random.default_rng(seed)
@@ -107,7 +110,7 @@ def embers(seed):
 
 
 # --- calls: one-offs (mono) -----------------------------------------------------------------------------
-def chirps(seed):
+def chirps(seed: int) -> Floats:
     """A small bird: a phrase of quick chirps, each a whistle that swoops and trills."""
     rng = np.random.default_rng(seed)
     phrase = np.zeros(seconds(1.6))
@@ -124,7 +127,7 @@ def chirps(seed):
     return phrase
 
 
-def two_notes(seed):
+def two_notes(seed: int) -> Floats:
     """A clear two-note whistle, high then lower - "fee-bee" - sometimes sung twice."""
     rng = np.random.default_rng(seed)
     high = rng.uniform(2900, 3600)
@@ -143,7 +146,7 @@ def two_notes(seed):
     return call
 
 
-def trill(seed):
+def trill(seed: int) -> Floats:
     """A warbler's run: a quick string of bright notes, falling, faster at the end."""
     rng = np.random.default_rng(seed)
     count_notes = rng.integers(12, 20)
@@ -160,7 +163,7 @@ def trill(seed):
     return call
 
 
-def coo(seed):
+def coo(seed: int) -> Floats:
     """A dove a way off: soft, low, breathy notes - coo-OO-oo, oo, oo."""
     rng = np.random.default_rng(seed)
     pitch = rng.uniform(440, 520)
@@ -178,7 +181,7 @@ def coo(seed):
     return call
 
 
-def woodpecker(seed):
+def woodpecker(seed: int) -> Floats:
     """A woodpecker drumming on a tree somewhere: a fast roll of knocks, dying away."""
     rng = np.random.default_rng(seed)
     pitch, knocks = rng.uniform(800, 1100), rng.integers(12, 20)
@@ -193,7 +196,7 @@ def woodpecker(seed):
     return roll
 
 
-def bee(seed):
+def bee(seed: int) -> Floats:
     """A bee going by: a soft buzz that comes, passes and goes (engine/ambience.py moves it across)."""
     rng = np.random.default_rng(seed)
     count = seconds(rng.uniform(2.0, 3.0))
@@ -205,7 +208,7 @@ def bee(seed):
     return buzz * passing
 
 
-def drip(seed):
+def drip(seed: int) -> Floats:
     """A drop into a pool: a short plink that bends up."""
     rng = np.random.default_rng(seed)
     count = seconds(0.12)
@@ -213,20 +216,20 @@ def drip(seed):
     return whistle(pitch) * decay(count, 0.025)
 
 
-def pop(seed):
+def pop(seed: int) -> Floats:
     """A log settling in the fire: a sharp little crack."""
     count = seconds(0.06)
     return filtered(noise(count, seed)[:, :1], 700, 4000)[:, 0] * decay(count, 0.008)
 
 
 # --- the characters moving (mono) -----------------------------------------------------------------------
-def thud(pitch, count, time_constant):
+def thud(pitch: float, count: int, time_constant: float) -> Floats:
     """A dull knock, with an overtone so small speakers play it too."""
     tone = whistle(np.full(count, pitch)) + 0.5 * whistle(np.full(count, pitch * 2.3))
     return tone * decay(count, time_constant)
 
 
-def step(surface, seed):
+def step(surface: str, seed: int) -> Floats:
     """A footstep on grass (a soft brush), stone (a tap) or snow (a crunch)."""
     rng = np.random.default_rng(seed)
     count = seconds(0.12)
@@ -240,7 +243,7 @@ def step(surface, seed):
     return brush + 0.3 * thud(rng.uniform(150, 190), count, 0.015)
 
 
-def stomp(seed):
+def stomp(seed: int) -> Floats:
     """A dragon's heavy foot coming down: a deep thump, and the crunch of the ground under it - the crunch
     is what a laptop's small speakers play, so it carries most of it."""
     rng = np.random.default_rng(seed)
@@ -249,12 +252,21 @@ def stomp(seed):
     return 0.6 * thud(rng.uniform(70, 90), count, 0.07) + crunch
 
 
-def wingbeat(seed):
+def wingbeat(seed: int) -> Floats:
     """A bat's wings: a quick, soft whoosh."""
     count = seconds(0.09)
     swell = np.sin(np.pi * np.linspace(0, 1, count)) ** 2
     return filtered(noise(count, seed)[:, :1], 300, 2000)[:, 0] * swell
 
 
-CALLS = {"chirps": chirps, "two_notes": two_notes, "trill": trill, "coo": coo, "woodpecker": woodpecker,
-         "bee": bee, "drip": drip, "pop": pop}
+Call = Callable[[int], Floats]   # call(seed) -> a sound
+CALLS: dict[str, Call] = {
+    "chirps": chirps,
+    "two_notes": two_notes,
+    "trill": trill,
+    "coo": coo,
+    "woodpecker": woodpecker,
+    "bee": bee,
+    "drip": drip,
+    "pop": pop,
+}

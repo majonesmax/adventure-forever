@@ -6,16 +6,17 @@ import numpy as np
 
 from content.cast import Cast
 from shared.palettes import NES
+from shared.types import Picture
 
 BLACK = 0x0F  # NES colour
 
 
 class CustomCast(Cast):
-    def bridge(self, height, width=None):
+    def bridge(self, height: int, width: int | None = None) -> Picture | None:
         return wooden_bridge(width or height, height)
 
 
-def wooden_bridge(w, h):
+def wooden_bridge(w: int, h: int) -> Picture:
     """Wooden bridge filling the original's box: rails over the original's two rail columns, planks across
     the walkway between them, posts at both ends (the original has ## blocks for 4 rows top and bottom)."""
     out = np.zeros((h, w, 4), np.uint8)

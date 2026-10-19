@@ -18,7 +18,7 @@ from app import controls  # noqa: E402
 from app import window as W  # noqa: E402
 
 
-def handled():
+def handled() -> set[str]:
     """Every key name the window answers to (pygame.key.name style, "shift+l" for Shift+L)."""
     pygame.display.init()
     names = {pygame.key.name(k).lower() for k in (*W.JOYSTICK, *W.KEYS)}
@@ -26,8 +26,8 @@ def handled():
     return names | {"escape"}  # quit: handled in handle_input itself
 
 
-def main():
-    problems = []
+def main() -> int:
+    problems: list[str] = []
     keys, listed = handled(), controls.covered()
     if keys - listed:
         problems.append(f"handled by the window but not in app/controls.py: {sorted(keys - listed)}")

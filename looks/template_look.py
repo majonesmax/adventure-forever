@@ -25,9 +25,11 @@ the title, the win).
 
 import numpy as np
 
+from engine.state import GameState
 from looks.base import RoomLook
 from shared import hud as HUD
 from shared import layout as L
+from shared.types import Picture
 
 BAR, TEXT, GOLD = (0, 0, 0), (232, 232, 240), (240, 200, 80)
 
@@ -37,29 +39,29 @@ class TemplateLook(RoomLook):
     platform_name = "TEMPLATE LOOK"  # the label over this look's pane in the grid view
     own_pack = "template"            # whose cast and world it shows unless others are chosen
 
-    def adapt(self, sprite):
+    def adapt(self, sprite: Picture) -> Picture:
         """This console's rules for the cast's pictures - called once per picture. A real look enforces its
         hardware here (the NES look snaps colours to the NES palette). This one shows them as they are."""
         return sprite
 
-    def adapt_scenery(self, picture):
+    def adapt_scenery(self, picture: Picture) -> Picture:
         """The same for the world's rooms and gates."""
         return picture
 
-    def draw_hud(self, screen, state, frame_no):
+    def draw_hud(self, screen: Picture, state: GameState, frame_no: int) -> None:
         """The status bar above the room: the look's name and which game (1-3) is being played."""
         screen[:L.HUD_H] = BAR
         HUD.draw_text(screen, "TEMPLATE LOOK", 8, 12, TEXT)
         HUD.draw_text(screen, f"GAME {state.game}", 8, 28, TEXT)
 
-    def title_screen(self, state, frame_no):
+    def title_screen(self, state: GameState, frame_no: int) -> Picture:
         """The game-select screen (before Enter is pressed). Return a whole new screen."""
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
         HUD.draw_text(screen, "ADVENTURE", 92, 100, TEXT)
         HUD.draw_text(screen, f"GAME {state.game} - PRESS ENTER", 52, 130, TEXT)
         return screen
 
-    def win_banner(self, screen, state, frame_no):
+    def win_banner(self, screen: Picture, state: GameState, frame_no: int) -> None:
         """Painted over the room once the chalice is home - with the cast's first line ("YOU WIN!")."""
         text = self.cast.win_lines[0]
         HUD.draw_text(screen, text, (L.SCREEN_W - HUD.text_width(text)) // 2, 120, GOLD)

@@ -17,7 +17,7 @@ ROM_SIZE = 4096  # Adventure is a 4 KB cartridge
 REMEMBERED = os.path.join(paths.USER_DIR, "adventure.a26") if paths.FROZEN else paths.ROM
 
 
-def check(path):
+def check(path: str) -> str | None:
     """None if `path` looks like Adventure, else what's wrong with it."""
     if not os.path.isfile(path):
         return "That isn't a file."
@@ -26,7 +26,7 @@ def check(path):
     return None
 
 
-def remember(path):
+def remember(path: str) -> str:
     """Keep a copy in the player's folder, so it's found next time."""
     if os.path.abspath(path) != os.path.abspath(REMEMBERED):
         os.makedirs(paths.USER_DIR, exist_ok=True)
@@ -34,7 +34,7 @@ def remember(path):
     return REMEMBERED
 
 
-def find_rom(given=None):
+def find_rom(given: str | None = None) -> str | None:
     """Path to the ROM, or None if the player closes the window without giving one."""
     if given:
         problem = check(given)
@@ -48,7 +48,7 @@ def find_rom(given=None):
     return ask()
 
 
-def ask():
+def ask() -> str | None:
     """A window that waits for the ROM to be dragged onto it. Esc or closing it gives up."""
     pygame.display.init()
     pygame.font.init()

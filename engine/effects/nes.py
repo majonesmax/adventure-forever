@@ -2,32 +2,35 @@
 triangle and noise (engine/chiptune.py, the same as the music).
 """
 
+from typing import Callable
+
 from engine.chiptune import RATE, envelope, midi_hz, pulse, triangle
-from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, chip_noise, clicks, cluck, decay, place, run,
-                                  seconds, sweep)
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, Pitch, Voice, burble, chip_noise, clicks, cluck,
+                                  decay, place, run, seconds, sweep, together)
+from shared.types import Floats
 
 
-def chip_tone(pitch, length):
+def chip_tone(pitch: Floats, length: int) -> Floats:
     """A pulse wave following a pitch (the squawks' and gurgles' voice)."""
     return pulse(pitch, length, 0.25)
 
 
-def blip(pitch, length):
+def blip(pitch: Pitch, length: int) -> Floats:
     return pulse(pitch, length, 0.25) * envelope(length, decay=0.05, sustain=0.3)
 
 
-def pickup():
+def pickup() -> Floats:
     """A quick rising arpeggio."""
     return run([72, 76, 79, 84], 0.045, blip, ring=0.08)
 
 
-def drop():
+def drop() -> Floats:
     """A soft thump, falling."""
     length = seconds(0.14)
     return triangle(sweep(320, 110, length), length) * decay(length, 0.05)
 
 
-def growl_roar(voice):
+def growl_roar(voice: Voice) -> Floats:
     """A dragon roars: a thin, growling pulse sliding down over a rumble."""
     length = seconds(0.6 * voice.length)
     growl = pulse(sweep(240 * voice.pitch, 100 * voice.pitch, length), length, 0.125, vibrato=0.06)
@@ -36,7 +39,7 @@ def growl_roar(voice):
     return (0.7 * growl + 0.25 * rumble) * loudness
 
 
-def eaten():
+def eaten() -> Floats:
     """Swallowed: a run falling away, then a crunch."""
     fall = run(list(range(76, 50, -3)), 0.05, lambda pitch, length: pulse(pitch, length, 0.5) *
                envelope(length, decay=0.04, sustain=0.2), ring=0.07)
@@ -45,7 +48,7 @@ def eaten():
     return place([(0, fall * 0.7), (0.45, crunch)], 0.8)
 
 
-def growl_dies(voice):
+def growl_dies(voice: Voice) -> Floats:
     """The sword strikes home: a burst of noise, and a long falling tone."""
     burst_length = seconds(0.2)
     burst = chip_noise(burst_length, pitch=0.5, seed=3) * decay(burst_length, 0.06)
@@ -55,7 +58,7 @@ def growl_dies(voice):
     return place([(0, burst), (0.05, fall)], 0.1 + 0.8 * voice.length)
 
 
-def roar(voice):
+def roar(voice: Voice) -> Floats:
     """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
     if voice.kind == "squawk":
         return cluck(chip_tone, voice)
@@ -65,7 +68,7 @@ def roar(voice):
     return growl_roar(voice)
 
 
-def dragon_dies(voice):
+def dragon_dies(voice: Voice) -> Floats:
     """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
     if voice.kind == "growl":
         return growl_dies(voice)
@@ -74,37 +77,39 @@ def dragon_dies(voice):
     return place([(0, burst), (0.1, last_cry)], 0.1 + len(last_cry) / RATE)
 
 
-def link(index):
+def link(index: int) -> Floats:
     """One link of the portcullis chain: a short metallic tick."""
     length = seconds(0.02)
     return chip_noise(length, pitch=0.7, seed=10 + index % 4) * decay(length, 0.005)
 
 
-def clank():
+def clank() -> Floats:
     """The portcullis reaching the end: a heavy clank."""
     length = seconds(0.25)
     return (chip_noise(length, pitch=0.2, seed=5) * 0.6 + triangle(110, length)) * decay(length, 0.07)
 
 
-def gate_open():
+def gate_open() -> Floats:
     """The chain rattling fast as the gate flies up, and a clank."""
     rattle = clicks(link, 0.03, GATE_OPEN - 0.1) * 0.6
     return place([(0, rattle), (GATE_OPEN - 0.1, clank())], GATE_OPEN + 0.3)
 
 
-def gate_close():
+def gate_close() -> Floats:
     """The chain paying out slowly as the gate comes down, and a clank as it lands."""
     rattle = clicks(link, 0.07, GATE_CLOSE - 0.1) * 0.6
     return place([(0, rattle), (GATE_CLOSE - 0.1, clank())], GATE_CLOSE + 0.3)
 
 
-def win():
+def win() -> Floats:
     """A fanfare: the run up, and a ringing chord."""
     fanfare = run([67, 72, 76, 79], 0.09, blip, ring=0.12)
     chord_length = seconds(1.0)
-    chord = sum(pulse(midi_hz(midi), chord_length, 0.25) for midi in (79, 84, 88)) / 3
+    chord = together([pulse(midi_hz(midi), chord_length, 0.25) for midi in (79, 84, 88)]) / 3
     return place([(0, fanfare), (0.36, chord * envelope(chord_length, decay=0.4, sustain=0.25))], 1.4)
 
 
-EFFECTS = {"pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
-           "win": win, "gate_open": gate_open, "gate_close": gate_close}
+EFFECTS: dict[str, Callable[..., Floats]] = {   # name -> make(), or make(voice) for a dragon's
+    "pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
+    "win": win, "gate_open": gate_open, "gate_close": gate_close,
+}

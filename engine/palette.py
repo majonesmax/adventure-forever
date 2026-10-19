@@ -16,29 +16,31 @@ import numpy as np
 
 from engine import emulator as h
 from engine import rooms as R
+from shared.types import Rgb
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "palette_ntsc.json")
 
 
-def load():
+def load() -> dict[int, Rgb]:
     with open(OUT) as f:
         return {int(colour): tuple(rgb) for colour, rgb in json.load(f).items()}
 
 
-def probe(path):
+def probe(path: str) -> None:
     """Child process: load one patched ROM, print the floor colour."""
     core = h.Core()
     core.load(path)
     for _ in range(60):
         core.run()
+    assert core.frame is not None   # 60 frames have run, so one has been drawn
     frame = core.frame.astype(int)
     # number room: plain floor in the lower left (clear of the game-number digit in the middle)
     floor = np.median(frame[150:170, 20:50].reshape(-1, 3), axis=0)
     print(json.dumps([int(channel) for channel in floor]))
 
 
-def main():
+def main() -> None:
     if sys.argv[1] == "--probe":
         return probe(sys.argv[2])
     scratch = sys.argv[1]

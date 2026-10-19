@@ -19,6 +19,7 @@ REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
 sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.pixelart import edited, from_ascii
+from shared.types import Picture
 
 INK, SKIN, SHIRT, GREEN, TOOTH = (24, 24, 40), (232, 184, 136), (64, 120, 216), (72, 168, 72), (248, 248, 240)
 
@@ -54,7 +55,7 @@ DRAGON = """
 DRAGON_ROAR = edited(DRAGON, {4: [(3, "KTTTTK")]})  # the same dragon with its teeth showing
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     """picture name -> RGBA. Only hero_down_0 is required: with no other hero pictures the look uses it for
     every view (mirrored for walking left). One dragon design (no colour in its name) serves all three; the
     dead pose isn't drawn - the look turns the normal one upside down."""

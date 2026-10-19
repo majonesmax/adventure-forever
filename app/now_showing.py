@@ -11,27 +11,36 @@ import time
 import pygame
 
 from app.fonts import mono
+from looks.base import RoomLook
 
 SHOW_FOR = 2.5  # seconds fully visible
 FADE_FOR = 0.6  # then fading out
 ROWS = (("look", "LOOK"), ("cast", "CAST"), ("world", "WORLD"))
 LABEL, TEXT, CHANGED, HINT = (150, 150, 175), (235, 235, 245), (248, 200, 72), (120, 120, 145)
 WARN, WARN_TEXT = (240, 140, 60), (240, 220, 200)
+Pane = tuple[str | None, RoomLook]   # (its title - None for the one look on screen - and its look)
+Line = tuple[pygame.font.Font, str, tuple[int, int, int], str, tuple[int, int, int]]
+# (font, label, label colour, text, text colour)
 
 
 class NowShowing:
-    def __init__(self):
+    def __init__(self) -> None:
         self.font = mono(18, bold=True)
         self.small = mono(13)
-        self.shown_at, self.changed, self.duration, self.note = None, None, SHOW_FOR, None
-        self.warning = None  # (headline, [details]) about the ROM, shown under the names
+        self.shown_at: float | None = None
+        self.changed: tuple[str, str] | None = None
+        self.duration: float = SHOW_FOR
+        self.note: str | None = None
+        # (headline, [details]) about the ROM, shown under the names
+        self.warning: tuple[str, list[str]] | None = None
 
-    def show(self, changed=None, duration=SHOW_FOR, note=None):
+    def show(self, changed: tuple[str, str] | None = None, duration: float = SHOW_FOR,
+             note: str | None = None) -> None:
         """Bring it up for `duration` seconds. changed: (pane, what) to highlight, e.g. ("PLAYING", "cast") or
         ("COMPARE", "world"); a change to the comparison shows both panes, whatever the view."""
         self.shown_at, self.changed, self.duration, self.note = time.perf_counter(), changed, duration, note
 
-    def draw(self, screen, panes, centre_x, top=16):
+    def draw(self, screen: pygame.Surface, panes: list[Pane], centre_x: int, top: int = 16) -> None:
         """Paint it over `screen`, centred on centre_x, if it's up. panes: [(title, look)] - [(None, look)]
         for the one look on screen, or the grid's ("PLAYING", look) and ("COMPARE", look)."""
         if self.shown_at is None:
@@ -41,7 +50,7 @@ class NowShowing:
             self.shown_at = None
             return
         alpha = 255 if age < self.duration else int(255 * (1 - (age - self.duration) / FADE_FOR))
-        lines = []  # (font, label, label colour, text, text colour)
+        lines: list[Line] = []
         if self.note:  # e.g. what was just added
             lines.append((self.small, "", CHANGED, self.note, CHANGED))
         for title, look in panes:
@@ -75,7 +84,9 @@ class NowShowing:
         if self.warning:
             self.draw_warning(screen, centre_x, top + height + 8, alpha)
 
-    def draw_warning(self, screen, centre_x, top, alpha):
+    def draw_warning(self, screen: pygame.Surface, centre_x: int, top: int, alpha: int) -> None:
+        if self.warning is None:
+            return
         headline, details = self.warning
         lines = [(self.small, line, WARN) for line in textwrap.wrap(headline, 64)]
         for detail in details:

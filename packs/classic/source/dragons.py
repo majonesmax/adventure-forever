@@ -16,6 +16,7 @@ sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.palettes import BLACK, NES
 from shared.pixelart import from_ascii
+from shared.types import Picture
 
 COLOURS = {"red": (0x16, 0x26), "yellow": (0x28, 0x38), "green": (0x1A, 0x2A)}  # body, highlight (NES)
 
@@ -104,7 +105,7 @@ KBBBHHK.........
 .KKKKK.........."""
 
 
-def upside_down(art):
+def upside_down(art: str) -> str:
     """The art flipped top to bottom, then moved down so its lowest pixel is on the last row."""
     rows = art.strip("\n").split("\n")[::-1]
     while rows and set(rows[-1]) == {"."}:
@@ -112,7 +113,7 @@ def upside_down(art):
     return "\n".join(rows)
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     out = {}
     for colour, (body, light) in COLOURS.items():
         palette = {"K": NES[BLACK], "B": NES[body], "H": NES[light]}

@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import sys
+from typing import Iterable, Sequence
 
 import numpy as np
 
@@ -32,6 +33,9 @@ from app import transitions as TR  # noqa: E402
 from engine import emulator as h  # noqa: E402
 from engine import ram_map as M  # noqa: E402
 from engine.state import Game  # noqa: E402
+from shared.types import Picture, Point, RamView  # noqa: E402
+
+Scenario = tuple[list[RamView], list[int], list[int]]   # (RAM snapshots, frame numbers, indices to hash)
 
 HASHES = os.path.join(ROOT, "tests", "golden_hashes.json")              # public casts and worlds only
 PRIVATE_HASHES = os.path.join(ROOT, "private", "golden_hashes.json")   # with a private one (never published)
@@ -40,7 +44,7 @@ FAIL_DIR = os.path.join(ROOT, "shots", "golden_fail")
 
 # ---- game moments -------------------------------------------------------------------------------------
 
-def boot(game):
+def boot(game: int) -> tuple[h.Core, RamView, RamView]:
     """The emulator after power-on, GAME SELECT to `game`, RESET: (core, ram copy).
 
     The console switches are held for a fixed number of frames, but the waits after them count from the frame
@@ -50,38 +54,41 @@ def boot(game):
     """
     core = h.Core()
     core.load(os.path.join(ROOT, "roms", "adventure.a26"))
+    ram = core.ram
+    assert ram is not None   # load() made the live view of the RAM
 
-    def run(n, keys=()):
+    def run(n: int, keys: Iterable[int] = ()) -> None:
         core.joy.clear()
         core.joy.update(keys)
         for _ in range(n):
             core.run()
 
-    def press(key, bit, then, seen_after):
+    def press(key: int, bit: int, then: int, seen_after: int) -> None:
         """Hold `key` 8 frames, release it; once the game sees the release, wait out the rest of `then`
         frames - `seen_after` is how many frames the reference core (b52ccb02e) takes to show the release."""
         run(8, {key})
         for _ in range(12):  # until the game sees the switch released
             run(1)
-            if core.ram[M.SWITCHES - 0x80] & bit:
+            if ram[M.SWITCHES - 0x80] & bit:
                 break
         run(then - seen_after)
     run(60)
     for _ in range(game - 1):
         press(h.JOY_SELECT, 0x02, 20, seen_after=1)
-    title = core.ram.copy()
+    title = ram.copy()
     press(h.JOY_START, 0x01, 60, seen_after=2)
-    return core, title, core.ram.copy()
+    return core, title, ram.copy()
 
 
-def poke(ram, values):
+def poke(ram: RamView, values: dict[int, int]) -> RamView:
     out = ram.copy()
     for addr, v in values.items():
         out[addr - 0x80] = v
     return out
 
 
-def place(room, hero, objs=(), extra=None):
+def place(room: int, hero: Point, objs: Sequence[tuple[int, ...]] = (),
+          extra: dict[int, int] | None = None) -> dict[int, int]:
     """RAM edits: hero in `room` at `hero`, objects (addr, x, y[, state]) in the same room."""
     v = {0x8A: room, 0x8B: hero[0], 0x8C: hero[1]}
     for addr, x, y, *state in objs:
@@ -92,9 +99,9 @@ def place(room, hero, objs=(), extra=None):
     return v
 
 
-def scenarios(g1, g2, title):
+def scenarios(g1: RamView, g2: RamView, title: RamView) -> dict[str, Scenario]:
     """name -> (list of RAM snapshots drawn in order, frame numbers to draw them at, indices to hash)."""
-    s = {}
+    s: dict[str, Scenario] = {}
     s["title"] = ([title, title], [0, 31], [0, 1])
     s["start_game1"] = ([g1], [0], [0])
     # game 2 starts with the bat flying off with the sword; its path depends on when the game saw the last
@@ -127,16 +134,18 @@ def scenarios(g1, g2, title):
 
 # ---- rendering + hashing ------------------------------------------------------------------------------
 
-def digest(img):
+def digest(img: Picture) -> str:
     return hashlib.sha256(np.ascontiguousarray(img, np.uint8).tobytes()).hexdigest()[:16]
 
 
-def render_all():
+def render_all() -> tuple[dict[str, str], dict[str, Picture], set[str]]:
     core, title, g1 = boot(1)
     _, _, g2 = boot(2)
     game = Game()
     reader = game.reader
-    out, screens, public = {}, {}, set()
+    out: dict[str, str] = {}
+    screens: dict[str, Picture] = {}
+    public: set[str] = set()
     for look_key in {**looks.LOOKS, **looks.TEMPLATE_LOOKS}:
         for cast_key, world_key in [(c, w) for c in content.casts(examples=True) for w in content.worlds(examples=True)]:
             make = lambda reader: looks.make(look_key, cast_key, world_key, reader)  # fresh: no state carried over
@@ -155,6 +164,7 @@ def render_all():
             a = game.state(poke(g1, place(0x11, (0x50, 0x0F))))
             b = game.state(poke(g1, place(0x02, (0x50, 0x69))))
             sc = TR.Scroll.between(look, a, b, 0)
+            assert sc is not None   # the two rooms are next to each other: there is a scroll
             for k in range(16):
                 img = sc.frame()
             key = f"{look_name}/scroll_down/16"
@@ -162,13 +172,13 @@ def render_all():
     return out, screens, public
 
 
-def split(hashes, public):
+def split(hashes: dict[str, str], public: set[str]) -> tuple[dict[str, str], dict[str, str]]:
     """(hashes with public packs, hashes with private packs)."""
     pub = {k: v for k, v in hashes.items() if k.split("/")[0] in public}
     return pub, {k: v for k, v in hashes.items() if k not in pub}
 
 
-def main():
+def main() -> int:
     hashes, screens, public = render_all()
     pub, priv = split(hashes, public)
     if "--update" in sys.argv:

@@ -9,6 +9,8 @@ Coordinates are the game's own units; y counts UP from the bottom of the room. T
 is calibrated in step 3/4 (drawing boxes over the real frame).
 """
 
+from shared.types import RamBytes
+
 # --- the hero (the "ball" in the disassembly - he is drawn with the TIA's ball graphic) -------------
 ROOM, HERO_X, HERO_Y = 0x8A, 0x8B, 0x8C  # the hero: current room, x, y
 PREV_ROOM, PREV_X, PREV_Y = 0xE2, 0xE3, 0xE4  # last position that didn't hit a wall (bounce-back target)
@@ -63,7 +65,7 @@ CASTLE_ROOMS = {0x11: "gold castle", 0x0F: "white castle", 0x10: "black castle"}
 NUMBER_ROOM = 0x00     # the game-select screen is "room 0"
 
 
-def carried_name(ram):
+def carried_name(ram: RamBytes) -> str | None:
     """ram = the 128-byte array indexed from $80."""
     carried = int(ram[CARRIED - 0x80])
     if carried == NOTHING_CARRIED:
@@ -71,7 +73,7 @@ def carried_name(ram):
     return OBJECTS.get(carried // 9, f"?{carried:02X}")
 
 
-def pos(ram, addr):
+def pos(ram: RamBytes, addr: int) -> tuple[int, int, int]:
     """(room, x, y) of an object-list entry."""
     i = addr - 0x80
     return int(ram[i]), int(ram[i + 1]), int(ram[i + 2])

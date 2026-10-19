@@ -1,0 +1,30 @@
+# The code checks, on every push to main and every pull request: the type hints (pyright, pyrightconfig.json)
+# and tools/readability.py, which counts ruff's rules, short names and type errors per file against its
+# baseline - the same check the hook runs after every edit on a computer. The baseline lets older files keep
+# their known readability issues, but no file may get worse, and there are no type errors at all. The checks
+# read the code only: no ROM, no emulator, no secrets, so they run for anyone's pull request too. (The
+# downloads are built and played by downloads.yml, on a version tag.)
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Requirements
+        run: python -m pip install -r requirements-dev.txt
+      - name: Type hints (pyright)
+        run: pyright --pythonpath "$(which python)"   # no .venv here: this machine's Python has the packages
+      - name: No file got harder to read (tools/readability.py)
+        run: python tools/readability.py

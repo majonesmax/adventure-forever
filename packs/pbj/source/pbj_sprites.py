@@ -25,9 +25,10 @@ from content.cast import ITEMS
 from content.pictures import save_folder
 from shared import pixelart as PX
 from shared.pixelart import edited, mirrored
+from shared.types import Picture, Rgb
 
 
-def from_ascii(art, colours):
+def from_ascii(art: str, colours: dict[str, Rgb]) -> Picture:
     """Strict: a character without a colour is an error (catches typos in the hand-drawn art)."""
     return PX.from_ascii(art, colours, strict=True)
 
@@ -113,7 +114,7 @@ _PBJ_SIDE_LEGS = ["""
 ................"""]
 
 
-def pbj_frames():
+def pbj_frames() -> dict[str, list[Picture]]:
     """view -> [stand, stride] RGBA 16x26 (left = mirrored right)."""
     colours = PBJ_COLOURS
     front = [from_ascii(_PBJ_HAT + _PBJ_FACE + _PBJ_BODY + legs, colours) for legs in _PBJ_LEGS]
@@ -172,7 +173,7 @@ KBBK.KBBBBBB
 .........KK.""")
 
 
-def alice_bridge(height, width=None, coat="black"):
+def alice_bridge(height: int, width: int | None = None, coat: str = "black") -> Picture:
     """Alice stretched to `height`: head, front legs, a long wiry back, hind legs and tail (24 wide)."""
     colours = ALICE_COLOURS[coat]
     parts = (_ALICE_HEAD, _ALICE_FRONT_LEGS, _ALICE_STRETCH, _ALICE_TAIL)
@@ -185,7 +186,7 @@ def alice_bridge(height, width=None, coat="black"):
     return out
 
 
-def alice_portrait(coat="black"):
+def alice_portrait(coat: str = "black") -> Picture:
     """Head + collar only (the win message, the title screen)."""
     return from_ascii(_ALICE_HEAD, ALICE_COLOURS[coat])
 
@@ -388,7 +389,7 @@ MAGNET = """
 MAGNET_COLOURS = {"K": (40, 16, 24), "R": (224, 56, 64), "W": (248, 200, 200), "S": (200, 208, 216)}
 
 
-def villain_frames():
+def villain_frames() -> dict[tuple[str, str], Picture]:
     """(pose, 2600 dragon colour) -> RGBA: red = the Yeti, yellow = the giant chicken (the coward), green =
     the Bog."""
     villains = {"red": (YETI, YETI_ROAR, YETI_COLOURS), "yellow": (CHICKEN, CHICKEN_ROAR, CHICKEN_COLOURS),
@@ -402,20 +403,21 @@ def villain_frames():
     return out
 
 
-def magpie_frames():
+def magpie_frames() -> dict[str, Picture]:
     return {"up": from_ascii(MAGPIE_UP, MAGPIE_COLOURS), "down": from_ascii(MAGPIE_DOWN, MAGPIE_COLOURS)}
 
 
-def item_frames():
+def item_frames() -> dict[int, Picture]:
     out = {0x09: from_ascii(SWORD, SWORD_COLOURS), 0x11: from_ascii(MAGNET, MAGNET_COLOURS),
            0x10: from_ascii(BOOK, BOOK_COLOURS)}
     for object_number, colours in KEY_COLOURS.items():
-        outline = tuple(int(channel * 0.3) for channel in colours["C"])  # a dark shade of the key's colour
+        red, green, blue = (int(channel * 0.3) for channel in colours["C"])
+        outline = (red, green, blue)  # a dark shade of the key's colour
         out[object_number] = from_ascii(KEY, {"K": outline, **colours})
     return out
 
 
-def cast_sheet(path=None):
+def cast_sheet(path: str | None = None) -> str:
     sprites = []
     for view in ("down", "up", "right", "left"):
         sprites += pbj_frames()[view]
@@ -443,11 +445,13 @@ def cast_sheet(path=None):
     sheet = np.concatenate([row[:, :cut], right], axis=0)
     path = path or os.path.join(paths.SHOTS, "snes", "cast.png")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    Image.fromarray(sheet).resize((sheet.shape[1] * 5, sheet.shape[0] * 5), Image.NEAREST).save(path)
+    size = (sheet.shape[1] * 5, sheet.shape[0] * 5)
+    enlarged = Image.fromarray(sheet).resize(size, Image.Resampling.NEAREST)
+    enlarged.save(path)
     return path
 
 
-def pictures(coat="black"):
+def pictures(coat: str = "black") -> dict[str, Picture]:
     """picture name -> RGBA, as the pack folder has them (content/cast.py names them). The dead dragons
     aren't drawn: the look turns the normal pose upside down."""
     out = {}

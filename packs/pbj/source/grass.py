@@ -13,6 +13,7 @@ REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
 sys.path.insert(0, REPO_ROOT)
 from content.pictures import save_folder
 from shared.pixelart import from_ascii
+from shared.types import Picture
 
 COLOURS = {"D": (57, 115, 41), "G": (99, 140, 41), "g": (99, 156, 41), "L": (107, 156, 41)}
 
@@ -51,7 +52,7 @@ LLLggLLLLLgGDDDDDDDgLGDDDGgLLgDG
 LggGDGgGGgLLLggggLLLLLLggLLLLLgL"""
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     return {"grass": from_ascii(GRASS, COLOURS)[..., :3]}
 
 

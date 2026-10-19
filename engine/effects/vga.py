@@ -2,25 +2,29 @@
 little buzzy, with no echo (engine/fm.py's voice, played harder).
 """
 
+from typing import Callable
+
 import numpy as np
 
 from engine.chiptune import RATE, midi_hz
-from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, burble, chip_noise, clicks, cluck, decay, fm_tone,
-                                  place, run, seconds, sweep, times)
+from engine.effects.tools import (GATE_CLOSE, GATE_OPEN, Voice, burble, chip_noise, clicks, cluck,
+                                  decay, fm_tone, place, run, seconds, sweep, times, together)
 from engine.fm import env, fm
+from shared.types import Floats
 
 
-def beep(pitch, length):
+def beep(pitch: float, length: int) -> Floats:
     """The FM chip's plain tone: bright at the start, mellowing."""
     return fm(pitch, length, ratio=2.0, index=2.5, index_decay=0.08) * env(length, decay=0.12, sustain=0.3)
 
 
-def bright_tone(pitch, length):
+def bright_tone(pitch: Floats, length: int) -> Floats:
     """The FM chip's buzzy voice following a pitch (the squawks' and gurgles')."""
     return fm_tone(pitch, ratio=2.0, index=3.0)
 
 
-def gliding(start_hz, end_hz, length_seconds, ratio, index):
+def gliding(start_hz: float, end_hz: float, length_seconds: float, ratio: float,
+            index: float) -> Floats:
     """An FM tone gliding in pitch (fm() holds one pitch, so the phase is built here)."""
     length = seconds(length_seconds)
     pitch = sweep(start_hz, end_hz, length)
@@ -28,25 +32,25 @@ def gliding(start_hz, end_hz, length_seconds, ratio, index):
     return np.sin(phase + index * np.sin(phase * ratio))
 
 
-def pickup():
+def pickup() -> Floats:
     """Two quick beeps, up an octave."""
     return run([76, 88], 0.07, beep, ring=0.12)
 
 
-def drop():
+def drop() -> Floats:
     """A short beep dropping."""
     sound = gliding(330, 150, 0.12, ratio=1.0, index=1.5)
     return sound * decay(len(sound), 0.05)
 
 
-def growl_roar(voice):
+def growl_roar(voice: Voice) -> Floats:
     """A dragon roars: a growling FM tone with a deep wobble."""
     sound = gliding(150 * voice.pitch, 70 * voice.pitch, 0.7 * voice.length, ratio=0.5, index=5.0)
     wobble = 1 + 0.25 * np.sin(2 * np.pi * 18 * times(len(sound)))
     return sound * wobble * env(len(sound), attack=0.02, decay=0.4, sustain=0.5, release=0.1) * 0.8
 
 
-def eaten():
+def eaten() -> Floats:
     """Swallowed: a long fall in pitch, and a crunch."""
     fall = gliding(900, 80, 0.6, ratio=1.0, index=2.0)
     fall = fall * env(len(fall), decay=0.4, sustain=0.4, release=0.1)
@@ -55,7 +59,7 @@ def eaten():
     return place([(0, fall * 0.7), (0.55, crunch)], 0.8)
 
 
-def growl_dies(voice):
+def growl_dies(voice: Voice) -> Floats:
     """The sword strikes home: a noisy blast and a falling, buzzing tone."""
     blast_length = seconds(0.3)
     blast = chip_noise(blast_length, pitch=0.3, seed=5) * decay(blast_length, 0.1)
@@ -64,7 +68,7 @@ def growl_dies(voice):
     return place([(0, blast * 0.8), (0.05, fall * 0.7)], 0.1 + 0.9 * voice.length)
 
 
-def roar(voice):
+def roar(voice: Voice) -> Floats:
     """A dragon roars - or squawks, or gurgles, as its cast says (tools.Voice)."""
     if voice.kind == "squawk":
         return cluck(bright_tone, voice)
@@ -74,7 +78,7 @@ def roar(voice):
     return growl_roar(voice)
 
 
-def dragon_dies(voice):
+def dragon_dies(voice: Voice) -> Floats:
     """The sword strikes home. A bird or a swamp thing gives one last, slow, sinking cry."""
     if voice.kind == "growl":
         return growl_dies(voice)
@@ -83,40 +87,42 @@ def dragon_dies(voice):
     return place([(0, blast), (0.1, last_cry)], 0.1 + len(last_cry) / RATE)
 
 
-def link(index):
+def link(index: int) -> Floats:
     """A ratchet's click on the FM chip: a tiny, sharp blip."""
     length = seconds(0.025)
     return fm(2000 + 300 * (index % 2), length, ratio=3.5, index=4.0) * decay(length, 0.006)
 
 
-def clunk():
+def clunk() -> Floats:
     """The gate at the end of its run: a low, buzzing thunk."""
     sound = gliding(160, 60, 0.3, ratio=0.5, index=3.0)
     return sound * decay(len(sound), 0.08)
 
 
-def gate_open():
+def gate_open() -> Floats:
     """A fast ratchet as the gate flies up, and a clunk."""
     ratchet = clicks(link, 0.03, GATE_OPEN - 0.1) * 0.5
     return place([(0, ratchet), (GATE_OPEN - 0.1, clunk())], GATE_OPEN + 0.3)
 
 
-def gate_close():
+def gate_close() -> Floats:
     """A slow ratchet as the gate comes down, and a clunk as it lands."""
     return place([(0, clicks(link, 0.075, GATE_CLOSE - 0.1) * 0.5), (GATE_CLOSE - 0.1, clunk())],
                  GATE_CLOSE + 0.3)
 
 
-def win():
+def win() -> Floats:
     """A brassy fanfare."""
-    def brass(pitch, length):
+    def brass(pitch: float, length: int) -> Floats:
         return fm(pitch, length, ratio=1.0, index=3.0, index_decay=0.3) * env(length, attack=0.02, decay=0.4,
                                                                                sustain=0.5, release=0.05)
     fanfare = run([67, 67, 67, 72], 0.12, brass, ring=0.11)
     held_length = seconds(0.9)
-    held = sum(brass(midi_hz(midi), held_length) for midi in (72, 76, 79)) / 3
+    held = together([brass(midi_hz(midi), held_length) for midi in (72, 76, 79)]) / 3
     return place([(0, fanfare), (0.48, held)], 1.4)
 
 
-EFFECTS = {"pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
-           "win": win, "gate_open": gate_open, "gate_close": gate_close}
+EFFECTS: dict[str, Callable[..., Floats]] = {   # name -> make(), or make(voice) for a dragon's
+    "pickup": pickup, "drop": drop, "roar": roar, "eaten": eaten, "dragon_dies": dragon_dies,
+    "win": win, "gate_open": gate_open, "gate_close": gate_close,
+}

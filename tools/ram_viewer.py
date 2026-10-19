@@ -16,21 +16,24 @@ from app.fonts import mono
 from engine import paths
 from engine.emulator import (JOY_B, JOY_DOWN, JOY_LEFT, JOY_RIGHT, JOY_SELECT, JOY_START, JOY_UP, AudioOut,
                              Core)
+from shared.types import RamView
 
 class RamPanel:
     """128 bytes as a 16x8 hex grid; changed bytes flash yellow and fade over ~1 s."""
 
-    def __init__(self, font):
-        self.font, self.prev, self.heat = font, None, np.zeros(128)
+    def __init__(self, font: pygame.font.Font):
+        self.font: pygame.font.Font = font
+        self.prev: RamView | None = None
+        self.heat = np.zeros(128)
 
-    def update(self, ram):
+    def update(self, ram: RamView) -> None:
         cur = ram.copy()
         if self.prev is not None:
             self.heat[cur != self.prev] = 1.0
         self.heat *= 0.95
         self.prev = cur
 
-    def draw(self, surf, x0, y0):
+    def draw(self, surf: pygame.Surface, x0: int, y0: int) -> None:
         cw, ch = self.font.size("00 ")[0], self.font.get_linesize()
         for row in range(8):
             surf.blit(self.font.render(f"${0x80 + row * 16:02X}", True, (120, 120, 140)), (x0, y0 + (row + 1) * ch))
@@ -43,10 +46,12 @@ class RamPanel:
                       (x0 + 40 + (i % 16) * cw, y0 + (i // 16 + 1) * ch))
 
 
-def main():
+def main() -> None:
     rom = sys.argv[1] if len(sys.argv) > 1 else paths.ROM
     core = Core()
     core.load(os.path.abspath(rom))
+    ram = core.ram
+    assert ram is not None   # load() made the live view of the RAM
     av = core.av_info()
     fps, rate = av.timing.fps, int(av.timing.sample_rate) or 31400
     gw, gh = av.geometry.base_width, av.geometry.base_height
@@ -78,7 +83,7 @@ def main():
         if not paused:
             core.run()
             audio.push(core.take_audio())
-            panel.update(core.ram)
+            panel.update(ram)
             n += 1
         screen.fill((16, 16, 24))
         if core.frame is not None:
@@ -90,7 +95,7 @@ def main():
         if snap_dir and n % 120 == 0 and core.frame is not None:
             from PIL import Image
             Image.fromarray(core.frame).save(os.path.join(snap_dir, f"spike_{n:05d}.png"))
-            np.save(os.path.join(snap_dir, f"ram_{n:05d}.npy"), core.ram.copy())
+            np.save(os.path.join(snap_dir, f"ram_{n:05d}.npy"), ram.copy())
         clock.tick(fps)
 
 

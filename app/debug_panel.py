@@ -8,12 +8,16 @@ expose the CPU's program counter, so there is no (fake) running disassembly.
              sound events ($E0 type when the $DF counter starts), game start / win.
 """
 
+from typing import Callable
+
 import numpy as np
 import pygame
 
 from app.fonts import mono
 from engine import objects as O
 from engine import ram_map as M
+from engine.state import GameState
+from shared.types import RamBytes, RamView, Rgb
 
 BACKGROUND, GREEN, DIM, HOT = (4, 10, 6), (90, 230, 130), (40, 96, 56), (255, 255, 190)
 AMBER, GREY, RED = (255, 190, 80), (120, 150, 128), (255, 110, 100)
@@ -22,6 +26,7 @@ DRAGONS = (("RHINDLE", M.RED_DRAGON), ("YORGLE", M.YELLOW_DRAGON), ("GRUNDLE", M
 GATES = (("gold", 0xC8), ("white", 0xC9), ("black", 0xCA))
 GATE_CLOSED = 0x1C
 COOL = 60  # frames for a changed byte to cool from HOT to GREEN
+LogLine = tuple[int, str, Rgb]   # (frame, what happened, its colour)
 
 # a famous 1980s wagon under the old hex marker for dead memory: shown while a dragon has eaten the hero
 # (its state byte = $02) - until RESET revives him
@@ -44,46 +49,48 @@ WAGON = """
 """
 
 
-def dragon_word(state):
+def dragon_word(state: int) -> str:
     """A dragon's state byte, in a word."""
     return {0: "normal", 1: "dead", 2: "ate hero"}.get(state, "ROAR")
 
 
-def obj_name(object_number):
+def obj_name(object_number: int) -> str:
     return "-" if object_number == 0x12 else O.NAMES.get(object_number, f"?{object_number:02X}")
 
 
-def byte(ram, addr):
+def byte(ram: RamBytes, addr: int) -> int:
     """The byte at a 2600 address ($80-$FF) in a 128-byte RAM copy."""
     return int(ram[addr - 0x80])
 
 
 class DebugPanel:
-    def __init__(self, size=(512, 480)):
+    def __init__(self, size: tuple[int, int] = (512, 480)):
         self.size = size
         self.font = mono(13)
         self.cw, self.ch = self.font.size("0")[0], self.font.get_linesize()
-        self.prev = None
+        self.prev: RamView | None = None
         self.changed_at = np.full(128, -10_000)
-        self.log = []
+        self.log: list[LogLine] = []
         self.frame_no = 0
-        self.listener = None  # listener(text): gets every event too (recorder.py writes them to log.jsonl)
+        # listener(text): gets every event too (recorder.py writes them to log.jsonl)
+        self.listener: Callable[[str], None] | None = None
+        self.scan: pygame.Surface | None = None   # the scanlines, made once
 
-    def event(self, text, colour=GREEN):
+    def event(self, text: str, colour: Rgb = GREEN) -> None:
         self.log = (self.log + [(self.frame_no, text, colour)])[-9:]
         if self.listener is not None:
             self.listener(text)
 
-    def update(self, state, ram, frame_no):
+    def update(self, state: GameState | None, ram: RamBytes, frame_no: int) -> None:
         """Call once per emulated frame (also when the grid isn't showing, so the log has history)."""
-        ram = np.asarray(ram, np.uint8).copy()
+        copied: RamView = np.asarray(ram, np.uint8).copy()
         self.frame_no = frame_no
         if self.prev is not None:
-            self.changed_at[ram != self.prev] = frame_no
-            self.diff_events(self.prev, ram)
-        self.prev = ram
+            self.changed_at[copied != self.prev] = frame_no
+            self.diff_events(self.prev, copied)
+        self.prev = copied
 
-    def diff_events(self, before, after):
+    def diff_events(self, before: RamView, after: RamView) -> None:
         """Events, read from how the RAM changed since the last frame."""
         if byte(before, M.ROOM) != byte(after, M.ROOM):
             self.event(f"ROOM ${byte(before, M.ROOM):02X} -> ${byte(after, M.ROOM):02X}")
@@ -103,7 +110,7 @@ class DebugPanel:
             started = byte(after, M.GAME_ACTIVE) == 0
             self.event("GAME START" if started else "WIN - THE CHALICE IS HOME!", AMBER)
 
-    def carry_events(self, before, after):
+    def carry_events(self, before: RamView, after: RamView) -> None:
         carried_before, carried_after = byte(before, M.CARRIED) // 9, byte(after, M.CARRIED) // 9
         if carried_before == carried_after:
             return
@@ -112,7 +119,7 @@ class DebugPanel:
         if carried_after != 0x12:
             self.event(f"PICKUP {obj_name(carried_after)}", AMBER)
 
-    def dragon_events(self, before, after):
+    def dragon_events(self, before: RamView, after: RamView) -> None:
         for name, addr in DRAGONS:
             state_before, state_after = byte(before, addr + 4), byte(after, addr + 4)
             if state_before != state_after and dragon_word(state_before) != dragon_word(state_after):
@@ -122,11 +129,11 @@ class DebugPanel:
             if moved_room and byte(after, addr) == byte(after, M.ROOM):
                 self.event(f"{name} enters the room", RED)
 
-    def text(self, surf, column, row, words, colour):
+    def text(self, surf: pygame.Surface, column: int, row: int, words: str, colour: Rgb) -> None:
         """Words at a text position: column and row in characters."""
         surf.blit(self.font.render(words, True, colour), (8 + column * self.cw, 6 + row * self.ch))
 
-    def eaten_by(self):
+    def eaten_by(self) -> str | None:
         """Name of the dragon that has swallowed the hero, or None."""
         if self.prev is None:
             return None
@@ -135,7 +142,7 @@ class DebugPanel:
                 return name
         return None
 
-    def deadbeef(self, surf, who):
+    def deadbeef(self, surf: pygame.Surface, who: str) -> None:
         """The wagon and 0xDEADBEEF, the old marker for dead memory (he was eaten - the footnote admits
         it)."""
         centre_x = self.size[0] // 2
@@ -165,7 +172,7 @@ class DebugPanel:
             surf.blit(img, (centre_x - img.get_width() // 2, y))
             y += self.ch + 4
 
-    def draw(self, surf, state):
+    def draw(self, surf: pygame.Surface, state: GameState) -> None:
         surf.fill(BACKGROUND)
         if self.prev is None:
             return
@@ -182,9 +189,11 @@ class DebugPanel:
             self.text(surf, 0, 21 + i, f"{when:06d}  {message}", colour if i < 3 else DIM)
         surf.blit(self.scanlines(), (0, 0))
 
-    def draw_ram(self, surf):
+    def draw_ram(self, surf: pygame.Surface) -> None:
         """The 128 bytes, 16 a row: a changed byte glows and cools over COOL frames; zeros dim."""
         ram = self.prev
+        if ram is None:
+            return
         for row in range(8):
             self.text(surf, 0, 2 + row, f"${0x80 + row * 16:02X}", GREY)
             for column in range(16):
@@ -193,18 +202,22 @@ class DebugPanel:
                 x, y = 8 + (5 + column * 3) * self.cw, 6 + (2 + row) * self.ch
                 if age < COOL:  # just changed: a glowing cell that cools off
                     cooled = age / COOL
-                    colour = tuple(int(hot * (1 - cooled) + green * cooled) for hot, green in zip(HOT, GREEN))
+                    mixed = [int(hot * (1 - cooled) + cool * cooled) for hot, cool in zip(HOT, GREEN)]
+                    red, green, blue = mixed
+                    colour: Rgb = (red, green, blue)
                     glow = tuple(int(channel * (1 - cooled) * 0.45) for channel in (60, 255, 120))
                     pygame.draw.rect(surf, glow, (x - 3, y, self.cw * 2 + 6, self.ch))
                 else:
                     colour = DIM if ram[i] == 0 else GREEN
                 self.text(surf, 5 + column * 3, 2 + row, f"{ram[i]:02X}", colour)
 
-    def draw_decoded(self, surf, state, top):
+    def draw_decoded(self, surf: pygame.Surface, state: GameState, top: int) -> None:
         """What the bytes mean: the room and game, the hero, the dragons, the bat, the gates, the sound."""
         ram = self.prev
+        if ram is None:
+            return
 
-        def value(addr):
+        def value(addr: int) -> int:
             return byte(ram, addr)
         playing = "playing" if value(M.GAME_ACTIVE) == 0 else "ended"
         room_name = state.room["name"][:22]
@@ -231,10 +244,10 @@ class DebugPanel:
         self.text(surf, 0, top + 7, f"SOUND    type ${sound:02X} {SOUNDS.get(sound, '?'):11s} count "
                                     f"${value(0xDF):02X}   SEED ${value(M.RANDOM):02X}", GREEN)
 
-    def scanlines(self):
+    def scanlines(self) -> pygame.Surface:
         """CRT look: every other line darkened (cached)."""
-        if getattr(self, "_scan", None) is None:
-            self._scan = pygame.Surface(self.size, pygame.SRCALPHA)
+        if self.scan is None:
+            self.scan = pygame.Surface(self.size, pygame.SRCALPHA)
             for yy in range(0, self.size[1], 2):
-                pygame.draw.line(self._scan, (0, 0, 0, 70), (0, yy), (self.size[0], yy))
-        return self._scan
+                pygame.draw.line(self.scan, (0, 0, 0, 70), (0, yy), (self.size[0], yy))
+        return self.scan

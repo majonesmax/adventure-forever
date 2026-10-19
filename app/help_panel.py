@@ -11,14 +11,14 @@ TEXT, HINT = (235, 235, 245), (120, 120, 145)
 
 
 class HelpPanel:
-    def __init__(self):
+    def __init__(self) -> None:
         self.title, self.font, self.small = mono(20, bold=True), mono(15), mono(13)
         self.open = False
 
-    def toggle(self):
+    def toggle(self) -> None:
         self.open = not self.open
 
-    def draw(self, screen):
+    def draw(self, screen: pygame.Surface) -> None:
         """The panel centred on `screen`, two columns of sections, if it's open."""
         if not self.open:
             return

@@ -27,6 +27,7 @@ python tools/preview.py --pack <pack>       # the pack in every look, as one PNG
 python tests/golden.py                      # every look x cast x world still draws the same pixels
 python tests/test_controls.py               # every key is documented
 python tools/readability.py                 # no file got harder to read (and FILE... lists a file's issues)
+pyright                                     # the type hints check out (pyrightconfig.json)
 python -m engine.ambience                   # the worlds' sounds (summer, woods, cave...) as WAVs in shots/ambience/
 python -m engine.effects                    # each look's sound effects as WAVs in shots/effects/
 python -m engine.orchestra                  # the songs on the SNES's band (soundcard: VGA, toybox: paper) in shots/music/
@@ -62,13 +63,19 @@ The person who owns this code reads it rather than writes it, and isn't a Python
 - **No conditional expression inside another expression**, and a loop instead of a comprehension that needs
   more than one `if`.
 - **Short functions:** about 40 lines at most, with few branches.
+- **Types on every signature.** `def draw(self, state: GameState, frame_no: int) -> Picture`. The plain
+  names for arrays and sounds are in `shared/types.py` (Picture, Mask, Floats, Samples, Rgb, Point,
+  Instrument); records are `typing.NamedTuple`s with a typed field per line. pyright checks them, and ruff
+  (ANN rules) flags any function left without them.
 - Lines up to 110 characters.
 
-`tools/readability.py` checks what a tool can (ruff.toml's rules, plus names under 3 letters). Existing code
+`tools/readability.py` checks what a tool can (ruff.toml's rules, names under 3 letters, and pyright's type
+errors). Existing code
 doesn't all pass yet, so it's a ratchet: no file may get worse than `tools/readability_baseline.json`. The
 Claude Code hook in `.claude/settings.json` runs it after every edit and hands back anything new; fix it before
 moving on. After cleaning a file up, run `python tools/readability.py --update` to lock the improvement in.
-Refactors are safe: `tests/golden.py` proves every picture stays the same.
+Refactors are safe: `tests/golden.py` proves every picture stays the same. GitHub runs the same checks on
+every push (`.github/workflows/checks.yml`).
 
 ## Style
 

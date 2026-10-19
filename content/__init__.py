@@ -15,6 +15,7 @@ else (another repository) join by listing their folder in ADVENTURE_PACKS, sever
 """
 
 import os
+from typing import Literal
 
 from content.pack import Pack
 from engine import paths
@@ -26,15 +27,15 @@ EXTRA_PACKS = [os.path.abspath(folder) for folder in os.environ.get("ADVENTURE_P
 FIRST = ("classic", "pbj")  # the built-in packs lead the cycles
 EXAMPLES = ("template",)  # reachable by name, left out of the cycles
 
-_loaded = {}
+_loaded: dict[str, Pack] = {}
 
 
-def packs(public=False, examples=True):
+def packs(public: bool = False, examples: bool = True) -> dict[str, str]:
     """{key: folder} - the public packs (built-in first), then the private ones unless public."""
     roots = [PUBLIC_PACKS]
     if not public:
         roots += [*EXTRA_PACKS, paths.USER_PACKS, PRIVATE_PACKS]
-    found = {}
+    found: dict[str, str] = {}
     for root in roots:
         if not os.path.isdir(root):
             continue
@@ -45,20 +46,20 @@ def packs(public=False, examples=True):
     return found
 
 
-def cycle_order(name):
+def cycle_order(name: str) -> tuple[int, int, str]:
     """The built-in packs first (classic, pbj), then A-Z."""
     if name in FIRST:
         return (0, FIRST.index(name), name)
     return (1, 0, name)
 
 
-def is_private(key):
+def is_private(key: str) -> bool:
     """A pack that isn't the repository's own (private/packs/, or ADVENTURE_PACKS): kept out of --public
     builds and tests/golden_hashes.json."""
     return os.path.dirname(packs().get(key, "")) != PUBLIC_PACKS
 
 
-def load(key):
+def load(key: str) -> Pack:
     """The pack called `key`, loaded once (ValueError if there's none; a broken one raises its error)."""
     if key not in _loaded:
         folder = packs().get(key)
@@ -68,7 +69,7 @@ def load(key):
     return _loaded[key]
 
 
-def _having(part, public, examples):
+def _having(part: Literal["cast", "world"], public: bool, examples: bool) -> list[str]:
     out = []
     for key in packs(public, examples):
         try:
@@ -79,28 +80,28 @@ def _having(part, public, examples):
     return out
 
 
-def casts(public=False, examples=False):
+def casts(public: bool = False, examples: bool = False) -> list[str]:
     return _having("cast", public, examples)
 
 
-def worlds(public=False, examples=False):
+def worlds(public: bool = False, examples: bool = False) -> list[str]:
     return _having("world", public, examples)
 
 
-def find_packs(folder, depth=3):
+def find_packs(folder: str, depth: int = 3) -> list[str]:
     """Every pack folder (one with a pack.json) in `folder`, looking down to `depth` levels."""
     if os.path.exists(os.path.join(folder, "pack.json")):
         return [folder]
     if depth == 0 or not os.path.isdir(folder):
         return []
-    found = []
+    found: list[str] = []
     for name in sorted(os.listdir(folder)):
         if not name.startswith(".") and os.path.isdir(os.path.join(folder, name)):
             found += find_packs(os.path.join(folder, name), depth - 1)
     return found
 
 
-def install(path):
+def install(path: str) -> list[str]:
     """Copy the packs in `path` - a pack folder, a folder holding packs (e.g. a cloned repository), or a .zip
     of either (e.g. GitHub's "Download ZIP") - into the player's packs folder, replacing older copies.
     -> their keys. A pack can hold code (cast.py / world.py) that runs when it's shown: only add packs you
@@ -124,7 +125,7 @@ def install(path):
         return keys
 
 
-def unzip_safely(zip_path, folder):
+def unzip_safely(zip_path: str, folder: str) -> None:
     """Unpack a .zip into `folder` - refusing it if any file would land outside the folder."""
     import zipfile
     with zipfile.ZipFile(zip_path) as archive:

@@ -8,6 +8,7 @@ Windows app has no console to print to). The sound is held silent throughout.
 """
 
 import os
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 import pygame
@@ -17,33 +18,37 @@ from engine import paths
 
 STEPS = [("title", 60, ()), ("reset", 20, (h.JOY_START,)), ("started", 60, ()), ("walk", 90, (h.JOY_LEFT,))]
 # (what, frames, joystick buttons held)
+Say = Callable[[str], None]   # a line to print and to log
+
+if TYPE_CHECKING:   # only for the type checker: app.window imports a lot
+    from app.window import GameWindow
 
 
-def run(window):
+def run(window: "GameWindow") -> bool:
     """Run the checks on a GameWindow. True if all went well."""
     window.audio.mixer = lambda block: np.zeros_like(block)   # silent
     os.makedirs(paths.SCREENSHOTS, exist_ok=True)
     with open(os.path.join(paths.SCREENSHOTS, "self-check.txt"), "w") as log:
-        def say(line):
+        def say(line: str) -> None:
             print(line, flush=True)
             log.write(line + "\n")
         say(f"{paths.APP_NAME} on {paths.SYSTEM}")
         return play(window, say)
 
 
-def play(window, say):
+def play(window: "GameWindow", say: Say) -> bool:
     started_at = None
     for what, frames, held in STEPS:
         window.core.joy = set(held)
         for _ in range(frames):
             play_frame(window)
-        if what == "started":
+        if what == "started" and window.state is not None:
             started_at = window.state.hero
     window.core.joy = set()
     return report(window, say, started_at)
 
 
-def play_frame(window):
+def play_frame(window: "GameWindow") -> None:
     pygame.event.pump()   # keeps the window responsive; the check presses its own buttons
     window.step_game()
     if window.core.frame is not None:
@@ -51,8 +56,11 @@ def play_frame(window):
         window.show()
 
 
-def report(window, say, started_at):
+def report(window: "GameWindow", say: Say, started_at: tuple[int, int] | None) -> bool:
     state = window.state
+    if state is None:
+        say("FAIL: the game never drew a frame")
+        return False
     path = os.path.join(paths.SCREENSHOTS, "self-check.png")
     pygame.image.save(window.canvas, path)
     say(f"game {state.game}, room {state.room_num}, hero from {started_at} to {state.hero}")

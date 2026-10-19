@@ -42,12 +42,12 @@ NIGHTLY = {("macos", "arm64"): "apple/osx/arm64", ("macos", "x86_64"): "apple/os
            ("windows", "x86_64"): "windows/x86_64", ("linux", "x86_64"): "linux/x86_64"}
 
 
-def processor():
+def processor() -> str:
     machine = platform.machine().lower()
     return {"amd64": "x86_64", "x64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
 
 
-def fetch(asset):
+def fetch(asset: str) -> bytes:
     """An asset of the pinned release: from GitHub directly, else (a private repository) through `gh`."""
     url = f"https://github.com/{REPO}/releases/download/{RELEASE}/{asset}"
     try:
@@ -64,21 +64,25 @@ def fetch(asset):
             return f.read()
 
 
-def pinned(system, cpu):
+def pinned(system: str, cpu: str) -> bytes:
     name = NAMES.get((system, cpu))
     if name is None:
         raise SystemExit(f"no ready-made core for {system} on {cpu}: build Stella {STELLA_COMMIT} "
                          f"(src/os/libretro) and put {paths.CORE_FILE} in cores/")
     asset = f"stella-{STELLA_COMMIT}-{name}.zip"
     data = fetch(asset)
-    sums = dict(reversed(line.split(maxsplit=1)) for line in fetch("SHA256SUMS.txt").decode().splitlines() if line)
+    sums: dict[str, str] = {}   # file name -> its SHA-256, from "<sum>  <name>" lines
+    for line in fetch("SHA256SUMS.txt").decode().splitlines():
+        if line:
+            checksum, file_name = line.split(maxsplit=1)
+            sums[file_name] = checksum
     if hashlib.sha256(data).hexdigest() != sums.get(asset):
         raise SystemExit(f"{asset} doesn't match its SHA-256 in the release - not installed")
     print(f"Stella {STELLA_COMMIT} for {name}: checksum OK")
     return data
 
 
-def nightly(system, cpu):
+def nightly(system: str, cpu: str) -> bytes:
     folder = NIGHTLY.get((system, cpu))
     if folder is None:
         raise SystemExit(f"libretro has no nightly core for {system} on {cpu}")
@@ -88,7 +92,7 @@ def nightly(system, cpu):
         return response.read()
 
 
-def main():
+def main() -> int:
     target = os.path.join(paths.ROOT, "cores", paths.CORE_FILE)
     if os.path.exists(target) and "--force" not in sys.argv and "--nightly" not in sys.argv:
         print(f"already there: {target}")

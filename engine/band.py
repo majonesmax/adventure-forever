@@ -15,19 +15,34 @@ A band is its instruments - each instrument(pitch in Hz, length in samples) -> s
     mix       how loud the lead, the chords, the bass and the drums are against each other
 """
 
-from collections import namedtuple
+from typing import Callable, NamedTuple
 
 import numpy as np
 
-from engine.chiptune import RATE, Timing, chord_notes, midi_hz, note_hz, parse_melody
+from engine.chiptune import RATE, Song, Timing, chord_notes, midi_hz, note_hz, parse_melody
+from shared.types import Floats, Instrument, Samples
 
-Band = namedtuple("Band", "lead arpeggio stab pad bass drum room mix")
+Drum = Callable[[str, int, np.random.Generator], Floats]   # drum(kind, length, rng) -> the hit
+Room = Callable[[Floats], Floats]                           # room(stereo) -> stereo with its reverb
+
+
+class Band(NamedTuple):
+    lead: dict[str, Instrument]   # style -> its melody instrument; "default" for any other style
+    arpeggio: Instrument
+    stab: Instrument
+    pad: Instrument | None
+    bass: Instrument
+    drum: Drum
+    room: Room
+    mix: tuple[float, float, float, float]   # lead, chords, bass, drums
+
+
 LEVEL = 4000             # a song's average loudness: the NES's songs', under the game's sound effects
 PEAK = 15000             # ...its loudest moments rounded off towards this
 RING = 3.0               # seconds a song may ring on past its end (notes, the room), wrapped or faded
 
 
-def render(song, band):
+def render(song: Song, band: Band) -> Samples:
     """A song (chiptune.py's notation) -> int16 stereo samples of one pass; a looping song loops cleanly."""
     song = {"drums": "", "style": "march", "loop": True, **song}
     timing = Timing(song)
@@ -50,14 +65,14 @@ def render(song, band):
     return mix_down((lead, chordal, low, drums), band, total, song["loop"])
 
 
-def play(track, start, instrument, pitch, length):
+def play(track: Floats, start: int, instrument: Instrument, pitch: float, length: int) -> None:
     """Add a note to a track, cut off at the track's end."""
     length = min(length, len(track) - start)
     if length > 0:
         track[start:start + length] += instrument(pitch, length)
 
 
-def add_melody(lead, tokens, voice, timing):
+def add_melody(lead: Floats, tokens: list[str], voice: Instrument, timing: Timing) -> None:
     """Eighth-note tokens: "-" holds the note before it, "." rests."""
     index = 0
     while index < len(tokens):
@@ -70,7 +85,8 @@ def add_melody(lead, tokens, voice, timing):
         index = after
 
 
-def add_chords(chordal, band, style, tones, bar_start, timing):
+def add_chords(chordal: Floats, band: Band, style: str, tones: list[int], bar_start: int,
+               timing: Timing) -> None:
     """The chords, by style: a quick arpeggio, off-beat stabs, or a slow broken chord; and the pad."""
     if style in ("anthem", "drive", "fanfare"):
         sequence = tones + [tones[0] + 12, tones[1] + 12]
@@ -90,7 +106,7 @@ def add_chords(chordal, band, style, tones, bar_start, timing):
             play(chordal, bar_start, band.pad, midi_hz(midi + 12), timing.bar_n + timing.at(2))
 
 
-def add_bass(low, bass, style, root, bar_start, timing):
+def add_bass(low: Floats, bass: Instrument, style: str, root: int, bar_start: int, timing: Timing) -> None:
     """The chord's root an octave down, in the same patterns as the NES's triangle."""
     if style in ("march", "anthem", "fanfare"):
         pattern = [(0, root - 12), (4, root - 5), (8, root - 12), (12, root - 5)]
@@ -104,7 +120,8 @@ def add_bass(low, bass, style, root, bar_start, timing):
         play(low, start, bass, midi_hz(midi), bar_start + timing.at(until) - start)
 
 
-def add_drums(drums, drum, pattern, bar_start, timing, rng):
+def add_drums(drums: Floats, drum: Drum, pattern: str, bar_start: int, timing: Timing,
+              rng: np.random.Generator) -> None:
     """One bar of the drum pattern (16 steps: k kick, s snare, h hi-hat, . nothing)."""
     for sixteenth, kind in enumerate(pattern):
         if kind == ".":
@@ -114,7 +131,7 @@ def add_drums(drums, drum, pattern, bar_start, timing, rng):
         drums[start:start + length] += drum(kind, length, rng)
 
 
-def mix_down(tracks, band, total, loop):
+def mix_down(tracks: tuple[Floats, Floats, Floats, Floats], band: Band, total: int, loop: bool) -> Samples:
     """The four tracks -> stereo in the band's room: a loop's tail wraps onto its start, a jingle fades
     out. As loud on average as the NES's songs, its peaks rounded off below PEAK."""
     lead, chordal, low, drums = (track * share for track, share in zip(tracks, band.mix))
@@ -135,14 +152,14 @@ def mix_down(tracks, band, total, loop):
     return (PEAK * np.tanh(pcm / PEAK)).astype(np.int16)
 
 
-def dry(pcm):
+def dry(pcm: Floats) -> Floats:
     """No room at all (a PC's sound card)."""
     return pcm
 
 
-def reverb(delays, feedback, wet):
+def reverb(delays: tuple[float, ...], feedback: float, wet: float) -> Room:
     """A room: echoes at uneven `delays` (seconds), each fed back a few times, mixed in at `wet`."""
-    def room(pcm):
+    def room(pcm: Floats) -> Floats:
         out = pcm.copy()
         for delay_seconds in delays:
             delay = int(delay_seconds * RATE)
@@ -155,7 +172,7 @@ def reverb(delays, feedback, wet):
     return room
 
 
-def listen(render_song, label):
+def listen(render_song: Callable[[Song], Samples], label: str) -> None:
     """Every built-in song through a band, as WAVs in shots/music/<song>-<label>.wav (looping songs twice)."""
     import os
     import wave

@@ -21,17 +21,17 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "tests"))
-import golden as G  # noqa: E402  (its game moments)
 import looks  # noqa: E402
 from engine import paths  # noqa: E402
 from engine.state import Game  # noqa: E402
+from shared.types import Picture  # noqa: E402
+from tests import golden as G  # noqa: E402  (its game moments)
 
 DEFAULT = "title,start_game1,dragons,items_bat_up,carry_sword,bridge,dark_maze,black_gate_half,win"
 TITLE_FRAME = 200  # the title screen once its animations have finished
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pack", help="a pack's cast and world")
     ap.add_argument("--cast", help="a pack's cast (default: --pack, else each look's own)")
@@ -46,9 +46,9 @@ def main():
     _, _, g2 = G.boot(2)
     game = Game()
     moments = G.scenarios(g1, g2, title)
-    rows = []
+    rows: list[Picture] = []
     for look_key in args.look.split(","):
-        row = []
+        row: list[Picture] = []
         for name in args.moments.split(","):
             if name not in moments:
                 sys.exit(f"no moment called {name!r}: see --help")
@@ -62,7 +62,7 @@ def main():
     out_dir = os.path.join(paths.SHOTS, "preview")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"{args.look.replace(',', '-')}+{cast or 'own'}@{world or 'own'}.png")
-    Image.fromarray(sheet).resize((sheet.shape[1] * args.scale, sheet.shape[0] * args.scale), Image.NEAREST).save(out)
+    Image.fromarray(sheet).resize((sheet.shape[1] * args.scale, sheet.shape[0] * args.scale), Image.Resampling.NEAREST).save(out)
     print(out)
 
 

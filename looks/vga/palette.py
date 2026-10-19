@@ -9,10 +9,17 @@ So this look builds one palette per cast and world, the way the era's paint tool
 Every screen is then drawn only in these 256: a VGA screen was a list of colour numbers, not colours.
 """
 
+from collections.abc import Sequence
+
 import numpy as np
 
+from content.cast import Cast
+from content.world import World
 from engine import rooms as R
 from shared import palettes as PAL
+from shared.types import Floats, Picture, Rgb
+
+Integers = np.ndarray   # an array of whole numbers: colour levels, counts, palette numbers
 
 LEVELS = 64  # VGA's 6-bit colour: 64 levels a channel
 CAST_COLOURS = 64
@@ -25,21 +32,21 @@ DARK_ROOM_COLOUR = 0x08
 TORCH_BANDS = (2 / 3, 1 / 3)  # the torch's dimmer rings (looks/base.py torch_lit)
 
 
-def six_bit(rgb):
+def six_bit(rgb: Sequence[Rgb] | Sequence[Floats] | Floats) -> Integers:
     """8-bit colour -> the nearest of VGA's 64 levels a channel, back as 8-bit (0, 4, 8 ... 255)."""
     level = np.round(np.asarray(rgb, float) * (LEVELS - 1) / 255)
     return np.round(level * 255 / (LEVELS - 1)).astype(int)
 
 
-def spread(colours):
+def spread(colours: Floats) -> float:
     """How far apart a group's colours are, in its widest channel (0 for a single colour)."""
-    return np.ptp(colours, axis=0).max()
+    return float(np.ptp(colours, axis=0).max())
 
 
-def median_cut(colours, counts, how_many):
+def median_cut(colours: Floats, counts: Integers, how_many: int) -> Integers:
     """Pick `how_many` colours for a set of colours (n, 3) seen `counts` times each: split the group with
     the widest spread in two at its middle pixel, again and again, then average each group."""
-    groups = [np.arange(len(colours))]
+    groups: list[Integers] = [np.arange(len(colours))]
     while len(groups) < how_many:
         spreads = [spread(colours[group]) for group in groups]
         widest = int(np.argmax(spreads))
@@ -52,14 +59,14 @@ def median_cut(colours, counts, how_many):
         middle = int(np.searchsorted(running_total, running_total[-1] / 2))
         middle = min(max(middle, 1), len(group) - 1)
         groups += [group[:middle], group[middle:]]
-    chosen = []
+    chosen: list[Floats] = []
     for group in groups:
         weights = counts[group][:, None]
         chosen.append((colours[group] * weights).sum(axis=0) / weights.sum())
     return six_bit(chosen)
 
 
-def counted(pixels):
+def counted(pixels: Picture) -> tuple[Floats, Integers]:
     """Pixels (n, 3) -> their distinct 6-bit colours and how often each is seen."""
     levels = np.round(np.asarray(pixels, float) * (LEVELS - 1) / 255).astype(int)
     colour_numbers = (levels[:, 0] * LEVELS + levels[:, 1]) * LEVELS + levels[:, 2]  # one number a colour
@@ -70,7 +77,7 @@ def counted(pixels):
     return colours, times_seen[seen]
 
 
-def cast_pixels(cast, world):
+def cast_pixels(cast: Cast, world: World) -> Picture:
     """Every solid pixel of the cast's pictures and the world's gates, and the colours the game's own
     graphics and flashing items use."""
     pictures = list(cast.pictures.values())
@@ -81,7 +88,7 @@ def cast_pixels(cast, world):
     return np.concatenate(pixels)
 
 
-def world_pixels(world, scenes):
+def world_pixels(world: World, scenes: Sequence[Picture]) -> Picture:
     """Every pixel of every room, the dark rooms again as the torch's dimmer rings show them, and the
     look's other scenes (RGB pictures)."""
     rom = R.load_rom()
@@ -98,15 +105,15 @@ def world_pixels(world, scenes):
 class VgaPalette:
     """One cast-and-world's 256 colours, and a table from every VGA colour to the nearest of them."""
 
-    def __init__(self, cast, world, own_colours, scenes):
+    def __init__(self, cast: Cast, world: World, own_colours: Sequence[Rgb], scenes: Sequence[Picture]):
         reserved = six_bit(STANDARD_16 + list(own_colours))
         cast_colours = median_cut(*counted(cast_pixels(cast, world)), CAST_COLOURS)
         world_share = SIZE - len(reserved) - len(cast_colours)
         world_colours = median_cut(*counted(world_pixels(world, scenes)), world_share)
-        self.colours = np.concatenate([reserved, cast_colours, world_colours]).astype(np.uint8)
-        self.nearest = self.lookup_table()
+        self.colours: Picture = np.concatenate([reserved, cast_colours, world_colours]).astype(np.uint8)
+        self.nearest: Picture = self.lookup_table()
 
-    def lookup_table(self):
+    def lookup_table(self) -> Picture:
         """For each of the 64 x 64 x 64 VGA colours, the number of the nearest palette colour."""
         every_level = np.arange(LEVELS)
         red, green, blue = np.meshgrid(every_level, every_level, every_level, indexing="ij")
@@ -118,17 +125,18 @@ class VgaPalette:
         closeness = palette_size[None, :] - 2 * (every_colour.astype(np.float32) @ palette.T)
         return np.argmin(closeness, axis=1).astype(np.uint8).reshape(LEVELS, LEVELS, LEVELS)
 
-    def show(self, rgb):
+    def show(self, rgb: Picture) -> Picture:
         """RGB pixels (..., 3) -> the same pixels in this palette's colours."""
         levels = (rgb.astype(np.uint16) * (LEVELS - 1) + 127) // 255  # 8-bit -> 6-bit, rounded
         numbers = self.nearest[levels[..., 0], levels[..., 1], levels[..., 2]]
         return self.colours[numbers]
 
 
-palettes = {}  # (cast, world) -> its VgaPalette: built once, shared by every VGA look showing them
+palettes: dict[tuple[str, str], VgaPalette] = {}  # (cast, world) -> its palette: built once, shared
 
 
-def palette_for(cast, world, own_colours, scenes=()):
+def palette_for(cast: Cast, world: World, own_colours: Sequence[Rgb],
+                scenes: Sequence[Picture] = ()) -> VgaPalette:
     key = (cast.key, world.key)
     if key not in palettes:
         palettes[key] = VgaPalette(cast, world, own_colours, scenes)

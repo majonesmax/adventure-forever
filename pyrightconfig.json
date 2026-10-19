@@ -1,0 +1,10 @@
+{
+  "include": ["play.py", "app", "content", "engine", "looks", "music", "shared", "packs", "tests", "tools", "package"],
+  "exclude": ["**/__pycache__", ".venv", "private", "shots", "recordings", "art", "lib", "package/build",
+              "package/dist", "package/stage"],
+  "extraPaths": ["tools"],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "venvPath": ".",
+  "venv": ".venv"
+}

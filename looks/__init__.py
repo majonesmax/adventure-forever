@@ -13,6 +13,8 @@ To add a look of your own to the L cycle, add it to LOOKS below (looks/template_
 import os
 
 import content
+from engine.objects import Reader
+from looks.base import RoomLook
 from engine import paths
 from looks.nes.look import NesLook
 from looks.snes.look import SnesLook
@@ -25,13 +27,13 @@ TEMPLATE_LOOKS = {"template": TemplateLook}
 OLD_NAMES = {"16bit": "snes", "forever": "snes"}  # what the SNES look used to be called
 
 
-def look_class(key):
+def look_class(key: str) -> type[RoomLook] | None:
     """The look class for a --look name (old names too), or None."""
     key = OLD_NAMES.get(key, key)
     return LOOKS.get(key) or TEMPLATE_LOOKS.get(key)
 
 
-def make(look_key, cast_key, world_key, reader):
+def make(look_key: str, cast_key: str | None, world_key: str | None, reader: Reader) -> RoomLook:
     """The look `look_key` showing `cast_key`'s cast in `world_key`'s world (None: the look's own pack's)."""
     cls = look_class(look_key)
     if cls is None:
@@ -45,7 +47,7 @@ def make(look_key, cast_key, world_key, reader):
     return cls(reader, cast, world)
 
 
-def listing(public=False):
+def listing(public: bool = False) -> str:
     """What --list prints."""
     lines = ["looks (--look, L cycles them):"]
     for key, cls in {**LOOKS, **TEMPLATE_LOOKS}.items():

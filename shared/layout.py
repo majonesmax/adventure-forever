@@ -12,9 +12,12 @@ Positions in the game are in the 2600's own frame (160 px wide, scan lines 13-20
 them to pixels inside the room area.
 """
 
+from typing import Any
+
 import numpy as np
 
 from engine import rooms as R
+from shared.types import Mask
 
 SCREEN_W, SCREEN_H = 256, 240
 HUD_H, ROOM_X, ROOM_H, COL_W = 48, 8, 192, 6
@@ -24,13 +27,13 @@ ROOM_FIRST_LINE, ROOM_LINES = 13, 193  # the 2600 draws a room on TV scan lines 
 ROW_HEIGHTS = [16, 32, 32, 32, 32, 32, 16]  # the room's 7 rows of wall, in our pixels: half, 5 full, half
 
 
-def to_room(frame_x, line, col_w=COL_W):
+def to_room(frame_x: float, line: float, col_w: int = COL_W) -> tuple[float, float]:
     """2600 frame coordinates (160 px wide, scan lines 13-205) -> room-space pixels. Across, 4 of the 2600's
     pixels make one wall column (col_w of ours); down, the room's 193 scan lines squeeze into ROOM_H."""
     return frame_x * col_w / 4, (line - ROOM_FIRST_LINE) * ROOM_H / ROOM_LINES
 
 
-def wall_mask(room, col_w=COL_W):
+def wall_mask(room: dict[str, Any], col_w: int = COL_W) -> Mask:
     """Where the room's walls are, at layout resolution: True = wall. Each wall column -> col_w px; each of
     the 7 rows -> ROW_HEIGHTS."""
     walls = np.zeros((ROOM_H, R.COLS * col_w), bool)

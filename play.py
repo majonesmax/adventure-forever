@@ -35,7 +35,7 @@ from app.rom import find_rom
 from app.window import GameWindow
 
 
-def options():
+def options() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Atari 2600 Adventure, remastered live.")
     parser.add_argument("rom", nargs="?", help="your Adventure ROM (only needed once: it's remembered)")
     parser.add_argument("--look", default=os.environ.get("ADVENTURE_LOOK"),
@@ -70,7 +70,7 @@ def options():
     return args
 
 
-def main():
+def main() -> None:
     args = options()
     rom = find_rom(args.rom)
     if rom is None:

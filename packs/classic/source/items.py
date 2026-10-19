@@ -13,6 +13,7 @@ sys.path.insert(0, REPO_ROOT)
 from content.pictures import FLASH, save_folder
 from shared.palettes import NES
 from shared.pixelart import from_ascii
+from shared.types import Picture
 
 SWORD = """
 ...........KK...
@@ -95,7 +96,7 @@ ITEMS = {  # picture name -> (art, colours as NES palette indices)
 }
 
 
-def pictures():
+def pictures() -> dict[str, Picture]:
     """picture name -> RGBA sprite."""
     out = {}
     for name, (art, colours) in ITEMS.items():

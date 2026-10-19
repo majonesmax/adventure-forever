@@ -16,6 +16,8 @@ from engine import objects as O
 from engine import ram_map as M
 from engine import rooms as R
 
+Report = tuple[str, list[str]]   # (a headline, lines of detail) to show the player
+
 SUPPORTED = "157bddb7192754a45372be196797f284"
 KNOWN = {  # MD5 -> name, from Stella's game database
     SUPPORTED: "Adventure (1980) (Atari) - NTSC",
@@ -38,13 +40,13 @@ EXPECTED_POSITION = {  # object number -> where the RAM map says its (room, x, y
 EXPECTED_STATE = {0x01: M.PORTCULLIS[0], 0x02: M.PORTCULLIS[1], 0x03: M.PORTCULLIS[2], 0x05: M.LEVEL}
 
 
-def md5(rom):
+def md5(rom: bytes) -> str:
     return hashlib.md5(bytes(rom)).hexdigest()
 
 
-def problems(rom):
+def problems(rom: bytes) -> list[str]:
     """What in this ROM's tables doesn't match what the remasters expect ([] = all fine)."""
-    out = []
+    out: list[str] = []
     objects = O.decode_all(rom)
     moved = []
     for object_number, addr in EXPECTED_POSITION.items():
@@ -69,19 +71,19 @@ def problems(rom):
     return out
 
 
-def hexed(addr):
+def hexed(addr: int) -> str:
     """$8B for RAM, $F460 for ROM."""
     return f"${addr:02X}" if addr < 0x100 else f"${addr:04X}"
 
 
-def room_looks_right(rom, room_number):
+def room_looks_right(rom: bytes, room_number: int) -> bool:
     """Its walls are in the ROM and every exit leads to a real room."""
     room = R.decode_room(rom, room_number)
     exits = [to_room for game in (1, 2, 3) for to_room in room["exits"][game].values()]
     return room["gfx"] >= 0xF000 and all(to_room < R.N_ROOMS for to_room in exits)
 
 
-def report(rom):
+def report(rom: bytes) -> Report | None:
     """None for the supported ROM; else (headline, details) to show the player."""
     digest = md5(rom)
     if digest == SUPPORTED:

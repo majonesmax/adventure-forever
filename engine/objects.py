@@ -16,8 +16,12 @@ Usage: python objects.py   -> prints every object's graphics as ASCII
 """
 
 import os
+from typing import Any
 
 from engine import rooms as R
+from shared.types import RamBytes
+
+GameObject = dict[str, Any]   # an object's table entry, decoded: num, name, info, states, graphics...
 
 OBJECT_TABLE = 0xFF44
 N_OBJECTS = 0x13
@@ -28,16 +32,16 @@ NAMES = {0x00: "surround", 0x01: "gold gate", 0x02: "white gate", 0x03: "black g
 WIDTH_MULT = {0: 1, 5: 2, 7: 4}
 
 
-def rd(rom, addr):
+def rd(rom: bytes, addr: int) -> int:
     return rom[addr & 0x0FFF]
 
 
-def rd16(rom, addr):
+def rd16(rom: bytes, addr: int) -> int:
     return rd(rom, addr) | rd(rom, addr + 1) << 8
 
 
-def read_graphic(rom, addr, limit=256):  # the author's name is 96 bytes
-    rows = []
+def read_graphic(rom: bytes, addr: int, limit: int = 256) -> list[int]:  # the author's name is 96 bytes
+    rows: list[int] = []
     for i in range(limit):
         row = rd(rom, addr + i)
         if row == 0:  # a 0 byte ends the graphic
@@ -46,10 +50,10 @@ def read_graphic(rom, addr, limit=256):  # the author's name is 96 bytes
     return rows
 
 
-def decode_object(rom, object_number):
+def decode_object(rom: bytes, object_number: int) -> GameObject:
     entry = OBJECT_TABLE + 9 * object_number  # 9 bytes an object
     info, state_ptr, states_ptr = rd16(rom, entry), rd16(rom, entry + 2), rd16(rom, entry + 4)
-    states = []  # (the highest state value this graphic is for, the graphic's address)
+    states: list[tuple[int, int]] = []  # (the highest state value this graphic is for, the graphic's address)
     for i in range(16):  # the list is ordered by state value and ends with an $FF entry
         up_to_state = rd(rom, states_ptr + 3 * i)
         graphic_addr = rd16(rom, states_ptr + 3 * i + 1)
@@ -63,12 +67,12 @@ def decode_object(rom, object_number):
             "width": WIDTH_MULT.get(size & 7, 1)}
 
 
-def decode_all(rom=None):
+def decode_all(rom: bytes | None = None) -> list[GameObject]:
     rom = rom or R.load_rom()
     return [decode_object(rom, object_number) for object_number in range(N_OBJECTS)]
 
 
-def graphic_for_state(obj, state):
+def graphic_for_state(obj: GameObject, state: int) -> list[int]:
     """The object's graphic (rows of bytes) for a state value: the first entry whose limit reaches it."""
     for up_to_state, graphic_addr in obj["states"]:
         if state <= up_to_state:
@@ -80,23 +84,23 @@ def graphic_for_state(obj, state):
 class Reader:
     """Reads one object's live (room, x, y, state) out of the 128 RAM bytes - or ROM, for fixed objects."""
 
-    def __init__(self, rom=None):
-        self.rom = rom or R.load_rom()
-        self.objects = decode_all(self.rom)
+    def __init__(self, rom: bytes | None = None):
+        self.rom: bytes = rom or R.load_rom()
+        self.objects: list[GameObject] = decode_all(self.rom)
 
-    def byte(self, ram, addr):
+    def byte(self, ram: RamBytes, addr: int) -> int:
         return int(ram[addr - 0x80]) if 0x80 <= addr <= 0xFF else rd(self.rom, addr)
 
-    def where(self, ram, object_number):
+    def where(self, ram: RamBytes, object_number: int) -> tuple[int, int, int]:
         """(room, x, y)"""
         info = self.objects[object_number]["info"]  # where its three bytes are
-        return tuple(self.byte(ram, info + i) for i in range(3))
+        return self.byte(ram, info), self.byte(ram, info + 1), self.byte(ram, info + 2)
 
-    def state(self, ram, object_number):
+    def state(self, ram: RamBytes, object_number: int) -> int:
         return self.byte(ram, self.objects[object_number]["state_ptr"])
 
 
-def ascii_graphic(rows, width=1):
+def ascii_graphic(rows: list[int], width: int = 1) -> list[str]:
     """A graphic as text: "#" for each set bit, left (bit 7) to right."""
     lines = []
     for row in rows:

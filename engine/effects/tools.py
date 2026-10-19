@@ -3,14 +3,25 @@ a way to lay sounds out along a track. Every effect is a mono float track; engin
 its loudness.
 """
 
-from collections import namedtuple
+from typing import Callable, NamedTuple
 
 import numpy as np
 
 from engine.chiptune import RATE, midi_hz
+from shared.types import Floats, Instrument
+
+Pitch = float | Floats                     # Hz: one, or one per sample (a glide)
+Tone = Callable[[Floats, int], Floats]     # tone(pitch per sample, length) -> a look's voice for a cry
+Click = Callable[[int], Floats]            # click(index) -> one short click of a ratchet or chain
+Parts = list[tuple[float, Floats]]         # [(start in seconds, sound), ...]
 
 
-Voice = namedtuple("Voice", "kind pitch length")   # a dragon's: growl / squawk / gurgle, x pitch, x length
+class Voice(NamedTuple):   # a dragon's
+    kind: str        # growl / squawk / gurgle
+    pitch: float     # x the voice's pitch
+    length: float    # x how long it cries
+
+
 KINDS = ("growl", "squawk", "gurgle")          # what a cast can choose for each dragon (content/cast.py)
 DRAGON_VOICES = {"red": (1.35, 0.75),          # Rhindle, the fastest and fiercest: high and quick
                  "yellow": (1.0, 1.0),         # Yorgle
@@ -18,31 +29,31 @@ DRAGON_VOICES = {"red": (1.35, 0.75),          # Rhindle, the fastest and fierce
 GATE_OPEN, GATE_CLOSE = 0.5, 1.3                # seconds: the portcullis flies up, and comes down slowly
 
 
-def seconds(count):
+def seconds(count: float) -> int:
     return int(count * RATE)
 
 
-def times(length):
+def times(length: int) -> Floats:
     """Each sample's time in seconds."""
     return np.arange(length) / RATE
 
 
-def sweep(start_hz, end_hz, length):
+def sweep(start_hz: float, end_hz: float, length: int) -> Floats:
     """A pitch gliding from start_hz to end_hz (evenly in pitch, not in Hz)."""
     return start_hz * (end_hz / start_hz) ** np.linspace(0, 1, length)
 
 
-def decay(length, time_constant):
+def decay(length: int, time_constant: float) -> Floats:
     return np.exp(-times(length) / time_constant)
 
 
-def sine(pitch, length):
+def sine(pitch: Pitch, length: int) -> Floats:
     """A sine following a pitch that may change from sample to sample."""
     pitch = np.broadcast_to(pitch, (length,))
     return np.sin(2 * np.pi * np.cumsum(pitch) / RATE)
 
 
-def chip_noise(length, pitch=1.0, seed=1):
+def chip_noise(length: int, pitch: float = 1.0, seed: int = 1) -> Floats:
     """NES-style noise: a random level held for 1/pitch of the time - lower pitch, lower rumble."""
     rng = np.random.default_rng(seed)
     hold = max(1, int(round(1 / pitch)))
@@ -50,7 +61,7 @@ def chip_noise(length, pitch=1.0, seed=1):
     return np.repeat(levels, hold)[:length]
 
 
-def soft_noise(length, low_hz, high_hz, seed=1):
+def soft_noise(length: int, low_hz: float, high_hz: float, seed: int = 1) -> Floats:
     """Noise with only the frequencies from low_hz to high_hz: a breath, a rustle, a rumble. Peak about 1."""
     signal = np.random.default_rng(seed).normal(size=length)
     frequencies = np.fft.rfftfreq(length, 1 / RATE)
@@ -59,7 +70,7 @@ def soft_noise(length, low_hz, high_hz, seed=1):
     return out / max(1e-9, np.abs(out).max())
 
 
-def place(parts, total):
+def place(parts: Parts, total: float) -> Floats:
     """[(start in seconds, samples), ...] -> one track of `total` seconds."""
     track = np.zeros(seconds(total))
     for start, samples in parts:
@@ -69,13 +80,21 @@ def place(parts, total):
     return track
 
 
-def run(midis, gap, voice, ring=0.3):
+def run(midis: list[int], gap: float, voice: Instrument, ring: float = 0.3) -> Floats:
     """Notes one after another, `gap` seconds apart, each ringing `ring` seconds: voice(pitch, length)."""
     parts = [(index * gap, voice(midi_hz(midi), seconds(ring))) for index, midi in enumerate(midis)]
     return place(parts, gap * len(midis) + ring)
 
 
-def echo(track, delay=0.18, feedback=0.4, repeats=4):
+def together(sounds: list[Floats]) -> Floats:
+    """Sounds of the same length played at once: added up in order (as sum() would, but typed)."""
+    total = sounds[0].copy()
+    for sound in sounds[1:]:
+        total = total + sound
+    return total
+
+
+def echo(track: Floats, delay: float = 0.18, feedback: float = 0.4, repeats: int = 4) -> Floats:
     """Repeats of the sound, each quieter - a room's (or a SNES's) echo. The track grows to hold them."""
     step = seconds(delay)
     out = np.concatenate([track, np.zeros(step * repeats)])
@@ -84,7 +103,7 @@ def echo(track, delay=0.18, feedback=0.4, repeats=4):
     return out
 
 
-def clicks(click, every, length_seconds, getting=1.0):
+def clicks(click: Click, every: float, length_seconds: float, getting: float = 1.0) -> Floats:
     """A ratchet or a chain: `click()` (a short sound) every `every` seconds, each `getting` x as loud as
     the one before."""
     count = int(length_seconds / every)
@@ -92,13 +111,13 @@ def clicks(click, every, length_seconds, getting=1.0):
     return place(parts, length_seconds + 0.2)
 
 
-def fm_tone(pitch, ratio=1.0, index=2.0):
+def fm_tone(pitch: Floats, ratio: float = 1.0, index: float = 2.0) -> Floats:
     """A two-operator FM tone following a pitch that may change from sample to sample."""
     phase = 2 * np.pi * np.cumsum(pitch) / RATE
     return np.sin(phase + index * np.sin(phase * ratio))
 
 
-def cluck(tone, voice):
+def cluck(tone: Tone, voice: Voice) -> Floats:
     """A hen: "bawk - bawk - BAWK", each syllable jumping up and falling, the last one long. tone(pitch,
     length) is the look's voice."""
     base = 520 * voice.pitch
@@ -114,7 +133,7 @@ def cluck(tone, voice):
     return place(parts, start + 0.1)
 
 
-def burble(tone, voice, seed=1):
+def burble(tone: Tone, voice: Voice, seed: int = 1) -> Floats:
     """Something in a swamp: bubbles rising through mud - quick upward blips, at random, low and wet."""
     rng = np.random.default_rng(seed)
     total = 0.9 * voice.length

@@ -7,6 +7,7 @@ Usage: python room_sheet.py  -> shots/room_sheet.png
 
 import os
 import sys
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -15,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 from engine import rooms as R
 
 from engine import paths
+from shared.types import Rgb
 
 HERE = paths.ROOT
 ROW_LINES = [b - a + 1 for a, b in R.ROW_LINES]  # scan lines per wall row (measured)
@@ -22,7 +24,7 @@ BG = (162, 162, 161)
 CELL_W, SCALE_Y = 8, 1                     # 40 columns x 8 px = 320 wide; 2600 pixels are 2:1
 
 
-def wall_rgb(n, room):
+def wall_rgb(n: int, room: dict[str, Any]) -> Rgb:
     if room["colour"] == 0x08:
         return (70, 70, 80)
     path = os.path.join(HERE, "shots", "rooms", f"room_{n:02X}.png")
@@ -31,10 +33,11 @@ def wall_rgb(n, room):
     f = np.array(Image.open(path))[13:207].reshape(-1, 3)
     f = f[np.abs(f.astype(int) - BG).max(axis=1) >= 8]
     vals, counts = np.unique(f, axis=0, return_counts=True)
-    return tuple(int(v) for v in vals[np.argmax(counts)])
+    red, green, blue = (int(v) for v in vals[np.argmax(counts)])
+    return red, green, blue
 
 
-def draw_room(room):
+def draw_room(room: dict[str, Any]) -> Image.Image:
     w, h = R.COLS * CELL_W, sum(ROW_LINES) * SCALE_Y
     im = Image.new("RGB", (w, h), BG)
     d = ImageDraw.Draw(im)
@@ -52,7 +55,7 @@ def draw_room(room):
     return im
 
 
-def main():
+def main() -> None:
     rooms = R.decode_all()[1:]
     font = ImageFont.load_default()
     cols, pad, label_h = 5, 14, 34

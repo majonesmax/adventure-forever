@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 from engine import emulator as h
 from engine import ram_map as M
 from engine import rooms as R
+from shared.types import Mask, Picture
 
 args = [a for a in sys.argv[1:] if a != "--reveal"]
 reveal = "--reveal" in sys.argv
@@ -33,6 +34,8 @@ if reveal:
     open(rom_path, "wb").write(rom)
 c = h.Core()
 c.load(rom_path)
+memory = c.ram
+assert memory is not None   # load() made the live view of the RAM
 GATE_CELLS = {(4, 19), (4, 20)}  # the portcullis sits here in the three castle rooms
 CASTLES = (0x0F, 0x10, 0x11)
 c.joy = set()
@@ -46,16 +49,17 @@ for _ in range(30):
     c.run()
 
 rooms = R.decode_all()
-frames = {}
+frames: dict[int, Picture] = {}
 for room in rooms[1:]:
     for _ in range(6):  # hold the hero in this room, mid-screen, for a few frames
-        c.ram[M.ROOM - 0x80], c.ram[M.PREV_ROOM - 0x80] = room["room"], room["room"]
+        memory[M.ROOM - 0x80], memory[M.PREV_ROOM - 0x80] = room["room"], room["room"]
         c.run()
+    assert c.frame is not None   # the game has drawn the room
     frames[room["room"]] = f = c.frame.copy()
     Image.fromarray(f).save(os.path.join(out, f"room_{room['room']:02X}.png"))
 
 bg = np.array([162, 162, 161])
-wall_masks = {}
+wall_masks: dict[int, Mask] = {}
 for n, f in frames.items():
     if rooms[n]["colour"] == 0x08 and not reveal:
         continue  # walls in the background grey: invisible except inside the hero's lit square
@@ -65,7 +69,7 @@ for n, f in frames.items():
     wall_masks[n] = m
 
 # which wall row does each scan line belong to? pick the row whose bits match that line best in all rooms
-line_row = {}
+line_row: dict[int, int] = {}
 for y in range(0, 228):
     scores = []
     for r in range(R.ROWS):
@@ -77,7 +81,7 @@ for y in range(0, 228):
     best = int(np.argmax(scores))
     if scores[best] >= 0.93 * 160 * len(wall_masks):
         line_row[y] = best
-spans = {}
+spans: dict[int, list[int]] = {}
 for y, r in line_row.items():
     spans.setdefault(r, []).append(y)
 for r in range(R.ROWS):
@@ -87,7 +91,8 @@ for r in range(R.ROWS):
 # per-room cell comparison using the measured row spans (sample the middle line of each span, centre of cell)
 bad = 0
 for n, m in wall_masks.items():
-    errs, covered = [], 0
+    errs: list[tuple[int, int, tuple[int, ...]]] = []
+    covered = 0
     f = frames[n].astype(int)
     px = f[m].reshape(-1, 3)
     vals, counts = np.unique(px, axis=0, return_counts=True)

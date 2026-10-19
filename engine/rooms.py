@@ -15,8 +15,11 @@ Usage: python rooms.py  -> prints every room as ASCII and writes rooms.json
 
 import json
 import os
+from typing import Any
 
 from engine import paths
+
+Room = dict[str, Any]   # a room, decoded: room, name, colour, ctrl, mirrored, grid (rows of 0/1), exits...
 
 HERE = paths.ROOT
 ROM_PATH = paths.ROM
@@ -54,16 +57,16 @@ SPECIAL_EXITS = [
 ]
 
 
-def load_rom(path=None):
+def load_rom(path: str | None = None) -> bytes:
     return open(path or ROM_PATH, "rb").read()  # ROM_PATH: play.py points it at the ROM it found
 
 
-def rd(rom, addr):
+def rd(rom: bytes, addr: int) -> int:
     """The ROM byte at a 2600 address (the 4 KB cartridge is mapped at $F000)."""
     return rom[addr & 0x0FFF]
 
 
-def bits_left_half(pf0, pf1, pf2):
+def bits_left_half(pf0: int, pf1: int, pf2: int) -> list[int]:
     """The three playfield bytes -> the 20 wall columns of a row's left half, left to right (each byte's
     bits run in its own order: TIA bit order in the docstring above)."""
     pf0_bits = [(pf0 >> bit) & 1 for bit in range(4, 8)]
@@ -72,24 +75,24 @@ def bits_left_half(pf0, pf1, pf2):
     return pf0_bits + pf1_bits + pf2_bits
 
 
-def resolve_exit(rom, value, game):
+def resolve_exit(rom: bytes, value: int, game: int) -> int:
     """Exit byte -> room number for game 1/2/3."""
     if value < 0x80:
         return value
     return rd(rom, ROOM_DIFFS + (value - 0x80) + (game - 1))
 
 
-def decode_room(rom, room_number):
+def decode_room(rom: bytes, room_number: int) -> Room:
     entry = ROOM_TABLE + 9 * room_number  # 9 bytes a room
     gfx = rd(rom, entry) | rd(rom, entry + 1) << 8
     ctrl = rd(rom, entry + 4)
-    grid = []
+    grid: list[list[int]] = []
     for row in range(ROWS):
         left = bits_left_half(*(rd(rom, gfx + 3 * row + i) for i in range(3)))
         right = left[::-1] if ctrl & 1 else left  # mirrored, or the same again
         grid.append(left + right)
     raw_exits = [rd(rom, entry + 5 + i) for i in range(4)]
-    exits = {}
+    exits: dict[int, dict[str, int]] = {}
     for game in (1, 2, 3):
         rooms = [resolve_exit(rom, value, game) for value in raw_exits]
         exits[game] = dict(zip(("up", "right", "down", "left"), rooms))
@@ -100,19 +103,19 @@ def decode_room(rom, room_number):
             "exits_raw": raw_exits, "exits": exits}
 
 
-def decode_all(rom=None):
+def decode_all(rom: bytes | None = None) -> list[Room]:
     rom = rom or load_rom()
     return [decode_room(rom, room_number) for room_number in range(N_ROOMS)]
 
 
-def ascii_room(room):
+def ascii_room(room: Room) -> str:
     lines = [f"${room['room']:02X} {room['name']}  colour ${room['colour']:02X}  ctrl ${room['ctrl']:02X}"
              f"{' mirrored' if room['mirrored'] else ' repeated'}"
              f"{' +thinL' if room['thin_wall_left'] else ''}{' +thinR' if room['thin_wall_right'] else ''}"]
     lines += ["  " + "".join("#" if is_wall else "." for is_wall in row) for row in room["grid"]]
     exits = room["exits"]
 
-    def listed(game):
+    def listed(game: int) -> str:
         return " ".join(f"{side}={room_number:02X}" for side, room_number in exits[game].items())
     line = "  exits game1 " + listed(1)
     if exits[1] != exits[2]:

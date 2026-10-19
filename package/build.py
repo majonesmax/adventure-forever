@@ -39,7 +39,7 @@ STAGE, WORK, DIST = (os.path.join(PKG, d) for d in ("stage", "build", "dist"))
 STELLA_SOURCE = "https://github.com/stella-emu/stella"
 
 
-def stage_packs(src, dst):
+def stage_packs(src: str, dst: str) -> None:
     """Each pack's pack.json, cast/ and world/ (pictures and their .py); source/ stays behind."""
     for name in sorted(os.listdir(src)) if os.path.isdir(src) else []:
         pack = os.path.join(src, name)
@@ -53,7 +53,7 @@ def stage_packs(src, dst):
                                 ignore=shutil.ignore_patterns("__pycache__"))
 
 
-def core_version():
+def core_version() -> str:
     """The bundled Stella core's version, as it reports itself (e.g. "8.0_pre b52ccb02e")."""
     class Info(ctypes.Structure):
         _fields_ = [("name", ctypes.c_char_p), ("version", ctypes.c_char_p), ("extensions", ctypes.c_char_p),
@@ -63,7 +63,7 @@ def core_version():
     return info.version.decode()
 
 
-def stella_notice(version):
+def stella_notice(version: str) -> str:
     commit = version.split()[-1] if " " in version else ""
     source = f"{STELLA_SOURCE}/tree/{commit}" if commit else STELLA_SOURCE
     return (f"This download includes the Stella emulator core (version {version}), which runs the game.\n"
@@ -75,7 +75,7 @@ def stella_notice(version):
             f"(LICENSE-ASSETS.md). Adventure is (c) 1980 Atari - not included; bring your own ROM.\n")
 
 
-def icon():
+def icon() -> str | None:
     """The app icon for this system (macOS .icns, Windows .ico made from the preview PNG), or None."""
     if paths.SYSTEM == "macos":
         return os.path.join(PKG, "icon.icns")
@@ -88,7 +88,7 @@ def icon():
     return None
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser(description="Build Adventure Forever for download on this system.")
     ap.add_argument("--with-rom", action="store_true", help="bundle roms/adventure.a26 (personal builds only)")
     ap.add_argument("--with-private", action="store_true", help="bundle private/ (personal builds only)")

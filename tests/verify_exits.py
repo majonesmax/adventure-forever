@@ -10,23 +10,25 @@ Usage: python verify_exits.py
 
 import os
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, when run as a script
 from engine import emulator as h
 from engine import ram_map as M
 from engine import rooms as R
+from shared.types import Point
 
 STICK = {"up": h.JOY_UP, "down": h.JOY_DOWN, "left": h.JOY_LEFT, "right": h.JOY_RIGHT}
 
 
-def y_for_line(line):
+def y_for_line(line: int) -> int:
     return 104 - (line - 13) // 2
 
 
-def openings(room):
+def openings(room: dict[str, Any]) -> dict[str, Point]:
     g = room["grid"]
     mid_rows = range(1, R.ROWS - 1)
-    found = {}
+    found: dict[str, Point] = {}
     for col in range(14, 26):          # top/bottom gaps are in the middle in this game
         if not g[0][col] and "up" not in found:
             found["up"] = (col * 4 + 2, y_for_line(20))
@@ -41,9 +43,11 @@ def openings(room):
     return found
 
 
-def main():
+def main() -> None:
     c = h.Core()
     c.load(os.path.join(h.HERE, "roms", "adventure.a26"))
+    ram = c.ram
+    assert ram is not None   # load() made the live view of the RAM
     run = lambda n: [c.run() for _ in range(n)]
     c.joy = set(); run(60)
     c.joy = {h.JOY_START}; run(10)
@@ -54,17 +58,17 @@ def main():
             for _ in range(3):
                 for addr, v in ((M.ROOM, room["room"]), (M.PREV_ROOM, room["room"]), (M.HERO_X, x), (M.PREV_X, x),
                                 (M.HERO_Y, y), (M.PREV_Y, y)):
-                    c.ram[addr - 0x80] = v
+                    ram[addr - 0x80] = v
                 c.joy = set(); c.run()
             c.joy = {STICK[direction]}
-            got = None
+            got: int | None = None
             for _ in range(90):
-                prev = (int(c.ram[M.HERO_X - 0x80]), int(c.ram[M.HERO_Y - 0x80]))
+                prev = (int(ram[M.HERO_X - 0x80]), int(ram[M.HERO_Y - 0x80]))
                 c.run()
-                cur = (int(c.ram[M.HERO_X - 0x80]), int(c.ram[M.HERO_Y - 0x80]))
+                cur = (int(ram[M.HERO_X - 0x80]), int(ram[M.HERO_Y - 0x80]))
                 # a room change, or a jump across the screen (an exit that leads back into the same room)
-                if c.ram[M.ROOM - 0x80] != room["room"] or abs(cur[0] - prev[0]) > 40 or abs(cur[1] - prev[1]) > 40:
-                    got = int(c.ram[M.ROOM - 0x80])
+                if ram[M.ROOM - 0x80] != room["room"] or abs(cur[0] - prev[0]) > 40 or abs(cur[1] - prev[1]) > 40:
+                    got = int(ram[M.ROOM - 0x80])
                     break
             want = room["exits"][1][direction]
             if got == want:

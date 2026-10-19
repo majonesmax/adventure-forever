@@ -23,10 +23,21 @@ import ctypes as C
 import ctypes.util
 import os
 import sys
+from typing import TYPE_CHECKING, Any, Callable
 
 import numpy as np
 
 from engine import paths
+from engine.chiptune import Song
+from shared.types import Samples
+
+if TYPE_CHECKING:   # only for the type checker (importing them here would be circular)
+    from content.world import World
+    from engine.state import GameState
+
+Spec = dict[str, Any]          # where an area's music comes from: a song, a WAV file or an NSF track
+Config = dict[str, Spec]       # area -> its spec
+Render = Callable[[Song], Samples]
 
 HERE = paths.ROOT
 NSF = None  # no NSF by default - see the music config above
@@ -36,7 +47,7 @@ LIB_PATHS = [os.path.join(HERE, "lib", GME_FILE),                     # bundled 
 RATE = 31440
 
 
-def _lib():
+def _lib() -> C.CDLL:
     found = [path for path in LIB_PATHS if os.path.exists(path)] or [ctypes.util.find_library("gme")]
     if not found[0]:
         raise OSError("libgme not found - install game-music-emu (macOS: brew install game-music-emu; "
@@ -59,7 +70,7 @@ def _lib():
 class Music:
     """One NSF, one track at a time. render(n) -> n stereo frames (int16, shape (n, 2))."""
 
-    def __init__(self, path=NSF, rate=RATE):
+    def __init__(self, path: str, rate: int = RATE):
         self.lib = _lib()
         self.emu = C.c_void_p()
         err = self.lib.gme_open_file(path.encode(), C.byref(self.emu), rate)
@@ -67,30 +78,30 @@ class Music:
             raise RuntimeError(f"gme: {err.decode()}")
         self.lib.gme_ignore_silence(self.emu, 1)  # don't auto-end tracks on quiet passages
         self.tracks = self.lib.gme_track_count(self.emu)
-        self.track = None
+        self.track: int | None = None
 
-    def start(self, track):
+    def start(self, track: int) -> None:
         """track: 1-based like the NSF's own numbering."""
         err = self.lib.gme_start_track(self.emu, track - 1)
         if err:
             raise RuntimeError(f"gme: {err.decode()}")
         self.track = track
 
-    def stop(self):
+    def stop(self) -> None:
         self.track = None
 
-    def render(self, frames):
+    def render(self, frames: int) -> Samples:
         if self.track is None or frames <= 0:
             return np.zeros((max(frames, 0), 2), np.int16)
         buf = (C.c_short * (frames * 2))()
         self.lib.gme_play(self.emu, frames * 2, buf)
         return np.ctypeslib.as_array(buf).reshape(frames, 2).copy()
 
-    def ended(self):
+    def ended(self) -> bool:
         return bool(self.lib.gme_track_ended(self.emu))
 
 
-def survey(path, seconds=90):
+def survey(path: str, seconds: int = 90) -> None:
     """Per NSF track: how long until it goes silent for good (music loops, jingles/SFX stop), and loudness."""
     music = Music(path)
     print(f"{music.tracks} tracks")
@@ -108,7 +119,7 @@ def survey(path, seconds=90):
         print(f"  track {track:2d}: {kind:32s} level {loud:5.1f} dB")
 
 
-def play(path, track, secs=20):
+def play(path: str, track: int, secs: int = 20) -> None:
     import sounddevice as sd
     music = Music(path)
     music.start(track)
@@ -120,13 +131,13 @@ AREAS = ("title", "overworld", "dungeon", "final", "win")
 FINAL_ROOMS = {0x13, 0x14, 0x15, 0x16, 0x1B}  # black maze + black castle interior: the "last dungeon"
 
 
-BUILT_IN = {area: {"song": area} for area in AREAS}
+BUILT_IN: Config = {area: {"song": area} for area in AREAS}
 
 
-def load_configs():
+def load_configs() -> list[tuple[str, Config]]:
     """[(name, area -> source spec)]: every config file found, then the built-in songs (always there)."""
     import json
-    found = []
+    found: list[tuple[str, Config]] = []
     for path in CONFIGS:
         if os.path.exists(path):
             with open(path) as f:
@@ -138,10 +149,10 @@ def load_configs():
 class Pcm:
     """A rendered piece (built-in song or WAV file) played from memory; loops unless it's a jingle."""
 
-    def __init__(self, pcm, loop):
+    def __init__(self, pcm: Samples, loop: bool):
         self.pcm, self.loop, self.pos = pcm, loop, 0
 
-    def render(self, frames):
+    def render(self, frames: int) -> Samples:
         out = np.zeros((frames, 2), np.int16)
         done = 0
         while done < frames:
@@ -155,7 +166,7 @@ class Pcm:
         return out
 
 
-def read_wav(path, rate):
+def read_wav(path: str, rate: int) -> Samples:
     """16-bit WAV -> int16 stereo at `rate` (linear resampling if needed)."""
     import wave
     with wave.open(path) as w:
@@ -172,7 +183,7 @@ def read_wav(path, rate):
 DARK, RED = 0x08, 0x36  # room colours: the dark rooms, and the red maze + castle interiors
 
 
-def area_for(state):
+def area_for(state: "GameState") -> str:
     """Which music area this moment belongs to: title / overworld / dungeon / final / win."""
     if state.won:
         return "win"
@@ -185,7 +196,7 @@ def area_for(state):
     return "overworld"
 
 
-def mix(sfx, mus, gain=1.0):
+def mix(sfx: Samples, mus: Samples, gain: float = 1.0) -> Samples:
     """2600 sound effects + NES music, both at their original levels (music scaled only by the user's
     volume). Added in float; a soft knee above 28000 rounds off the rare peaks where both are loud at once
     instead of hard-clipping (the effects alone peak at ~22000, the music at ~13000)."""
@@ -199,7 +210,7 @@ def mix(sfx, mus, gain=1.0):
     return mixed.astype(np.int16)
 
 
-def bands():
+def bands() -> dict[str, Render]:
     """Each look's band: look platform -> render(song dict) -> int16 stereo."""
     from engine import chiptune, orchestra, soundcard, toybox
     return {"nes": chiptune.render, "snes": orchestra.render, "vga": soundcard.render, "paper": toybox.render}
@@ -210,46 +221,52 @@ class MusicPlayer:
     AudioOut(mixer=...)).
     The game loop only says WHICH AREA to play (start/stop/on/gain/paused); the callback decides how much."""
 
-    def __init__(self, rate=RATE, public=False):
+    def __init__(self, rate: int = RATE, public: bool = False):
         import threading
         self.rate, self.lock = rate, threading.Lock()
         self.on, self.gain, self.paused = True, 1.0, False
         # the first source found plays; next_source() cycles. public: only the built-in songs
-        self.base = [("built-in songs", BUILT_IN)] if public else load_configs()
-        self.configs, self.world = list(self.base), None
+        self.base: list[tuple[str, Config]] = [("built-in songs", BUILT_IN)] if public else load_configs()
+        self.configs = list(self.base)
+        self.world: World | None = None
         self.which = 0
-        self.current, self.nsf, self.cache = None, {}, {}
-        self.area, self.playing_area, self.look = None, None, "nes"
-        self.bands, self.making = bands(), set()
+        self.current: Pcm | Music | None = None
+        self.nsf: dict[str, Music] = {}
+        self.cache: dict[Any, Samples] = {}       # a file's path, or (band or synth, song) -> its samples
+        self.area: str | None = None              # the area asked for...
+        self.playing_area: str | None = None      # ...and the one playing (they differ while one is made)
+        self.look = "nes"
+        self.bands = bands()
+        self.making: set[Any] = set()
 
     @property
-    def config(self):
+    def config(self) -> Config:
         return self.configs[self.which][1]
 
     @property
-    def source_name(self):
+    def source_name(self) -> str:
         return self.configs[self.which][0]
 
-    def next_source(self):
+    def next_source(self) -> str:
         self.which = (self.which + 1) % len(self.configs)
         return self.source_name
 
-    def use_world(self, world):
+    def use_world(self, world: "World | None") -> None:
         """The world on screen: its soundtrack (if any) goes first and plays; N still cycles past it."""
         if world is self.world:
             return
         self.world = world
-        own = []
+        own: list[tuple[str, Config]] = []
         if world is not None and world.music:
             synth, songs = world.music.get("synth", "chiptune"), world.music["songs"]
             own = [(f"{world.name} soundtrack", {area: {"world_song": songs[name], "synth": synth}
                                                  for area, name in world.music["areas"].items()})]
         self.configs, self.which = own + self.base, 0
 
-    def has(self, area):
+    def has(self, area: str) -> bool:
         return area in self.config
 
-    def use_look(self, look):
+    def use_look(self, look: str) -> None:
         """The look on screen (its platform: nes, snes...): its band plays the built-in songs from now on."""
         if look == self.look:
             return
@@ -257,7 +274,7 @@ class MusicPlayer:
         if self.area is not None:
             self.start(self.area)
 
-    def made_song(self, spec):
+    def made_song(self, spec: Spec) -> tuple[Any, Callable[[], Samples]] | None:
         """(cache key, render) for a song this player makes itself, or None for a file or an NSF."""
         if "world_song" in spec:   # a world's own song, on the synth it names
             from engine import chiptune, fm
@@ -269,7 +286,7 @@ class MusicPlayer:
             return (self.look, spec["song"]), lambda: band(chiptune.SONGS[spec["song"]])
         return None
 
-    def loops(self, spec, area):
+    def loops(self, spec: Spec, area: str) -> bool:
         if "world_song" in spec:
             return spec["world_song"].get("loop", True)
         if "song" in spec:
@@ -277,7 +294,7 @@ class MusicPlayer:
             return chiptune.SONGS[spec["song"]]["loop"]
         return area != "win"
 
-    def _source(self, area):
+    def _source(self, area: str) -> Pcm | Music:
         """A file or an NSF track, ready to play."""
         spec = self.config[area]
         if "file" in spec:
@@ -291,7 +308,7 @@ class MusicPlayer:
         self.nsf[path].start(spec["track"])
         return self.nsf[path]
 
-    def start(self, area):
+    def start(self, area: str) -> None:
         """Play an area's music: now if it's made, else once it is (made in the background meanwhile)."""
         import threading
         self.area = area
@@ -308,7 +325,7 @@ class MusicPlayer:
             return
         self.making.add(key)
 
-        def work():
+        def work() -> None:
             self.cache[key] = render()
             self.making.discard(key)
             still_wanted = self.made_song(self.config.get(area, {})) if self.area == area else None
@@ -316,20 +333,19 @@ class MusicPlayer:
                 self.start(area)
         threading.Thread(target=work, daemon=True).start()
 
-    def play(self, area, source):
+    def play(self, area: str, source: Pcm | Music) -> None:
         """Switch to a source; the same area on another band keeps its place in the song."""
         with self.lock:
-            both_made = isinstance(self.current, Pcm) and isinstance(source, Pcm)
-            if both_made and area == self.playing_area:
+            if isinstance(self.current, Pcm) and isinstance(source, Pcm) and area == self.playing_area:
                 source.pos = self.current.pos % len(source.pcm)
             self.current, self.playing_area = source, area
 
-    def stop(self):
+    def stop(self) -> None:
         self.area = None
         with self.lock:
             self.current, self.playing_area = None, None
 
-    def mixer(self, sfx):
+    def mixer(self, sfx: Samples) -> Samples:
         if not self.on or self.paused or self.current is None:
             return sfx
         with self.lock:
@@ -337,7 +353,7 @@ class MusicPlayer:
         return mix(sfx, mus, self.gain)
 
 
-def audition(path, tracks, secs=10):
+def audition(path: str, tracks: list[int], secs: int = 10) -> None:
     import sounddevice as sd
     music = Music(path)
     for track in tracks:

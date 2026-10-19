@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Iterator
 
 import numpy as np
 
@@ -30,17 +31,27 @@ from app.fonts import mono  # noqa: E402
 from app.recorder import find_ffmpeg  # noqa: E402
 from app.window import QUAD, draw_grid  # noqa: E402
 from engine.state import Game  # noqa: E402
+from looks.base import RoomLook  # noqa: E402
+from shared.types import Picture  # noqa: E402
 
 WARM_UP = 900  # frames of the take the RAM panel sees before the GIF starts, so its event log has history
 
 
-def frames_2600(take, start, end):
+def ffmpeg() -> str:
+    found = find_ffmpeg()
+    if found is None:
+        raise SystemExit("this needs ffmpeg: https://ffmpeg.org/download.html")
+    return found
+
+
+def frames_2600(take: str, start: int, end: int) -> Iterator[Picture]:
     """The take's 2600 pictures for frames [start, end), as RGB arrays."""
     w, h = json.load(open(os.path.join(take, "meta.json")))["streams"]["a2600"]
-    proc = subprocess.Popen([find_ffmpeg(), "-loglevel", "error", "-i", os.path.join(take, "a2600.mp4"),
+    proc = subprocess.Popen([ffmpeg(), "-loglevel", "error", "-i", os.path.join(take, "a2600.mp4"),
                              "-vf", f"select=between(n\\,{start}\\,{end - 1})", "-vsync", "0",
                              "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     size = w * h * 3
+    assert proc.stdout is not None   # opened as a pipe
     while True:
         buf = proc.stdout.read(size)
         if len(buf) < size:
@@ -49,8 +60,8 @@ def frames_2600(take, start, end):
     proc.wait()
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+def main() -> None:
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("take")
     ap.add_argument("--start", type=int, required=True)
     ap.add_argument("--end", type=int, required=True)
@@ -87,10 +98,11 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     every = 60 // args.fps
     palette = os.path.join(out_dir, ".palette.png")
-    encode = [find_ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+    encode = [ffmpeg(), "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
               "-s", f"{screen.get_width()}x{screen.get_height()}", "-r", str(args.fps), "-i", "-"]
     raw = os.path.join(out_dir, ".grid.rgb")
-    scrolls, kept = {}, 0
+    scrolls: dict[RoomLook, TR.Scroll] = {}
+    kept = 0
     with open(raw, "wb") as store:
         for n, (i, picture_2600) in enumerate(zip(range(args.start, args.end), frames_2600(take, args.start, args.end))):
             r = log[i]
@@ -104,7 +116,8 @@ def main():
                 scrolls = {}
                 pics = {lk: lk.draw(st, i) for lk in (nes, snes)}
                 if prev is not None and TR.scroll_direction(prev, st):
-                    scrolls = {lk: TR.Scroll.between(lk, prev, st, i) for lk in (nes, snes)}
+                    made = {lk: TR.Scroll.between(lk, prev, st, i) for lk in (nes, snes)}
+                    scrolls = {lk: sc for lk, sc in made.items() if sc is not None}   # into the next room
                     pics = {lk: sc.frame() for lk, sc in scrolls.items()}
                 prev = st
             if n % every:

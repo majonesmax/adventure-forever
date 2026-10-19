@@ -13,12 +13,17 @@ import numpy as np
 from PIL import Image
 
 from engine import rooms as R
+from engine.objects import Reader
+from engine.state import GameState
+from content.cast import Cast
+from content.world import World
 from looks.base import BRIDGE, RoomLook
 from looks.snes.outline import recolour_outline
 from shared import hud as HUD
 from shared import layout as L
 from shared.palettes import NES, flash_colour
 from shared.pixelart import blit, snes_rgb
+from shared.types import Picture, Rgb
 
 BAR = (16, 8, 40)
 
@@ -28,7 +33,7 @@ class SnesLook(RoomLook):
     platform_name = "SNES REMASTER"
     own_pack = "pbj"
 
-    def __init__(self, reader, cast, world):
+    def __init__(self, reader: Reader, cast: Cast, world: World):
         super().__init__(reader, cast, world)
         rom = R.load_rom()
         for room_number in range(1, R.N_ROOMS):  # paint every room up front: no hitch on first entry
@@ -36,24 +41,24 @@ class SnesLook(RoomLook):
 
     # ---- the platform (the RoomLook methods) ----
 
-    def adapt(self, sprite):
+    def adapt(self, sprite: Picture) -> Picture:
         """The SNES's 15-bit colour, then soft outlines and at most 15 colours (outline.py)."""
         return recolour_outline(self.adapt_scenery(sprite))
 
-    def adapt_scenery(self, picture):
+    def adapt_scenery(self, picture: Picture) -> Picture:
         """15-bit colour: 32 levels a channel (snes_rgb), for rooms and gates too."""
         out = picture.copy()
         out[..., :3] = snes_rgb(out[..., :3])
         return out
 
-    def carried_on_top(self, object_number):
+    def carried_on_top(self, object_number: int) -> bool:
         """The hero is far bigger than the 2600's (a 4x8 square): held items go over him so they don't
         vanish.
         Drawn exactly where the game has them - a nudge to clear his body made swords miss where they
         looked like they hit (the game hit-tests the real positions). The bridge stays under him."""
         return object_number != BRIDGE
 
-    def logo(self, screen, y, scale, colour, shadow):
+    def logo(self, screen: Picture, y: int, scale: int, colour: Rgb, shadow: Rgb) -> None:
         """ADVENTURE with the world's small word: after it (HUD, scale 2) - or, when the word is too long to
         fit there, on the status bar's bottom line, right-aligned - or under its last letter (title, 3)."""
         title, small = "ADVENTURE", self.world.title_small
@@ -74,12 +79,12 @@ class SnesLook(RoomLook):
             left = right - (HUD.text_width(small) - 3)
             HUD.draw_text(screen, small, left, y + 24, (240, 240, 240), shadow=shadow)
 
-    def small_beside(self):
+    def small_beside(self) -> bool:
         """Does the world's small word fit after ADVENTURE in the status bar (inside the screen)?"""
         total = HUD.text_width("ADVENTURE", 2) - 4 + HUD.text_width(self.world.title_small)
         return 48 + (L.SCREEN_W - 48 - total) // 2 >= 48
 
-    def draw_hud(self, screen, state, frame_no):
+    def draw_hud(self, screen: Picture, state: GameState, frame_no: int) -> None:
         screen[:L.HUD_H] = BAR
         colour = self.world.colour(state.room_num)
         HUD.draw_text(screen, "ITEM", 12, 5, (232, 232, 240))
@@ -94,10 +99,10 @@ class SnesLook(RoomLook):
             spr = self.held_icon(state.carried, frame_no)
             blit(screen, spr, 26 - spr.shape[1] / 2, 29 - spr.shape[0] / 2)
 
-    def win_splash(self, state, frame_no):
+    def win_splash(self, state: GameState, frame_no: int) -> Picture | None:
         return None  # the messenger's speech bubble stays up (win_banner)
 
-    def win_banner(self, screen, state, frame_no):
+    def win_banner(self, screen: Picture, state: GameState, frame_no: int) -> None:
         """The cast's messenger (x2) delivers the news in a speech bubble."""
         y0, y1 = 72, 160
         screen[y0:y1, 12:244] = BAR
@@ -122,14 +127,14 @@ class SnesLook(RoomLook):
         msg = "PRESS ENTER TO PLAY AGAIN"
         HUD.draw_text(screen, msg, (L.SCREEN_W - HUD.text_width(msg)) // 2, y0 + 64, colour)
 
-    def title_screen(self, state, frame_no):
+    def title_screen(self, state: GameState, frame_no: int) -> Picture:
         screen = np.zeros((L.SCREEN_H, L.SCREEN_W, 3), np.uint8)
         screen[:] = BAR
         pink = self.world.colour(0x11)
         self.logo(screen, 14, 3, pink, (104, 32, 72))
         # the gold castle at half size, the cast's title cast (x2) in front of its gate
         gold_castle = self.room_image(R.decode_room(R.load_rom(), 0x11))
-        castle = Image.fromarray(gold_castle).resize((120, 96), Image.BOX)
+        castle = Image.fromarray(gold_castle).resize((120, 96), Image.Resampling.BOX)
         x0, y0 = (L.SCREEN_W - 120) // 2, 46
         screen[y0:y0 + 96, x0:x0 + 120] = np.array(castle)
         HUD.frame_box(screen, x0 - 1, y0 - 1, x0 + 120, y0 + 96, pink)

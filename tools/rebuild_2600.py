@@ -11,6 +11,7 @@ Keys: arrows + space = joystick, Tab = GAME SELECT, Enter = RESET, L = labels/bo
 
 import os
 import sys
+from typing import Any
 
 import numpy as np
 import pygame
@@ -21,26 +22,28 @@ from engine import emulator as h
 from engine import objects as O
 from engine import paths
 from engine import rooms as R
-from engine.state import Game
+from engine.state import Game, GameState
+from shared.types import Mask, Picture, Rgb
 
 FRAME_W, FRAME_H = 160, 228
 BG_COLOUR = 0x08
 HERO_W, HERO_H = 4, 8
+Box = tuple[str, tuple[int, int, int, int]]   # (label, (x, y, width, height)) for the overlay
 
 
 class Rebuild2600:
-    def __init__(self, game):
+    def __init__(self, game: Game):
         self.game = game
 
-    def draw(self, st):
+    def draw(self, st: GameState) -> tuple[Picture, list[Box]]:
         """-> (160x228x3 uint8 frame, list of (label, box) for the overlay)."""
         img = np.zeros((FRAME_H, FRAME_W, 3), np.uint8)
         top, bottom = R.ROW_LINES[0][0], R.ROW_LINES[-1][1]
         img[top:bottom + 1] = self.game.rgb(st.colour(BG_COLOUR))
         wall = self.game.rgb(st.colour(st.room["colour"]))
-        boxes = []
+        boxes: list[Box] = []
 
-        def draw_walls():
+        def draw_walls() -> None:
             for r, (y0, y1) in enumerate(R.ROW_LINES):
                 for col, b in enumerate(st.room["grid"][r]):
                     if b:
@@ -50,13 +53,13 @@ class Rebuild2600:
                 if st.room[flag]:
                     img[top:bottom + 1, x0:x1 + 1] = wall
 
-        def draw_hero():
+        def draw_hero() -> None:
             x, y = st.hero
             x0, y0 = x - 2, 224 - 2 * y  # the ball sits one pixel left of where players do
             self._blit_box(img, x0, y0, HERO_W, HERO_H, wall)
             boxes.append(("hero", (x0, y0, HERO_W, HERO_H)))
 
-        def draw_objects():
+        def draw_objects() -> None:
             # TIA: player 0 is drawn over player 1. The game puts the surround (lit square) and the bridge in
             # player 1, and otherwise the lower-numbered object usually lands in player 0 - so paint those
             # two first, then the rest from the highest number down (lowest ends up on top)
@@ -87,13 +90,13 @@ class Rebuild2600:
         return img, boxes
 
     @staticmethod
-    def _blit_box(img, x, y, w, hgt, colour):
+    def _blit_box(img: Picture, x: int, y: int, w: int, hgt: int, colour: Rgb) -> None:
         x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + w, FRAME_W), min(y + hgt, FRAME_H)
         if x0 < x1 and y0 < y1:
             img[y0:y1, x0:x1] = colour
 
 
-def compare(ours, theirs, room, floor_rgb):
+def compare(ours: Picture, theirs: Picture, room: dict[str, Any], floor_rgb: Rgb) -> tuple[Mask, Mask]:
     """Pixels the emulator shows that we don't match (= real errors), ignoring the thin-wall columns (their
     2600 colour is borrowed from objects). Pixels we draw that the emulator left as floor are mostly flicker
     (an object the 2600 skipped this frame), so they're counted separately."""
@@ -111,9 +114,11 @@ def compare(ours, theirs, room, floor_rgb):
     return differ & ~floor, differ & floor
 
 
-def main():
+def main() -> None:
     core = h.Core()
     core.load(paths.ROM)
+    ram = core.ram
+    assert ram is not None   # load() made the live view of the RAM
     av = core.av_info()
     fps, rate = av.timing.fps, int(av.timing.sample_rate) or 31440
     game = Game()
@@ -130,7 +135,7 @@ def main():
               pygame.K_RETURN: h.JOY_START}
     labels, diff_view, paused = True, False, False
     clock = pygame.time.Clock()
-    err_hist = []
+    err_hist: list[int] = []
     while True:
         for e in pygame.event.get():
             if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
@@ -150,7 +155,7 @@ def main():
             audio.push(core.take_audio())
         if core.frame is None:
             continue
-        st = game.state(core.ram)
+        st = game.state(ram)
         ours, boxes = ren.draw(st)
         errors, flicker = compare(ours, core.frame, st.room, game.rgb(st.colour(BG_COLOUR)))
         err_hist = (err_hist + [int(errors.sum())])[-60:]

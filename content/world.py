@@ -44,11 +44,16 @@ import copy
 import json
 import os
 
+from typing import Any
+
 import numpy as np
 
 from content import pictures as PIC
 from engine import palette as P
 from shared import layout as L
+from shared.types import Picture, Rgb
+
+Room = dict[str, Any]   # engine/rooms.py's decoded room: its walls grid, colour, exits, flags
 
 AREAS = {  # the game's places -> their rooms
     "meadow": (0x01, 0x02, 0x0D),
@@ -73,13 +78,14 @@ FLOOR = (170, 170, 170)  # the 2600's own grey
 BRIGHTNESS = [0.299, 0.587, 0.114]  # how bright red, green and blue look
 
 
-def area(room_num):
+def area(room_num: int) -> str:
     """The place a room belongs to."""
     return AREA_OF.get(room_num, "meadow")
 
 
-def paint_tiles(room, wall=None, floor=None, outline=None, shadow=None, wall_colour=(128, 128, 128),
-                col_w=L.COL_W):
+def paint_tiles(room: Room, wall: Picture | None = None, floor: Picture | None = None,
+                outline: Rgb | None = None, shadow: float | None = None, wall_colour: Rgb = (128, 128, 128),
+                col_w: int = L.COL_W) -> Picture:
     """A room from tiles: `floor` everywhere, `wall` where the game has walls (both RGB tiles, repeated from
     the room's top-left), an `outline` colour around the walls, the floor under each wall darkened to
     `shadow` (0-1) for two rows. No wall tile: `wall_colour`. No floor tile: grey. col_w: pixels per wall
@@ -107,25 +113,26 @@ def paint_tiles(room, wall=None, floor=None, outline=None, shadow=None, wall_col
 class World:
     """A world, loaded. Looks use only the attributes and methods here."""
 
-    def __init__(self, key, folder, info):
+    def __init__(self, key: str, folder: str, info: dict[str, Any]):
         """key: the pack's; folder: its world/ folder; info: pack.json's "world" section."""
         self.key, self.folder, self.info = key, folder, info
-        self.name = info.get("name", key.upper())
-        self.title_small = info.get("title_small", "FOREVER")
-        self.footer = info.get("footer", "")
-        self.outline = tuple(info["outline"]) if info.get("outline") else None
-        self.shadow = info.get("shadow")
-        self.areas = info.get("areas", {})
-        self.ambience = info.get("ambience", {})
-        self.pictures = PIC.load_folder(folder, info.get("scale", 1))
-        self.music = None  # the soundtrack, if the world has one (music.json)
+        self.name: str = info.get("name", key.upper())
+        self.title_small: str = info.get("title_small", "FOREVER")
+        self.footer: str = info.get("footer", "")
+        outline = info.get("outline")
+        self.outline: Rgb | None = (outline[0], outline[1], outline[2]) if outline else None
+        self.shadow: float | None = info.get("shadow")
+        self.areas: dict[str, dict[str, Any]] = info.get("areas", {})
+        self.ambience: dict[str, str] = info.get("ambience", {})
+        self.pictures: dict[str, Picture] = PIC.load_folder(folder, info.get("scale", 1))
+        self.music: dict[str, Any] | None = None  # the soundtrack, if the world has one (music.json)
         if os.path.exists(os.path.join(folder, "music.json")):
             with open(os.path.join(folder, "music.json")) as f:
                 self.music = json.load(f)
-        self.palette_2600 = P.load()
-        self.rooms = {}  # room number -> picture: rooms never change
+        self.palette_2600: dict[int, Rgb] = P.load()
+        self.rooms: dict[int, Picture] = {}  # room number -> picture: rooms never change
 
-    def extended(self, key, info):
+    def extended(self, key: str, info: dict[str, Any]) -> "World":
         """This world's scenery under another pack's key and words (pack.json "extends")."""
         out = copy.copy(self)
         out.key, out.info = key, {**self.info, **info}
@@ -139,11 +146,11 @@ class World:
             out.areas[place] = {**self.areas.get(place, {}), **its_areas.get(place, {})}
         return out
 
-    def setting(self, place, what):
+    def setting(self, place: str, what: str) -> Any:
         """pack.json's areas[place][what], else areas["default"][what], else None."""
         return self.areas.get(place, {}).get(what, self.areas.get("default", {}).get(what))
 
-    def tile(self, place, kind):
+    def tile(self, place: str, kind: str) -> Picture | None:
         """The `kind` ("wall" / "floor") tile for a place, RGB, or None."""
         name = self.setting(place, kind)
         pic = self.pictures.get(name) if name else None
@@ -153,7 +160,7 @@ class World:
 
     # ---- what looks ask for ----------------------------------------------------------------------------
 
-    def room(self, room):
+    def room(self, room: Room) -> Picture:
         """The room's walls and floor: a 240x192 RGB picture (room: engine/rooms.py's decoded room)."""
         room_number = room["room"]
         if room_number not in self.rooms:
@@ -163,18 +170,18 @@ class World:
                                                   self.outline, self.shadow, original_colour)
         return self.rooms[room_number]
 
-    def area_name(self, room_num):
+    def area_name(self, room_num: int) -> str:
         """What the status bar calls this room's place."""
         place = area(room_num)
         return self.areas.get(place, {}).get("name") or DEFAULT_NAMES[place]
 
-    def colour(self, room_num):
+    def colour(self, room_num: int) -> Rgb:
         """The place's colour, for screens to frame it with (on a dark bar, so never too dark): pack.json's,
         else the brightest of its wall tile's three commonest colours."""
         place = area(room_num)
         chosen = self.setting(place, "colour")
         if chosen:
-            return tuple(chosen)
+            return chosen[0], chosen[1], chosen[2]
         wall = self.tile(place, "wall")
         if wall is None:
             return (200, 200, 200)
@@ -184,9 +191,9 @@ class World:
         brightness = colour @ BRIGHTNESS
         if brightness < 120:  # lift a dark colour towards white until it reads
             colour = colour + (255 - colour) * (120 - brightness) / (255 - brightness)
-        return tuple(int(channel) for channel in colour)
+        return int(colour[0]), int(colour[1]), int(colour[2])
 
-    def gate(self, castle, w, h):
+    def gate(self, castle: str, w: int, h: int) -> Picture | None:
         """A castle's gate ("gold" / "white" / "black"), w x h, RGBA - the bottom of the gate picture,
         repeated across; None = the original gate."""
         pic = self.pictures.get(f"gate_{castle}", self.pictures.get("gate"))
@@ -195,15 +202,15 @@ class World:
         reps = (-(-h // pic.shape[0]), -(-w // pic.shape[1]), 1)
         return np.tile(pic, reps)[-h:, :w]
 
-    def lighting(self, room_num, frame_no):
+    def lighting(self, room_num: int, frame_no: int) -> float:
         """How lit a room is this frame, 0-1: 1 = as painted (the default, always). A world with flickering
         lights returns less now and then; the look shows the room dimmed (kept to its own colour rules)."""
         return 1.0
 
-    def sound(self, room_num):
+    def sound(self, room_num: int) -> str | None:
         """What you hear in a room with the music off (one of engine/ambience.py's SOUNDS), or None."""
         return self.ambience.get(area(room_num), self.ambience.get("default"))
 
-    def wall_tile(self, room_num):
+    def wall_tile(self, room_num: int) -> Picture | None:
         """The wall tile of a room's place (for screens that draw a miniature castle), or None."""
         return self.tile(area(room_num), "wall")

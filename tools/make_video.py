@@ -33,6 +33,12 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo root, when run as a script
 from shared import hud as HUD
 from app import recorder as REC
+from shared.types import Rgb
+
+Line = tuple[str, int, Rgb, int]               # a card's line: (text, scale, colour, y)
+Placement = tuple[str, int, int, int, int]     # (stream, x, y, width, height)
+Tag = tuple[str, int, int]                     # a pane label: (text, x, y)
+Segment = tuple[float, float, str, bool, bool]   # (from, to, layout, fade in, fade out)
 
 W, H, FPS = 1920, 1080, 60
 BG = (11, 11, 20)
@@ -42,14 +48,17 @@ NAMES = {"nes": "NES REMASTER", "snes": "SNES REMASTER",
          "16bit": "16-BIT REMASTER", "forever": "16-BIT REMASTER"}  # the SNES look's old keys, in older takes
 
 # the edit decision list: filled from <take>/edit.json by load_edit()
-KEEP, FORCE, CAPTIONS, GRID16 = [], [], [], "16bit"  # takes before the grid16 log entry
-TITLE = [("ADVENTURE", 6, (236, 174, 212), 330), ("ATARI 2600 - 1980 - WARREN ROBINETT", 3, (232, 232, 240), 470),
+KEEP: list[tuple[float, float]] = []
+FORCE: list[tuple[float, float, str]] = []
+CAPTIONS: list[tuple[float, float, str]] = []
+GRID16 = "16bit"  # takes before the grid16 log entry
+TITLE: list[Line] = [("ADVENTURE", 6, (236, 174, 212), 330), ("ATARI 2600 - 1980 - WARREN ROBINETT", 3, (232, 232, 240), 470),
          ("REMASTERED", 3, (232, 200, 72), 540)]
-END = [("ADVENTURE BY WARREN ROBINETT, ATARI 1980", 3, (232, 232, 240), 380),
+END: list[Line] = [("ADVENTURE BY WARREN ROBINETT, ATARI 1980", 3, (232, 232, 240), 380),
        ("A FAN PROJECT - NOT FOR SALE", 2, (236, 174, 212), 560)]
 
 
-def measure_audio_lead(take):
+def measure_audio_lead(take: str) -> float | None:
     """How late the take's audio is: for every sound the log saw start, find its onset in audio.wav (the
     2600's effects are far louder than the music) and take the median offset. None if too few found."""
     import wave
@@ -58,7 +67,7 @@ def measure_audio_lead(take):
         a = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, 2).astype(np.float32).mean(axis=1)
     hop = rate // 200  # 5 ms envelope
     env = np.sqrt(np.convolve(a ** 2, np.ones(hop) / hop, mode="same"))[::hop]
-    offsets = []
+    offsets: list[float] = []
     with open(os.path.join(take, "log.jsonl")) as f:
         for line in f:
             r = json.loads(line)
@@ -72,7 +81,7 @@ def measure_audio_lead(take):
     return float(np.clip(np.median(offsets), 0, 0.6)) if len(offsets) >= 3 else None
 
 
-def load_edit(take):
+def load_edit(take: str) -> None:
     global KEEP, FORCE, CAPTIONS, GRID16, TITLE, END, AUDIO_LEAD
     with open(os.path.join(take, "edit.json")) as f:
         e = json.load(f)
@@ -93,7 +102,7 @@ AUDIO_LEAD = 0.15  # sounds come ~0.15-0.35 s after the picture (the game's audi
 MIN_SEG = 0.6  # view flashes shorter than this (cycling V past a view) keep the previous layout
 
 
-def run(cmd, timeout=120, tries=4):
+def run(cmd: list[str], timeout: int = 120, tries: int = 4) -> None:
     """ffmpeg with -nostdin (it otherwise listens to the terminal and can freeze under a script) and one
     filter thread; a run that stalls anyway (ffmpeg 8 occasionally deadlocks on many-input overlay graphs -
     the same command finishes in ~1 s on a retry) is killed and retried."""
@@ -107,7 +116,8 @@ def run(cmd, timeout=120, tries=4):
     raise RuntimeError("ffmpeg kept stalling: " + " ".join(cmd[:12]))
 
 
-def text_png(lines, path, size=(W, H), bg=None):
+def text_png(lines: list[Line], path: str, size: tuple[int, int] = (W, H),
+             bg: Rgb | None = None) -> None:
     """lines: (text, scale, rgb, y). bg None = transparent overlay."""
     img = np.zeros((size[1], size[0], 3), np.uint8)
     img[:] = bg if bg is not None else KEY
@@ -118,7 +128,7 @@ def text_png(lines, path, size=(W, H), bg=None):
     Image.fromarray(rgba).save(path)
 
 
-def tag_overlay(tags, path):
+def tag_overlay(tags: list[Tag], path: str) -> None:
     """Small pane labels: (text, x, y) with a dark box."""
     img = np.zeros((H, W, 3), np.uint8)
     img[:] = KEY
@@ -130,7 +140,7 @@ def tag_overlay(tags, path):
     Image.fromarray(rgba).save(path)
 
 
-def layout(name):
+def layout(name: str) -> tuple[list[Placement], list[Tag]]:
     """name: both_<look> / solo_<look> / 2600 / grid_<top look>_<bottom look> (or grid_<bottom>) / finale_<look>
     -> (placements [(stream, x, y, w, h)], tags [(text, x, y)])."""
     kind, _, rem = name.partition("_")
@@ -157,7 +167,7 @@ def layout(name):
     raise ValueError(name)
 
 
-def cfr_streams(take, work):
+def cfr_streams(take: str, work: str) -> dict[str, str]:
     """Each stream -> constant 60 fps on the wall clock (repeat/skip frames by log 't')."""
     with open(os.path.join(take, "log.jsonl")) as f:
         t = np.array([json.loads(line)["t"] for line in f])
@@ -166,7 +176,7 @@ def cfr_streams(take, work):
     src_for = np.clip(src_for, 0, len(t) - 1)
     if not os.path.exists(os.path.join(take, "ram.mp4")):
         REC.render_ram_video(take)
-    out = {}
+    out: dict[str, str] = {}
     for name, (w, h) in STREAM_SIZE.items():
         dst = os.path.join(work, f"{name}_cfr.mp4")
         out[name] = dst
@@ -177,13 +187,16 @@ def cfr_streams(take, work):
         enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}",
                                 "-r", str(FPS), "-i", "-", "-c:v", "libx264rgb", "-preset", "ultrafast", "-crf",
                                 "0" if name != "ram" else "12", dst], stdin=subprocess.PIPE)
-        frame_bytes, cur, cur_i = w * h * 3, None, -1
+        assert dec.stdout is not None and enc.stdin is not None   # both opened as pipes
+        frame_bytes, cur_i = w * h * 3, -1
+        cur: bytes | None = None
         for want in src_for:
             while cur_i < want:
                 buf = dec.stdout.read(frame_bytes)
                 if len(buf) < frame_bytes:
                     break
                 cur, cur_i = buf, cur_i + 1
+            assert cur is not None   # the stream has at least one frame
             enc.stdin.write(cur)
         enc.stdin.close()
         enc.wait()
@@ -192,13 +205,13 @@ def cfr_streams(take, work):
     return out
 
 
-def plan(take):
+def plan(take: str) -> list[Segment]:
     """KEEP ranges -> segments [(t0, t1, layout, fade_in, fade_out)] following the logged view/version."""
     with open(os.path.join(take, "log.jsonl")) as f:
         rows = [json.loads(line) for line in f]
     t = np.array([r["t"] for r in rows])
 
-    def layout_at(ts):
+    def layout_at(ts: float) -> str:
         for a, b, name in FORCE:
             if a <= ts < b:
                 return name
@@ -207,7 +220,7 @@ def plan(take):
         return {"both": f"both_{look}", "nes": f"solo_{look}", "look": f"solo_{look}", "2600": "2600",
                 "grid": f"grid_{r.get('grid_top', 'nes')}_{r.get('grid16', GRID16)}"}[view]
 
-    segs = []
+    segs: list[Segment] = []
     for k, (a, b) in enumerate(KEEP):
         cuts = [a]
         cur = layout_at(a)
@@ -231,7 +244,7 @@ def plan(take):
     return segs
 
 
-def render_segment(i, seg, streams, take, work):
+def render_segment(i: int, seg: Segment, streams: dict[str, str], take: str, work: str) -> str:
     t0, t1, name, fade_in, fade_out = seg
     dur = t1 - t0
     places, tags = layout(name)
@@ -286,7 +299,8 @@ def render_segment(i, seg, streams, take, work):
     return out
 
 
-def card(lines, seconds, path, work, audio=None):
+def card(lines: list[Line], seconds: float, path: str, work: str,
+         audio: tuple[str, float] | None = None) -> str:
     png = os.path.join(work, os.path.basename(path) + ".png")
     text_png(lines, png, bg=BG)
     a_in = ["-f", "lavfi", "-t", f"{seconds}", "-i", "anullsrc=r=48000:cl=stereo"] if audio is None else \
@@ -299,7 +313,7 @@ def card(lines, seconds, path, work, audio=None):
     return path
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("take")
     ap.add_argument("-o", "--out")
