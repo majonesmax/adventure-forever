@@ -85,4 +85,5 @@ add it to `app/controls.py`; the help panel and both READMEs follow from there.
 
 [Making a pack](docs/making-a-pack.md) · [making a look](docs/making-a-look.md) ·
 [platform rules](docs/platform-rules.md) · [reading the RAM view](docs/reading-the-ram.md) ·
-[Go outside, nerd](GO-OUTSIDE-NERD.md) (accuracy and timing)
+[Go outside, nerd](GO-OUTSIDE-NERD.md) (accuracy and timing) · [how we took Adventure apart](docs/taking-it-apart.md)
+(how the ROM and RAM were worked out, and the checks that prove it)
