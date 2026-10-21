@@ -277,6 +277,8 @@ for _kingdom, _floor in PALACE_FLOORS.items():
 
 
 def world_hash(xx: Grid, yy: Grid) -> Grid:
+    # 64-bit on purpose: the products pass 2^31, and a 32-bit platform (the browser build) would wrap them
+    xx, yy = xx.astype(np.int64), yy.astype(np.int64)
     return (xx * 73856093 ^ yy * 19349663) & 0xFFFF
 
 
@@ -409,7 +411,7 @@ def paint_face_pattern(img: Floats, face: Mask, row: Grid, xx: Grid, hsh: Grid, 
 def paint_drips(img: Floats, face: Mask, row: Grid, xx: Grid, colours: Colours) -> Mask:
     """Icing / snow / lava / grass running over the face's top edge, in 4 px drips of varied length.
     -> where the drips are."""
-    group = xx // 4
+    group = (xx // 4).astype(np.int64)   # the hash constant needs 64 bits (see world_hash)
     group_length = np.array([0, 1, 2, 4, 6, 3, 1, 5])[((group * 2654435761) >> 5) % 8]
     drip_edge = (xx % 4 == 0) | (xx % 4 == 3)
     drip_length = 2 + np.where(drip_edge, np.maximum(group_length - 2, 0), group_length)
