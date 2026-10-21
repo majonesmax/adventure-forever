@@ -1,14 +1,5 @@
 # Adventure Forever
 
-![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
-
-▶️ **[Watch a full playthrough on YouTube](https://youtu.be/XRQrsM7X3kE)** (1:44): game 1 start to finish, switching looks,
-casts, worlds and views along the way.
-
-🕹️ **[Play it in your browser](https://majonesmax.github.io/adventure-forever-web/)**: nothing to install - choose
-your ROM once and press Play. The same emulator and the same looks, run in the page
-([how](https://github.com/majonesmax/adventure-forever-web)).
-
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 
@@ -17,6 +8,15 @@ redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 - **VGA**: an early-90s PC adventure: 256 colours picked for each world, a grey menu strip and message boxes.
 - **Paper**: drawn in crayon in a spiral-bound sketchbook: a box of crayons, the paper's grain through the wax,
   handwriting, and messages on index cards.
+
+![One game, four ways: the NES remaster, the SNES remaster, the Atari 2600 original and its live RAM](docs/media/grid.gif)
+
+▶️ **[Watch a full playthrough on YouTube](https://youtu.be/XRQrsM7X3kE)** (1:44): game 1 start to finish, switching looks,
+casts, worlds and views along the way.
+
+🕹️ **[Play it in your browser](https://majonesmax.github.io/adventure-forever-web/)**: nothing to install - choose
+your ROM once and press Play. The same emulator and the same looks, run in the page
+([how](https://github.com/majonesmax/adventure-forever-web)).
 
 Who's in the game and where it happens come in **packs**. Two ship with it, and any look shows either:
 
