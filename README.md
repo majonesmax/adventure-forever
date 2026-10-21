@@ -5,6 +5,10 @@
 ▶️ **[Watch a full playthrough on YouTube](https://youtu.be/XRQrsM7X3kE)** (1:44): game 1 start to finish, switching looks,
 casts, worlds and views along the way.
 
+🕹️ **[Play it in your browser](https://majonesmax.github.io/adventure-forever-web/)**: nothing to install - choose
+your ROM once and press Play. The same emulator and the same looks, run in the page
+([how](https://github.com/majonesmax/adventure-forever-web)).
+
 Atari 2600 **Adventure** (Warren Robinett, 1980) running *unmodified* in an emulator, with every frame
 redrawn live from the game's 128 bytes of RAM, in four new **looks**:
 
@@ -43,6 +47,7 @@ runs the real game, and the remasters only *draw* it.
 
 | | |
 |---|---|
+| **Browser** (nothing to install) | [majonesmax.github.io/adventure-forever-web](https://majonesmax.github.io/adventure-forever-web/) |
 | **macOS** (Apple Silicon: M1 and later) | [Adventure-Forever-macos-arm64.zip](https://github.com/majonesmax/adventure-forever/releases/latest/download/Adventure-Forever-macos-arm64.zip) |
 | **Windows** (64-bit) | [Adventure-Forever-windows-x64.zip](https://github.com/majonesmax/adventure-forever/releases/latest/download/Adventure-Forever-windows-x64.zip) |
 
