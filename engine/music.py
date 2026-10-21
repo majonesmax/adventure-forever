@@ -211,9 +211,10 @@ def mix(sfx: Samples, mus: Samples, gain: float = 1.0) -> Samples:
 
 
 def bands() -> dict[str, Render]:
-    """Each look's band: look platform -> render(song dict) -> int16 stereo."""
-    from engine import chiptune, orchestra, soundcard, toybox
-    return {"nes": chiptune.render, "snes": orchestra.render, "vga": soundcard.render, "paper": toybox.render}
+    """Each look's band: look platform -> render(song dict) -> int16 stereo. A look with no band (paper)
+    plays no built-in song: the world is heard instead (engine/ambience.py), quiet like a sketchbook."""
+    from engine import chiptune, orchestra, soundcard
+    return {"nes": chiptune.render, "snes": orchestra.render, "vga": soundcard.render}
 
 
 class MusicPlayer:
@@ -266,6 +267,16 @@ class MusicPlayer:
     def has(self, area: str) -> bool:
         return area in self.config
 
+    def silent_on(self, spec: Spec) -> bool:
+        """A built-in song on a look with no band (paper): nothing plays, and the world is heard instead."""
+        return "song" in spec and self.look not in self.bands
+
+    @property
+    def playing(self) -> bool:
+        """Music is sounding - the ambience stays quiet under it."""
+        spec = self.config.get(self.area or "", {})
+        return self.on and self.current is not None and not self.silent_on(spec)
+
     def use_look(self, look: str) -> None:
         """The look on screen (its platform: nes, snes...): its band plays the built-in songs from now on."""
         if look == self.look:
@@ -313,6 +324,10 @@ class MusicPlayer:
         import threading
         self.area = area
         spec = self.config[area]
+        if self.silent_on(spec):
+            with self.lock:
+                self.current, self.playing_area = None, None
+            return
         made = self.made_song(spec)
         if made is None:
             self.play(area, self._source(area))

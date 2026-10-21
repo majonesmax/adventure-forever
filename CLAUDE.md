@@ -30,7 +30,7 @@ python tools/readability.py                 # no file got harder to read (and FI
 pyright                                     # the type hints check out (pyrightconfig.json)
 python -m engine.ambience                   # the worlds' sounds (summer, woods, cave...) as WAVs in shots/ambience/
 python -m engine.effects                    # each look's sound effects as WAVs in shots/effects/
-python -m engine.orchestra                  # the songs on the SNES's band (soundcard: VGA, toybox: paper) in shots/music/
+python -m engine.orchestra                  # the songs on the SNES's band (soundcard: VGA; paper has none) in shots/music/
 python play.py --check                      # the app plays itself for a few seconds and says whether it works
 gh workflow run downloads.yml               # GitHub builds the Windows and macOS downloads (and runs --check)
 git tag v1.3 && git push origin v1.3        # ...and a v* tag makes the release (notes: package/release-notes/)

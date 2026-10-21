@@ -1,7 +1,7 @@
 """A song played by a band - the same song, arranged the same way as engine/chiptune.py arranges it, on
-other instruments. Each look but the NES brings its own band (engine/orchestra.py: the SNES's small
-orchestra; engine/fm.py: the VGA's PC sound card; engine/toybox.py: paper's toy box), so the music sounds
-like the machine on screen, as the pictures do.
+other instruments. The SNES and the VGA bring their own band (engine/orchestra.py: the SNES's small
+orchestra; engine/fm.py: the VGA's PC sound card), so the music sounds like the machine on screen, as the
+pictures do. Paper has no band: with no song, the world is heard (engine/ambience.py).
 
 A band is its instruments - each instrument(pitch in Hz, length in samples) -> samples - and a room:
 

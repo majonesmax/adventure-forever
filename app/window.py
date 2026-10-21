@@ -378,7 +378,7 @@ class GameWindow:
     def follow_ambience(self, state: GameState) -> None:
         """The world's sound for this room, heard while no music plays (M off, or a moment without a
         song) and the game isn't paused."""
-        music_playing = self.music is not None and self.music.on and self.music.current is not None
+        music_playing = self.music is not None and self.music.playing
         waiting = self.paused or self.help.open
         sound = self.look.world.sound(state.room_num)
         self.ambience.follow(sound, quiet=not music_playing and not waiting)
