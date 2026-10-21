@@ -14,7 +14,6 @@ import sys
 
 import numpy as np
 
-from engine import emulator as h
 from engine import rooms as R
 from shared.types import Rgb
 
@@ -29,6 +28,8 @@ def load() -> dict[int, Rgb]:
 
 def probe(path: str) -> None:
     """Child process: load one patched ROM, print the floor colour."""
+    from engine import emulator as h   # only the probe runs the core: load() (every look) needs no emulator
+
     core = h.Core()
     core.load(path)
     for _ in range(60):
